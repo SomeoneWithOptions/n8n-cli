@@ -790,8 +790,8 @@
       "tag": "Executions",
       "scope": "execution:list",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution list",
+      "status": "implemented"
     },
     {
       "operationId": "stopManyExecutions",
@@ -800,8 +800,8 @@
       "tag": "Executions",
       "scope": "execution:stop",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution stop-many",
+      "status": "implemented"
     },
     {
       "operationId": "deleteExecution",
@@ -810,8 +810,8 @@
       "tag": "Executions",
       "scope": "execution:delete",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution delete",
+      "status": "implemented"
     },
     {
       "operationId": "getExecution",
@@ -820,8 +820,8 @@
       "tag": "Executions",
       "scope": "execution:read",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution get",
+      "status": "implemented"
     },
     {
       "operationId": "retryExecution",
@@ -830,8 +830,8 @@
       "tag": "Executions",
       "scope": "execution:retry",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution retry",
+      "status": "implemented"
     },
     {
       "operationId": "stopExecution",
@@ -840,8 +840,8 @@
       "tag": "Executions",
       "scope": "execution:stop",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution stop",
+      "status": "implemented"
     },
     {
       "operationId": "getExecutionTags",
@@ -850,8 +850,8 @@
       "tag": "Executions",
       "scope": "executionTags:list",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution tag list",
+      "status": "implemented"
     },
     {
       "operationId": "updateExecutionTags",
@@ -860,8 +860,8 @@
       "tag": "Executions",
       "scope": "executionTags:update",
       "phase": 15,
-      "command": "",
-      "status": "planned"
+      "command": "n8n execution tag set",
+      "status": "implemented"
     },
     {
       "operationId": "getTestRuns",

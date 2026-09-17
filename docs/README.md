@@ -50,6 +50,16 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n data-table update`](n8n_data-table_update.md) | Rename a data table |
 | [`n8n data-table`](n8n_data-table.md) | Manage data tables, their rows and their columns |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
+| [`n8n execution delete`](n8n_execution_delete.md) | Permanently delete one stored execution |
+| [`n8n execution get`](n8n_execution_get.md) | Show one execution |
+| [`n8n execution list`](n8n_execution_list.md) | List executions with status, workflow and time filters |
+| [`n8n execution retry`](n8n_execution_retry.md) | Retry a failed execution as a new run |
+| [`n8n execution stop-many`](n8n_execution_stop-many.md) | Stop active executions matching filters |
+| [`n8n execution stop`](n8n_execution_stop.md) | Stop one queued, running, or waiting execution |
+| [`n8n execution tag list`](n8n_execution_tag_list.md) | List annotation tags on one execution |
+| [`n8n execution tag set`](n8n_execution_tag_set.md) | Replace annotation tags on one execution |
+| [`n8n execution tag`](n8n_execution_tag.md) | Read and replace annotation tags on an execution |
+| [`n8n execution`](n8n_execution.md) | Inspect, stop, retry and delete workflow executions |
 | [`n8n folder create`](n8n_folder_create.md) | Create a folder in a project |
 | [`n8n folder delete`](n8n_folder_delete.md) | Delete a folder and move or archive what it holds |
 | [`n8n folder get`](n8n_folder_get.md) | Show one folder with its totals |
