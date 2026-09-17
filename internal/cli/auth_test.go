@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -68,7 +69,10 @@ type fixture struct {
 	status   int
 	body     string
 	requests []*http.Request
-	server   *httptest.Server
+	// bodies holds the request body of each recorded request, read inside the
+	// handler because a cloned request's body is no longer readable afterwards.
+	bodies []string
+	server *httptest.Server
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -84,8 +88,13 @@ func newFixture(t *testing.T) *fixture {
 		body:        `{"scopes":["workflow:read"]}`,
 	}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+		}
 		f.mu.Lock()
 		f.requests = append(f.requests, r.Clone(r.Context()))
+		f.bodies = append(f.bodies, string(sent))
 		status, body := f.status, f.body
 		f.mu.Unlock()
 
@@ -148,6 +157,17 @@ func (f *fixture) lastRequest() *http.Request {
 		f.t.Fatal("no request reached the instance")
 	}
 	return f.requests[len(f.requests)-1]
+}
+
+// lastBody returns the body of the most recent request, empty when it had none.
+func (f *fixture) lastBody() string {
+	f.t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.bodies) == 0 {
+		f.t.Fatal("no request reached the instance")
+	}
+	return f.bodies[len(f.bodies)-1]
 }
 
 func (f *fixture) requestCount() int {

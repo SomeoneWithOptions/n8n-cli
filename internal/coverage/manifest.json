@@ -20,8 +20,8 @@
       "tag": "Audit",
       "scope": "securityAudit:generate",
       "phase": 4,
-      "command": "",
-      "status": "planned"
+      "command": "n8n audit generate",
+      "status": "implemented"
     },
     {
       "operationId": "getInstalledPackages",

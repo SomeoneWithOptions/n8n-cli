@@ -198,20 +198,29 @@ func TestManifestMatchesSpec(t *testing.T) {
 	}
 }
 
+// deliveredThrough is the last PLAN.md phase whose operations are all
+// implemented. Raise it when a phase is finished, never before.
+const deliveredThrough = 4
+
 // TestPhaseCounts is how a phase exit gate reads the manifest: every operation
-// its phase owns must be implemented before the next phase starts.
+// a delivered phase owns must be implemented, and no later phase may have
+// started, because phases run in order.
 func TestPhaseCounts(t *testing.T) {
 	counts := load(t).PhaseCounts()
 
-	discover, ok := counts[3]
-	if !ok {
-		t.Fatal("phase 3 owns no operation; it owns GET /discover")
-	}
-	if discover[0] != discover[1] {
-		t.Errorf("phase 3: %d of %d operations implemented, want all of them", discover[1], discover[0])
+	// Phases 0 to 2 add no operation, so the first phase with operations is 3.
+	for phase := 3; phase <= deliveredThrough; phase++ {
+		c, ok := counts[phase]
+		if !ok {
+			t.Errorf("phase %d owns no operation, but it is marked delivered", phase)
+			continue
+		}
+		if c[1] != c[0] {
+			t.Errorf("phase %d: %d of %d operations implemented, want all of them", phase, c[1], c[0])
+		}
 	}
 	for phase, c := range counts {
-		if phase > 3 && c[1] != 0 {
+		if phase > deliveredThrough && c[1] != 0 {
 			t.Errorf("phase %d reports %d implemented operations, but phases run in order", phase, c[1])
 		}
 	}

@@ -5,6 +5,8 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 
 | Command | Description |
 |---|---|
+| [`n8n audit generate`](n8n_audit_generate.md) | Generate a security audit of the instance |
+| [`n8n audit`](n8n_audit.md) | Generate security audits of an n8n instance |
 | [`n8n auth login`](n8n_auth_login.md) | Store a credential for an n8n instance |
 | [`n8n auth logout`](n8n_auth_logout.md) | Delete the stored credential for a context |
 | [`n8n auth status`](n8n_auth_status.md) | Show the active context, instance and credential state |

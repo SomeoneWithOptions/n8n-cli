@@ -162,6 +162,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Example: "  n8n auth login --url https://n8n.example.com\n" +
 			"  n8n auth status --check\n" +
 			"  n8n discover --resource workflow\n" +
+			"  n8n audit generate\n" +
 			"  n8n config context list\n" +
 			"  n8n --help\n" +
 			"  n8n auth login --help",
@@ -192,6 +193,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 	root.AddCommand(
 		newAuthCommand(opts),
 		newDiscoverCommand(opts),
+		newAuditCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

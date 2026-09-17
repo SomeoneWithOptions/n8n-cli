@@ -31,6 +31,7 @@ n8n [flags]
   n8n auth login --url https://n8n.example.com
   n8n auth status --check
   n8n discover --resource workflow
+  n8n audit generate
   n8n config context list
   n8n --help
   n8n auth login --help
@@ -45,6 +46,7 @@ n8n [flags]
 
 ### SEE ALSO
 
+* [n8n audit](n8n_audit.md)	 - Generate security audits of an n8n instance
 * [n8n auth](n8n_auth.md)	 - Log in to an n8n instance and inspect stored credentials
 * [n8n completion](n8n_completion.md)	 - Generate a shell completion script
 * [n8n config](n8n_config.md)	 - Inspect and edit stored CLI configuration
