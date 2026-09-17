@@ -420,8 +420,8 @@
       "tag": "Folders",
       "scope": "folder:list",
       "phase": 12,
-      "command": "",
-      "status": "planned"
+      "command": "n8n folder list",
+      "status": "implemented"
     },
     {
       "operationId": "createFolder",
@@ -430,8 +430,8 @@
       "tag": "Folders",
       "scope": "folder:create",
       "phase": 12,
-      "command": "",
-      "status": "planned"
+      "command": "n8n folder create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteFolder",
@@ -440,8 +440,8 @@
       "tag": "Folders",
       "scope": "folder:delete",
       "phase": 12,
-      "command": "",
-      "status": "planned"
+      "command": "n8n folder delete",
+      "status": "implemented"
     },
     {
       "operationId": "getFolder",
@@ -450,8 +450,8 @@
       "tag": "Folders",
       "scope": "folder:read",
       "phase": 12,
-      "command": "",
-      "status": "planned"
+      "command": "n8n folder get",
+      "status": "implemented"
     },
     {
       "operationId": "updateFolder",
@@ -460,8 +460,8 @@
       "tag": "Folders",
       "scope": "folder:update",
       "phase": 12,
-      "command": "",
-      "status": "planned"
+      "command": "n8n folder update",
+      "status": "implemented"
     },
     {
       "operationId": "list-data-tables",

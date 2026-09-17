@@ -19,6 +19,10 @@ const (
 	EnvURL         = "N8N_INTEGRATION_URL"
 	EnvAPIKey      = "N8N_INTEGRATION_API_KEY"
 	EnvDestructive = "N8N_INTEGRATION_DESTRUCTIVE"
+	// EnvProjectID names the project that project-scoped resources, such as
+	// folders, are tested inside. There is no way to discover one when the
+	// instance is not licensed for the projects API, so it is given, not found.
+	EnvProjectID = "N8N_INTEGRATION_PROJECT_ID"
 )
 
 // ResourcePrefix names every resource these tests create, so cleanup can find
@@ -51,6 +55,17 @@ func RequireDestructive(t *testing.T) Instance {
 		t.Skipf("set %s=1 to run tests that mutate the instance", EnvDestructive)
 	}
 	return instance
+}
+
+// RequireProjectID returns the project these tests may work inside, or skips
+// the test when none is configured.
+func RequireProjectID(t *testing.T) string {
+	t.Helper()
+	id := os.Getenv(EnvProjectID)
+	if id == "" {
+		t.Skipf("set %s to a project these tests may create folders in", EnvProjectID)
+	}
+	return id
 }
 
 // Client builds an API-key client for the instance under test.

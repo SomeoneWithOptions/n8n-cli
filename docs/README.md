@@ -32,6 +32,12 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
 | [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
+| [`n8n folder create`](n8n_folder_create.md) | Create a folder in a project |
+| [`n8n folder delete`](n8n_folder_delete.md) | Delete a folder and move or archive what it holds |
+| [`n8n folder get`](n8n_folder_get.md) | Show one folder with its totals |
+| [`n8n folder list`](n8n_folder_list.md) | List the folders of a project |
+| [`n8n folder update`](n8n_folder_update.md) | Rename a folder or move it under another folder |
+| [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
 | [`n8n project create`](n8n_project_create.md) | Create a project |
 | [`n8n project delete`](n8n_project_delete.md) | Permanently delete a project |
 | [`n8n project list`](n8n_project_list.md) | List projects |
