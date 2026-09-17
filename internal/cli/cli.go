@@ -196,6 +196,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newAuditCommand(opts),
 		newCommunityPackageCommand(opts),
 		newCredentialCommand(opts),
+		newTagCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

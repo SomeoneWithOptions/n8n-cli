@@ -32,5 +32,11 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
 | [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
+| [`n8n tag create`](n8n_tag_create.md) | Create a tag |
+| [`n8n tag delete`](n8n_tag_delete.md) | Permanently delete a tag |
+| [`n8n tag get`](n8n_tag_get.md) | Get one tag |
+| [`n8n tag list`](n8n_tag_list.md) | List tags |
+| [`n8n tag update`](n8n_tag_update.md) | Rename a tag |
+| [`n8n tag`](n8n_tag.md) | Manage workflow tags |
 | [`n8n version`](n8n_version.md) | Print build information |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |

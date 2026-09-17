@@ -65,13 +65,18 @@ type fixture struct {
 	interactive bool
 	stdin       string
 
-	mu       sync.Mutex
-	status   int
-	body     string
+	mu     sync.Mutex
+	status int
+	body   string
+	// bodyFunc, when set, produces the response body from the zero-based
+	// index of the request, which is how multi-page responses are staged.
+	bodyFunc func(int) string
 	requests []*http.Request
 	// bodies holds the request body of each recorded request, read inside the
 	// handler because a cloned request's body is no longer readable afterwards.
 	bodies []string
+	// pages counts the requests bodyFunc has answered.
+	pages  int
 	server *httptest.Server
 }
 
@@ -96,6 +101,10 @@ func newFixture(t *testing.T) *fixture {
 		f.requests = append(f.requests, r.Clone(r.Context()))
 		f.bodies = append(f.bodies, string(sent))
 		status, body := f.status, f.body
+		if f.bodyFunc != nil {
+			body = f.bodyFunc(f.pages)
+			f.pages++
+		}
 		f.mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")

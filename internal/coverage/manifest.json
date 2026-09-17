@@ -150,8 +150,8 @@
       "tag": "Tags",
       "scope": "tag:list",
       "phase": 7,
-      "command": "",
-      "status": "planned"
+      "command": "n8n tag list",
+      "status": "implemented"
     },
     {
       "operationId": "createTag",
@@ -160,8 +160,8 @@
       "tag": "Tags",
       "scope": "tag:create",
       "phase": 7,
-      "command": "",
-      "status": "planned"
+      "command": "n8n tag create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteTag",
@@ -170,8 +170,8 @@
       "tag": "Tags",
       "scope": "tag:delete",
       "phase": 7,
-      "command": "",
-      "status": "planned"
+      "command": "n8n tag delete",
+      "status": "implemented"
     },
     {
       "operationId": "getTag",
@@ -180,8 +180,8 @@
       "tag": "Tags",
       "scope": "tag:read",
       "phase": 7,
-      "command": "",
-      "status": "planned"
+      "command": "n8n tag get",
+      "status": "implemented"
     },
     {
       "operationId": "updateTag",
@@ -190,8 +190,8 @@
       "tag": "Tags",
       "scope": "tag:update",
       "phase": 7,
-      "command": "",
-      "status": "planned"
+      "command": "n8n tag update",
+      "status": "implemented"
     },
     {
       "operationId": "getVariables",
