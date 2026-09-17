@@ -67,6 +67,17 @@ func NormalizeBaseURL(raw string) (*url.URL, error) {
 	return base, nil
 }
 
+// InstanceURL is the inverse of the [BasePath] suffix [NormalizeBaseURL] adds:
+// it returns the instance URL a user would recognize, which is what config.json
+// stores and what commands print.
+func InstanceURL(base *url.URL) string {
+	instance := *base
+	if err := setEscapedPath(&instance, strings.TrimSuffix(instance.EscapedPath(), BasePath)); err != nil {
+		return base.String()
+	}
+	return instance.String()
+}
+
 // PathJoin builds a request path from segments, escaping each one exactly once.
 // Use it for every dynamic value: an ID containing "/" must stay one segment.
 func PathJoin(segments ...string) string {
