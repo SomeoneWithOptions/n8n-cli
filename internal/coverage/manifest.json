@@ -920,8 +920,8 @@
       "tag": "Insights",
       "scope": "insights:read",
       "phase": 17,
-      "command": "",
-      "status": "planned"
+      "command": "n8n insight summary",
+      "status": "implemented"
     },
     {
       "operationId": "getSecurityPolicy",

@@ -170,6 +170,8 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"evaluation", "cancel"},
 		{"evaluation", "case"},
 		{"evaluation", "case", "list"},
+		{"insight"},
+		{"insight", "summary"},
 		{"config"},
 		{"config", "context"},
 		{"config", "context", "list"},

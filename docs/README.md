@@ -73,6 +73,8 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder list`](n8n_folder_list.md) | List the folders of a project |
 | [`n8n folder update`](n8n_folder_update.md) | Rename a folder or move it under another folder |
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
+| [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
+| [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
 | [`n8n project create`](n8n_project_create.md) | Create a project |
 | [`n8n project delete`](n8n_project_delete.md) | Permanently delete a project |
 | [`n8n project list`](n8n_project_list.md) | List projects |
