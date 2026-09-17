@@ -240,8 +240,8 @@
       "tag": "Role",
       "scope": "role:list",
       "phase": 9,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role list",
+      "status": "implemented"
     },
     {
       "operationId": "createRole",
@@ -250,8 +250,8 @@
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
       "phase": 9,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteRole",
@@ -260,8 +260,8 @@
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
       "phase": 9,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role delete",
+      "status": "implemented"
     },
     {
       "operationId": "getRole",
@@ -270,8 +270,8 @@
       "tag": "Role",
       "scope": "role:read",
       "phase": 9,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role get",
+      "status": "implemented"
     },
     {
       "operationId": "updateRole",
@@ -280,8 +280,8 @@
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
       "phase": 9,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role update",
+      "status": "implemented"
     },
     {
       "operationId": "getUsers",
