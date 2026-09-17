@@ -470,8 +470,8 @@
       "tag": "DataTable",
       "scope": "dataTable:list",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table list",
+      "status": "implemented"
     },
     {
       "operationId": "create-data-table",
@@ -480,8 +480,8 @@
       "tag": "DataTable",
       "scope": "dataTable:create",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table create",
+      "status": "implemented"
     },
     {
       "operationId": "delete-data-table",
@@ -490,8 +490,8 @@
       "tag": "DataTable",
       "scope": "dataTable:delete",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table delete",
+      "status": "implemented"
     },
     {
       "operationId": "get-data-table",
@@ -500,8 +500,8 @@
       "tag": "DataTable",
       "scope": "dataTable:read",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table get",
+      "status": "implemented"
     },
     {
       "operationId": "update-data-table",
@@ -510,8 +510,8 @@
       "tag": "DataTable",
       "scope": "dataTable:update",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table update",
+      "status": "implemented"
     },
     {
       "operationId": "list-data-table-columns",
@@ -520,8 +520,8 @@
       "tag": "DataTable",
       "scope": "dataTableColumn:read",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table column list",
+      "status": "implemented"
     },
     {
       "operationId": "create-data-table-column",
@@ -530,8 +530,8 @@
       "tag": "DataTable",
       "scope": "dataTableColumn:create",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table column create",
+      "status": "implemented"
     },
     {
       "operationId": "delete-data-table-column",
@@ -540,8 +540,8 @@
       "tag": "DataTable",
       "scope": "dataTableColumn:delete",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table column delete",
+      "status": "implemented"
     },
     {
       "operationId": "update-data-table-column",
@@ -550,8 +550,8 @@
       "tag": "DataTable",
       "scope": "dataTableColumn:update",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table column update",
+      "status": "implemented"
     },
     {
       "operationId": "get-data-table-rows",
@@ -560,8 +560,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:read",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row list",
+      "status": "implemented"
     },
     {
       "operationId": "insert-data-table-rows",
@@ -570,8 +570,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:create",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row insert",
+      "status": "implemented"
     },
     {
       "operationId": "clear-data-table-rows",
@@ -580,8 +580,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:delete",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row clear",
+      "status": "implemented"
     },
     {
       "operationId": "delete-data-table-rows",
@@ -590,8 +590,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:delete",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row delete",
+      "status": "implemented"
     },
     {
       "operationId": "update-data-table-rows",
@@ -600,8 +600,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:update",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row update",
+      "status": "implemented"
     },
     {
       "operationId": "upsert-data-table-row",
@@ -610,8 +610,8 @@
       "tag": "DataTable",
       "scope": "dataTableRow:upsert",
       "phase": 13,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table row upsert",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflows",

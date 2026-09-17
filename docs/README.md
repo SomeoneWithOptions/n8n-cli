@@ -31,6 +31,24 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n credential transfer`](n8n_credential_transfer.md) | Transfer a credential to another project |
 | [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
 | [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
+| [`n8n data-table column create`](n8n_data-table_column_create.md) | Add a column to a data table |
+| [`n8n data-table column delete`](n8n_data-table_column_delete.md) | Permanently delete a column and its data |
+| [`n8n data-table column list`](n8n_data-table_column_list.md) | List the columns of a data table |
+| [`n8n data-table column update`](n8n_data-table_column_update.md) | Rename or reorder a column |
+| [`n8n data-table column`](n8n_data-table_column.md) | Manage the columns of a data table |
+| [`n8n data-table create`](n8n_data-table_create.md) | Create a data table |
+| [`n8n data-table delete`](n8n_data-table_delete.md) | Permanently delete a data table and every row in it |
+| [`n8n data-table get`](n8n_data-table_get.md) | Show one data table and its columns |
+| [`n8n data-table list`](n8n_data-table_list.md) | List data tables |
+| [`n8n data-table row clear`](n8n_data-table_row_clear.md) | Permanently delete every row of a data table |
+| [`n8n data-table row delete`](n8n_data-table_row_delete.md) | Permanently delete the rows matching a filter |
+| [`n8n data-table row insert`](n8n_data-table_row_insert.md) | Insert rows into a data table |
+| [`n8n data-table row list`](n8n_data-table_row_list.md) | List the rows of a data table |
+| [`n8n data-table row update`](n8n_data-table_row_update.md) | Update every row matching a filter |
+| [`n8n data-table row upsert`](n8n_data-table_row_upsert.md) | Update the row matching a filter, or insert it |
+| [`n8n data-table row`](n8n_data-table_row.md) | Read and change the rows of a data table |
+| [`n8n data-table update`](n8n_data-table_update.md) | Rename a data table |
+| [`n8n data-table`](n8n_data-table.md) | Manage data tables, their rows and their columns |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
 | [`n8n folder create`](n8n_folder_create.md) | Create a folder in a project |
 | [`n8n folder delete`](n8n_folder_delete.md) | Delete a folder and move or archive what it holds |
