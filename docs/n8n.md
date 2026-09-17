@@ -55,6 +55,7 @@ n8n [flags]
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
 * [n8n role](n8n_role.md)	 - Manage global and project roles
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
+* [n8n user](n8n_user.md)	 - Manage instance users and global roles
 * [n8n variable](n8n_variable.md)	 - Manage instance and project variables
 * [n8n version](n8n_version.md)	 - Print build information
 

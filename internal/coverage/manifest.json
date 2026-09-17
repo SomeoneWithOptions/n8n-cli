@@ -290,8 +290,8 @@
       "tag": "User",
       "scope": "user:list",
       "phase": 10,
-      "command": "",
-      "status": "planned"
+      "command": "n8n user list",
+      "status": "implemented"
     },
     {
       "operationId": "createUser",
@@ -300,8 +300,8 @@
       "tag": "User",
       "scope": "user:create",
       "phase": 10,
-      "command": "",
-      "status": "planned"
+      "command": "n8n user create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteUser",
@@ -310,8 +310,8 @@
       "tag": "User",
       "scope": "user:delete",
       "phase": 10,
-      "command": "",
-      "status": "planned"
+      "command": "n8n user delete",
+      "status": "implemented"
     },
     {
       "operationId": "getUser",
@@ -320,8 +320,8 @@
       "tag": "User",
       "scope": "user:read",
       "phase": 10,
-      "command": "",
-      "status": "planned"
+      "command": "n8n user get",
+      "status": "implemented"
     },
     {
       "operationId": "changeRole",
@@ -330,8 +330,8 @@
       "tag": "User",
       "scope": "user:changeRole",
       "phase": 10,
-      "command": "",
-      "status": "planned"
+      "command": "n8n user role set",
+      "status": "implemented"
     },
     {
       "operationId": "getProjects",
