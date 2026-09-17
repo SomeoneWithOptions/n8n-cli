@@ -870,8 +870,8 @@
       "tag": "Evaluation",
       "scope": "testRun:list",
       "phase": 16,
-      "command": "",
-      "status": "planned"
+      "command": "n8n evaluation list",
+      "status": "implemented"
     },
     {
       "operationId": "createTestRun",
@@ -880,8 +880,8 @@
       "tag": "Evaluation",
       "scope": "testRun:create",
       "phase": 16,
-      "command": "",
-      "status": "planned"
+      "command": "n8n evaluation create",
+      "status": "implemented"
     },
     {
       "operationId": "getTestRun",
@@ -890,8 +890,8 @@
       "tag": "Evaluation",
       "scope": "testRun:read",
       "phase": 16,
-      "command": "",
-      "status": "planned"
+      "command": "n8n evaluation get",
+      "status": "implemented"
     },
     {
       "operationId": "cancelTestRun",
@@ -900,8 +900,8 @@
       "tag": "Evaluation",
       "scope": "testRun:cancel",
       "phase": 16,
-      "command": "",
-      "status": "planned"
+      "command": "n8n evaluation cancel",
+      "status": "implemented"
     },
     {
       "operationId": "getTestCases",
@@ -910,8 +910,8 @@
       "tag": "Evaluation",
       "scope": "testRun:read",
       "phase": 16,
-      "command": "",
-      "status": "planned"
+      "command": "n8n evaluation case list",
+      "status": "implemented"
     },
     {
       "operationId": "getInsightsSummary",

@@ -54,6 +54,7 @@ n8n [flags]
 * [n8n credential](n8n_credential.md)	 - Manage node credentials without exposing secrets
 * [n8n data-table](n8n_data-table.md)	 - Manage data tables, their rows and their columns
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
+* [n8n evaluation](n8n_evaluation.md)	 - Run and inspect workflow evaluations
 * [n8n execution](n8n_execution.md)	 - Inspect, stop, retry and delete workflow executions
 * [n8n folder](n8n_folder.md)	 - Manage the folders of a project
 * [n8n project](n8n_project.md)	 - Manage projects and their members

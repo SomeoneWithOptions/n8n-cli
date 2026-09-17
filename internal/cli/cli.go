@@ -205,6 +205,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newDataTableCommand(opts),
 		newWorkflowCommand(opts),
 		newExecutionCommand(opts),
+		newEvaluationCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

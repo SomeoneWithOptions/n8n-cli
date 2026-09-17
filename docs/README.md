@@ -50,6 +50,13 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n data-table update`](n8n_data-table_update.md) | Rename a data table |
 | [`n8n data-table`](n8n_data-table.md) | Manage data tables, their rows and their columns |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
+| [`n8n evaluation cancel`](n8n_evaluation_cancel.md) | Cancel a new or running evaluation |
+| [`n8n evaluation case list`](n8n_evaluation_case_list.md) | List per-case results for an evaluation run |
+| [`n8n evaluation case`](n8n_evaluation_case.md) | Inspect cases within an evaluation run |
+| [`n8n evaluation create`](n8n_evaluation_create.md) | Start an asynchronous workflow evaluation |
+| [`n8n evaluation get`](n8n_evaluation_get.md) | Show one evaluation run and its aggregate result |
+| [`n8n evaluation list`](n8n_evaluation_list.md) | List evaluation runs for a workflow |
+| [`n8n evaluation`](n8n_evaluation.md) | Run and inspect workflow evaluations |
 | [`n8n execution delete`](n8n_execution_delete.md) | Permanently delete one stored execution |
 | [`n8n execution get`](n8n_execution_get.md) | Show one execution |
 | [`n8n execution list`](n8n_execution_list.md) | List executions with status, workflow and time filters |

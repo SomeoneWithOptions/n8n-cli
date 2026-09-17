@@ -23,6 +23,10 @@ const (
 	// folders, are tested inside. There is no way to discover one when the
 	// instance is not licensed for the projects API, so it is given, not found.
 	EnvProjectID = "N8N_INTEGRATION_PROJECT_ID"
+	// EnvEvaluationWorkflowID names a workflow configured with an evaluation
+	// trigger. Evaluation integration tests are read-only unless they create
+	// their own workflow, so they never start runs on this supplied workflow.
+	EnvEvaluationWorkflowID = "N8N_INTEGRATION_EVALUATION_WORKFLOW_ID"
 )
 
 // ResourcePrefix names every resource these tests create, so cleanup can find
@@ -64,6 +68,17 @@ func RequireProjectID(t *testing.T) string {
 	id := os.Getenv(EnvProjectID)
 	if id == "" {
 		t.Skipf("set %s to a project these tests may create folders in", EnvProjectID)
+	}
+	return id
+}
+
+// RequireEvaluationWorkflowID returns a workflow configured for evaluations,
+// or skips when none was provided. Tests must not mutate this supplied workflow.
+func RequireEvaluationWorkflowID(t *testing.T) string {
+	t.Helper()
+	id := os.Getenv(EnvEvaluationWorkflowID)
+	if id == "" {
+		t.Skipf("set %s to a workflow configured with an evaluation trigger", EnvEvaluationWorkflowID)
 	}
 	return id
 }
