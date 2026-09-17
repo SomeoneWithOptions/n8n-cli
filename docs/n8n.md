@@ -53,6 +53,7 @@ n8n [flags]
 * [n8n config](n8n_config.md)	 - Inspect and edit stored CLI configuration
 * [n8n credential](n8n_credential.md)	 - Manage node credentials without exposing secrets
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
+* [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles

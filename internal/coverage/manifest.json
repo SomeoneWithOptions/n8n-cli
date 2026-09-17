@@ -340,8 +340,8 @@
       "tag": "Projects",
       "scope": "project:list",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project list",
+      "status": "implemented"
     },
     {
       "operationId": "createProject",
@@ -350,8 +350,8 @@
       "tag": "Projects",
       "scope": "project:create",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteProject",
@@ -360,8 +360,8 @@
       "tag": "Projects",
       "scope": "project:delete",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project delete",
+      "status": "implemented"
     },
     {
       "operationId": "updateProject",
@@ -370,8 +370,8 @@
       "tag": "Projects",
       "scope": "project:update",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project update",
+      "status": "implemented"
     },
     {
       "operationId": "getProjectUsers",
@@ -380,8 +380,8 @@
       "tag": "Projects",
       "scope": "user:list",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project user list",
+      "status": "implemented"
     },
     {
       "operationId": "addUsersToProject",
@@ -390,8 +390,8 @@
       "tag": "Projects",
       "scope": "project:manageMembers",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project user add",
+      "status": "implemented"
     },
     {
       "operationId": "deleteUserFromProject",
@@ -400,8 +400,8 @@
       "tag": "Projects",
       "scope": "project:manageMembers",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project user remove",
+      "status": "implemented"
     },
     {
       "operationId": "changeUserRoleInProject",
@@ -410,8 +410,8 @@
       "tag": "Projects",
       "scope": "project:manageMembers",
       "phase": 11,
-      "command": "",
-      "status": "planned"
+      "command": "n8n project user role set",
+      "status": "implemented"
     },
     {
       "operationId": "getFolders",

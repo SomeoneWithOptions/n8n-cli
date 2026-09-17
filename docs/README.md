@@ -32,6 +32,17 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
 | [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
+| [`n8n project create`](n8n_project_create.md) | Create a project |
+| [`n8n project delete`](n8n_project_delete.md) | Permanently delete a project |
+| [`n8n project list`](n8n_project_list.md) | List projects |
+| [`n8n project update`](n8n_project_update.md) | Rename a project |
+| [`n8n project user add`](n8n_project_user_add.md) | Add one or more users to a project |
+| [`n8n project user list`](n8n_project_user_list.md) | List the members of a project |
+| [`n8n project user remove`](n8n_project_user_remove.md) | Remove a member from a project |
+| [`n8n project user role set`](n8n_project_user_role_set.md) | Set a member's project role |
+| [`n8n project user role`](n8n_project_user_role.md) | Manage members' project roles |
+| [`n8n project user`](n8n_project_user.md) | Manage project members |
+| [`n8n project`](n8n_project.md) | Manage projects and their members |
 | [`n8n role create`](n8n_role_create.md) | Create a custom role |
 | [`n8n role delete`](n8n_role_delete.md) | Permanently delete a custom role |
 | [`n8n role get`](n8n_role_get.md) | Get one role |
