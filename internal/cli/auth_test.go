@@ -66,6 +66,7 @@ type fixture struct {
 
 	mu       sync.Mutex
 	status   int
+	body     string
 	requests []*http.Request
 	server   *httptest.Server
 }
@@ -80,17 +81,18 @@ func newFixture(t *testing.T) *fixture {
 		prompt:      &fakePrompter{secret: testAPIKey},
 		interactive: true,
 		status:      http.StatusOK,
+		body:        `{"scopes":["workflow:read"]}`,
 	}
 	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.requests = append(f.requests, r.Clone(r.Context()))
-		status := f.status
+		status, body := f.status, f.body
 		f.mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if status == http.StatusOK {
-			_, _ = w.Write([]byte(`{"scopes":["workflow:read"]}`))
+			_, _ = w.Write([]byte(body))
 			return
 		}
 		_, _ = w.Write([]byte(`{"message":"unauthorized"}`))

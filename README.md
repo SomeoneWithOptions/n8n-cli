@@ -4,7 +4,13 @@ Command-line tools for working with n8n.
 
 ## Status
 
-Early development.
+Early development. Working today: `n8n auth login|status|logout`,
+`n8n config context list|use|delete`, and `n8n discover`.
+
+## Command reference
+
+[`docs/README.md`](docs/README.md) is generated from the command help.
+Regenerate it with `make docs` after changing any command's help text.
 
 ## License
 

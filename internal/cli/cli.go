@@ -147,9 +147,11 @@ func NewRootCommand(opts Options) *cobra.Command {
 		Use:   "n8n",
 		Short: "Command-line client for the n8n API",
 		Long: "Command-line client for the n8n public API.\n\n" +
-			"Start here: log in once, then run resource commands against the saved context.\n" +
+			"Start here: log in once, check the credential, then see what the instance and\n" +
+			"that credential can do before running resource commands.\n" +
 			"  n8n auth login --url https://n8n.example.com\n" +
-			"  n8n auth status --check\n\n" +
+			"  n8n auth status --check\n" +
+			"  n8n discover\n\n" +
 			"Configuration precedence for non-secrets is: flag, environment variable\n" +
 			"(N8N_URL and friends), selected context, default. Secrets are never flags:\n" +
 			"they come from a no-echo prompt, --stdin, the environment, or the OS\n" +
@@ -159,6 +161,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 			"any group or action (for example 'n8n auth --help') for its workflow and flags.",
 		Example: "  n8n auth login --url https://n8n.example.com\n" +
 			"  n8n auth status --check\n" +
+			"  n8n discover --resource workflow\n" +
 			"  n8n config context list\n" +
 			"  n8n --help\n" +
 			"  n8n auth login --help",
@@ -188,6 +191,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 
 	root.AddCommand(
 		newAuthCommand(opts),
+		newDiscoverCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

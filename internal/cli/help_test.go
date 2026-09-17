@@ -66,6 +66,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"auth", "login"},
 		{"auth", "status"},
 		{"auth", "logout"},
+		{"discover"},
 		{"config"},
 		{"config", "context"},
 		{"config", "context", "list"},

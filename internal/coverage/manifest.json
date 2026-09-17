@@ -1,0 +1,1347 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": "1.1.1",
+  "basePath": "/api/v1",
+  "operations": [
+    {
+      "operationId": "getDiscover",
+      "method": "GET",
+      "path": "/discover",
+      "tag": "Discover",
+      "scope": "none",
+      "phase": 3,
+      "command": "n8n discover",
+      "status": "implemented"
+    },
+    {
+      "operationId": "generateAudit",
+      "method": "POST",
+      "path": "/audit",
+      "tag": "Audit",
+      "scope": "securityAudit:generate",
+      "phase": 4,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getInstalledPackages",
+      "method": "GET",
+      "path": "/community-packages",
+      "tag": "CommunityPackage",
+      "scope": "communityPackage:list",
+      "phase": 5,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "installPackage",
+      "method": "POST",
+      "path": "/community-packages",
+      "tag": "CommunityPackage",
+      "scope": "communityPackage:install",
+      "phase": 5,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "uninstallPackage",
+      "method": "DELETE",
+      "path": "/community-packages/{name}",
+      "tag": "CommunityPackage",
+      "scope": "communityPackage:uninstall",
+      "phase": 5,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updatePackage",
+      "method": "PATCH",
+      "path": "/community-packages/{name}",
+      "tag": "CommunityPackage",
+      "scope": "communityPackage:update",
+      "phase": 5,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentials",
+      "method": "GET",
+      "path": "/credentials",
+      "tag": "Credential",
+      "scope": "credential:list",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createCredential",
+      "method": "POST",
+      "path": "/credentials",
+      "tag": "Credential",
+      "scope": "credential:create",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialType",
+      "method": "GET",
+      "path": "/credentials/schema/{credentialTypeName}",
+      "tag": "Credential",
+      "scope": "none",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredential",
+      "method": "GET",
+      "path": "/credentials/{credentialId}",
+      "tag": "Credential",
+      "scope": "credential:read",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteCredential",
+      "method": "DELETE",
+      "path": "/credentials/{id}",
+      "tag": "Credential",
+      "scope": "credential:delete",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateCredential",
+      "method": "PATCH",
+      "path": "/credentials/{id}",
+      "tag": "Credential",
+      "scope": "credential:update",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "testCredential",
+      "method": "POST",
+      "path": "/credentials/{id}/test",
+      "tag": "Credential",
+      "scope": "credential:read",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "transferCredential",
+      "method": "PUT",
+      "path": "/credentials/{id}/transfer",
+      "tag": "Credential",
+      "scope": "credential:move",
+      "phase": 6,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getTags",
+      "method": "GET",
+      "path": "/tags",
+      "tag": "Tags",
+      "scope": "tag:list",
+      "phase": 7,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createTag",
+      "method": "POST",
+      "path": "/tags",
+      "tag": "Tags",
+      "scope": "tag:create",
+      "phase": 7,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteTag",
+      "method": "DELETE",
+      "path": "/tags/{id}",
+      "tag": "Tags",
+      "scope": "tag:delete",
+      "phase": 7,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getTag",
+      "method": "GET",
+      "path": "/tags/{id}",
+      "tag": "Tags",
+      "scope": "tag:read",
+      "phase": 7,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateTag",
+      "method": "PUT",
+      "path": "/tags/{id}",
+      "tag": "Tags",
+      "scope": "tag:update",
+      "phase": 7,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getVariables",
+      "method": "GET",
+      "path": "/variables",
+      "tag": "Variables",
+      "scope": "variable:list",
+      "phase": 8,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createVariable",
+      "method": "POST",
+      "path": "/variables",
+      "tag": "Variables",
+      "scope": "variable:create",
+      "phase": 8,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteVariable",
+      "method": "DELETE",
+      "path": "/variables/{id}",
+      "tag": "Variables",
+      "scope": "variable:delete",
+      "phase": 8,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateVariable",
+      "method": "PUT",
+      "path": "/variables/{id}",
+      "tag": "Variables",
+      "scope": "variable:update",
+      "phase": 8,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getAllRoles",
+      "method": "GET",
+      "path": "/roles",
+      "tag": "Role",
+      "scope": "role:list",
+      "phase": 9,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createRole",
+      "method": "POST",
+      "path": "/roles",
+      "tag": "Role",
+      "scope": "role:manage,role:manageProject",
+      "phase": 9,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteRole",
+      "method": "DELETE",
+      "path": "/roles/{slug}",
+      "tag": "Role",
+      "scope": "role:manage,role:manageProject",
+      "phase": 9,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getRole",
+      "method": "GET",
+      "path": "/roles/{slug}",
+      "tag": "Role",
+      "scope": "role:read",
+      "phase": 9,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateRole",
+      "method": "PUT",
+      "path": "/roles/{slug}",
+      "tag": "Role",
+      "scope": "role:manage,role:manageProject",
+      "phase": 9,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getUsers",
+      "method": "GET",
+      "path": "/users",
+      "tag": "User",
+      "scope": "user:list",
+      "phase": 10,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createUser",
+      "method": "POST",
+      "path": "/users",
+      "tag": "User",
+      "scope": "user:create",
+      "phase": 10,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteUser",
+      "method": "DELETE",
+      "path": "/users/{id}",
+      "tag": "User",
+      "scope": "user:delete",
+      "phase": 10,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getUser",
+      "method": "GET",
+      "path": "/users/{id}",
+      "tag": "User",
+      "scope": "user:read",
+      "phase": 10,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "changeRole",
+      "method": "PATCH",
+      "path": "/users/{id}/role",
+      "tag": "User",
+      "scope": "user:changeRole",
+      "phase": 10,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getProjects",
+      "method": "GET",
+      "path": "/projects",
+      "tag": "Projects",
+      "scope": "project:list",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createProject",
+      "method": "POST",
+      "path": "/projects",
+      "tag": "Projects",
+      "scope": "project:create",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteProject",
+      "method": "DELETE",
+      "path": "/projects/{projectId}",
+      "tag": "Projects",
+      "scope": "project:delete",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateProject",
+      "method": "PUT",
+      "path": "/projects/{projectId}",
+      "tag": "Projects",
+      "scope": "project:update",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getProjectUsers",
+      "method": "GET",
+      "path": "/projects/{projectId}/users",
+      "tag": "Projects",
+      "scope": "user:list",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "addUsersToProject",
+      "method": "POST",
+      "path": "/projects/{projectId}/users",
+      "tag": "Projects",
+      "scope": "project:manageMembers",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteUserFromProject",
+      "method": "DELETE",
+      "path": "/projects/{projectId}/users/{userId}",
+      "tag": "Projects",
+      "scope": "project:manageMembers",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "changeUserRoleInProject",
+      "method": "PATCH",
+      "path": "/projects/{projectId}/users/{userId}",
+      "tag": "Projects",
+      "scope": "project:manageMembers",
+      "phase": 11,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getFolders",
+      "method": "GET",
+      "path": "/projects/{projectId}/folders",
+      "tag": "Folders",
+      "scope": "folder:list",
+      "phase": 12,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createFolder",
+      "method": "POST",
+      "path": "/projects/{projectId}/folders",
+      "tag": "Folders",
+      "scope": "folder:create",
+      "phase": 12,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteFolder",
+      "method": "DELETE",
+      "path": "/projects/{projectId}/folders/{folderId}",
+      "tag": "Folders",
+      "scope": "folder:delete",
+      "phase": 12,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getFolder",
+      "method": "GET",
+      "path": "/projects/{projectId}/folders/{folderId}",
+      "tag": "Folders",
+      "scope": "folder:read",
+      "phase": 12,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateFolder",
+      "method": "PATCH",
+      "path": "/projects/{projectId}/folders/{folderId}",
+      "tag": "Folders",
+      "scope": "folder:update",
+      "phase": 12,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "list-data-tables",
+      "method": "GET",
+      "path": "/data-tables",
+      "tag": "DataTable",
+      "scope": "dataTable:list",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "create-data-table",
+      "method": "POST",
+      "path": "/data-tables",
+      "tag": "DataTable",
+      "scope": "dataTable:create",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "delete-data-table",
+      "method": "DELETE",
+      "path": "/data-tables/{dataTableId}",
+      "tag": "DataTable",
+      "scope": "dataTable:delete",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "get-data-table",
+      "method": "GET",
+      "path": "/data-tables/{dataTableId}",
+      "tag": "DataTable",
+      "scope": "dataTable:read",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "update-data-table",
+      "method": "PATCH",
+      "path": "/data-tables/{dataTableId}",
+      "tag": "DataTable",
+      "scope": "dataTable:update",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "list-data-table-columns",
+      "method": "GET",
+      "path": "/data-tables/{dataTableId}/columns",
+      "tag": "DataTable",
+      "scope": "dataTableColumn:read",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "create-data-table-column",
+      "method": "POST",
+      "path": "/data-tables/{dataTableId}/columns",
+      "tag": "DataTable",
+      "scope": "dataTableColumn:create",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "delete-data-table-column",
+      "method": "DELETE",
+      "path": "/data-tables/{dataTableId}/columns/{columnId}",
+      "tag": "DataTable",
+      "scope": "dataTableColumn:delete",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "update-data-table-column",
+      "method": "PATCH",
+      "path": "/data-tables/{dataTableId}/columns/{columnId}",
+      "tag": "DataTable",
+      "scope": "dataTableColumn:update",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "get-data-table-rows",
+      "method": "GET",
+      "path": "/data-tables/{dataTableId}/rows",
+      "tag": "DataTable",
+      "scope": "dataTableRow:read",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "insert-data-table-rows",
+      "method": "POST",
+      "path": "/data-tables/{dataTableId}/rows",
+      "tag": "DataTable",
+      "scope": "dataTableRow:create",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "clear-data-table-rows",
+      "method": "DELETE",
+      "path": "/data-tables/{dataTableId}/rows/clear",
+      "tag": "DataTable",
+      "scope": "dataTableRow:delete",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "delete-data-table-rows",
+      "method": "DELETE",
+      "path": "/data-tables/{dataTableId}/rows/delete",
+      "tag": "DataTable",
+      "scope": "dataTableRow:delete",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "update-data-table-rows",
+      "method": "PATCH",
+      "path": "/data-tables/{dataTableId}/rows/update",
+      "tag": "DataTable",
+      "scope": "dataTableRow:update",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "upsert-data-table-row",
+      "method": "POST",
+      "path": "/data-tables/{dataTableId}/rows/upsert",
+      "tag": "DataTable",
+      "scope": "dataTableRow:upsert",
+      "phase": 13,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflows",
+      "method": "GET",
+      "path": "/workflows",
+      "tag": "Workflow",
+      "scope": "workflow:list",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createWorkflow",
+      "method": "POST",
+      "path": "/workflows",
+      "tag": "Workflow",
+      "scope": "workflow:create",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflowVersion",
+      "method": "GET",
+      "path": "/workflows/{id}/{versionId}",
+      "tag": "Workflow",
+      "scope": "workflow:read",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteWorkflow",
+      "method": "DELETE",
+      "path": "/workflows/{workflowId}",
+      "tag": "Workflow",
+      "scope": "workflow:delete",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflow",
+      "method": "GET",
+      "path": "/workflows/{workflowId}",
+      "tag": "Workflow",
+      "scope": "workflow:read",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateWorkflow",
+      "method": "PUT",
+      "path": "/workflows/{workflowId}",
+      "tag": "Workflow",
+      "scope": "workflow:update",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "activateWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/activate",
+      "tag": "Workflow",
+      "scope": "workflow:activate",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "archiveWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/archive",
+      "tag": "Workflow",
+      "scope": "workflow:delete",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deactivateWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/deactivate",
+      "tag": "Workflow",
+      "scope": "workflow:deactivate",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflowHistory",
+      "method": "GET",
+      "path": "/workflows/{workflowId}/history",
+      "tag": "Workflow",
+      "scope": "workflow:read",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "publishWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/publish",
+      "tag": "Workflow",
+      "scope": "workflow:activate",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflowTags",
+      "method": "GET",
+      "path": "/workflows/{workflowId}/tags",
+      "tag": "Workflow",
+      "scope": "workflowTags:list",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateWorkflowTags",
+      "method": "PUT",
+      "path": "/workflows/{workflowId}/tags",
+      "tag": "Workflow",
+      "scope": "workflowTags:update",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "transferWorkflow",
+      "method": "PUT",
+      "path": "/workflows/{workflowId}/transfer",
+      "tag": "Workflow",
+      "scope": "workflow:move",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "unarchiveWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/unarchive",
+      "tag": "Workflow",
+      "scope": "workflow:delete",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "unpublishWorkflow",
+      "method": "POST",
+      "path": "/workflows/{workflowId}/unpublish",
+      "tag": "Workflow",
+      "scope": "workflow:deactivate",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getWorkflowVersion",
+      "method": "GET",
+      "path": "/workflows/{workflowId}/versions/{versionId}",
+      "tag": "Workflow",
+      "scope": "workflow:read",
+      "phase": 14,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getExecutions",
+      "method": "GET",
+      "path": "/executions",
+      "tag": "Executions",
+      "scope": "execution:list",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "stopManyExecutions",
+      "method": "POST",
+      "path": "/executions/stop",
+      "tag": "Executions",
+      "scope": "execution:stop",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteExecution",
+      "method": "DELETE",
+      "path": "/executions/{executionId}",
+      "tag": "Executions",
+      "scope": "execution:delete",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getExecution",
+      "method": "GET",
+      "path": "/executions/{executionId}",
+      "tag": "Executions",
+      "scope": "execution:read",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "retryExecution",
+      "method": "POST",
+      "path": "/executions/{executionId}/retry",
+      "tag": "Executions",
+      "scope": "execution:retry",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "stopExecution",
+      "method": "POST",
+      "path": "/executions/{executionId}/stop",
+      "tag": "Executions",
+      "scope": "execution:stop",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getExecutionTags",
+      "method": "GET",
+      "path": "/executions/{executionId}/tags",
+      "tag": "Executions",
+      "scope": "executionTags:list",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateExecutionTags",
+      "method": "PUT",
+      "path": "/executions/{executionId}/tags",
+      "tag": "Executions",
+      "scope": "executionTags:update",
+      "phase": 15,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getTestRuns",
+      "method": "GET",
+      "path": "/workflows/{id}/test-runs",
+      "tag": "Evaluation",
+      "scope": "testRun:list",
+      "phase": 16,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createTestRun",
+      "method": "POST",
+      "path": "/workflows/{id}/test-runs",
+      "tag": "Evaluation",
+      "scope": "testRun:create",
+      "phase": 16,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getTestRun",
+      "method": "GET",
+      "path": "/workflows/{id}/test-runs/{runId}",
+      "tag": "Evaluation",
+      "scope": "testRun:read",
+      "phase": 16,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "cancelTestRun",
+      "method": "POST",
+      "path": "/workflows/{id}/test-runs/{runId}/cancel",
+      "tag": "Evaluation",
+      "scope": "testRun:cancel",
+      "phase": 16,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getTestCases",
+      "method": "GET",
+      "path": "/workflows/{id}/test-runs/{runId}/test-cases",
+      "tag": "Evaluation",
+      "scope": "testRun:read",
+      "phase": 16,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getInsightsSummary",
+      "method": "GET",
+      "path": "/insights/summary",
+      "tag": "Insights",
+      "scope": "insights:read",
+      "phase": 17,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getSecurityPolicy",
+      "method": "GET",
+      "path": "/settings/security-policy",
+      "tag": "SecurityPolicy",
+      "scope": "securitySettings:manage",
+      "phase": 19,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateSecurityPolicy",
+      "method": "PUT",
+      "path": "/settings/security-policy",
+      "tag": "SecurityPolicy",
+      "scope": "securitySettings:manage",
+      "phase": 19,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getOtelSettings",
+      "method": "GET",
+      "path": "/settings/otel",
+      "tag": "SettingsOtel",
+      "scope": "otel:manage",
+      "phase": 20,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateOtelSettings",
+      "method": "PUT",
+      "path": "/settings/otel",
+      "tag": "SettingsOtel",
+      "scope": "otel:manage",
+      "phase": 20,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "testOtelTrace",
+      "method": "POST",
+      "path": "/settings/otel/test-trace",
+      "tag": "SettingsOtel",
+      "scope": "otel:manage",
+      "phase": 20,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getDestinations",
+      "method": "GET",
+      "path": "/settings/log-streaming/destinations",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:list",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createDestination",
+      "method": "POST",
+      "path": "/settings/log-streaming/destinations",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:create",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteDestination",
+      "method": "DELETE",
+      "path": "/settings/log-streaming/destinations/{id}",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:delete",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getDestination",
+      "method": "GET",
+      "path": "/settings/log-streaming/destinations/{id}",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:read",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateDestination",
+      "method": "PUT",
+      "path": "/settings/log-streaming/destinations/{id}",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:update",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "testDestination",
+      "method": "POST",
+      "path": "/settings/log-streaming/destinations/{id}/test",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:test",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getEventTypes",
+      "method": "GET",
+      "path": "/settings/log-streaming/event-types",
+      "tag": "LogStreaming",
+      "scope": "eventBusDestination:list",
+      "phase": 21,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getLdapConfiguration",
+      "method": "GET",
+      "path": "/settings/ldap",
+      "tag": "SettingsLdap",
+      "scope": "ldap:manage",
+      "phase": 22,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateLdapConfiguration",
+      "method": "PUT",
+      "path": "/settings/ldap",
+      "tag": "SettingsLdap",
+      "scope": "ldap:manage",
+      "phase": 22,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getLdapSync",
+      "method": "GET",
+      "path": "/settings/ldap/sync",
+      "tag": "SettingsLdap",
+      "scope": "ldap:sync",
+      "phase": 22,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "runLdapSync",
+      "method": "POST",
+      "path": "/settings/ldap/sync",
+      "tag": "SettingsLdap",
+      "scope": "ldap:sync",
+      "phase": 22,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getOidcConfiguration",
+      "method": "GET",
+      "path": "/settings/sso/oidc",
+      "tag": "SettingsSsoOidc",
+      "scope": "oidc:manage",
+      "phase": 23,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "setOidcConfiguration",
+      "method": "PUT",
+      "path": "/settings/sso/oidc",
+      "tag": "SettingsSsoOidc",
+      "scope": "oidc:manage",
+      "phase": 23,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getSamlConfiguration",
+      "method": "GET",
+      "path": "/settings/sso/saml",
+      "tag": "SettingsSsoSaml",
+      "scope": "saml:manage",
+      "phase": 24,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateSamlConfiguration",
+      "method": "PUT",
+      "path": "/settings/sso/saml",
+      "tag": "SettingsSsoSaml",
+      "scope": "saml:manage",
+      "phase": 24,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getRoleMappingRules",
+      "method": "GET",
+      "path": "/role-mapping-rules",
+      "tag": "RoleMappingRule",
+      "scope": "roleMappingRule:list",
+      "phase": 25,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createRoleMappingRule",
+      "method": "POST",
+      "path": "/role-mapping-rules",
+      "tag": "RoleMappingRule",
+      "scope": "roleMappingRule:create",
+      "phase": 25,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteRoleMappingRule",
+      "method": "DELETE",
+      "path": "/role-mapping-rules/{roleMappingRuleId}",
+      "tag": "RoleMappingRule",
+      "scope": "roleMappingRule:delete",
+      "phase": 25,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateRoleMappingRule",
+      "method": "PATCH",
+      "path": "/role-mapping-rules/{roleMappingRuleId}",
+      "tag": "RoleMappingRule",
+      "scope": "roleMappingRule:update",
+      "phase": 25,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "moveRoleMappingRule",
+      "method": "POST",
+      "path": "/role-mapping-rules/{roleMappingRuleId}/move",
+      "tag": "RoleMappingRule",
+      "scope": "roleMappingRule:update",
+      "phase": 25,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "pull",
+      "method": "POST",
+      "path": "/source-control/pull",
+      "tag": "SourceControl",
+      "scope": "sourceControl:pull",
+      "phase": 26,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "pushSourceControl",
+      "method": "POST",
+      "path": "/source-control/push",
+      "tag": "SourceControl",
+      "scope": "sourceControl:push",
+      "phase": 26,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getSourceControlStatus",
+      "method": "GET",
+      "path": "/source-control/status",
+      "tag": "SourceControl",
+      "scope": "sourceControl:read",
+      "phase": 26,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "exportPackage",
+      "method": "POST",
+      "path": "/n8n-packages/export",
+      "tag": "N8nPackage",
+      "scope": "project:export,workflow:export",
+      "phase": 27,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "importPackage",
+      "method": "POST",
+      "path": "/n8n-packages/import",
+      "tag": "N8nPackage",
+      "scope": "workflow:import",
+      "phase": 27,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getGitConnections",
+      "method": "GET",
+      "path": "/git-connections",
+      "tag": "GitConnections",
+      "scope": "gitConnection:list",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createGitConnection",
+      "method": "POST",
+      "path": "/git-connections",
+      "tag": "GitConnections",
+      "scope": "gitConnection:create",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteGitConnection",
+      "method": "DELETE",
+      "path": "/git-connections/{id}",
+      "tag": "GitConnections",
+      "scope": "gitConnection:delete",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getGitConnection",
+      "method": "GET",
+      "path": "/git-connections/{id}",
+      "tag": "GitConnections",
+      "scope": "gitConnection:read",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateGitConnection",
+      "method": "PUT",
+      "path": "/git-connections/{id}",
+      "tag": "GitConnections",
+      "scope": "gitConnection:update",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "cloneGitConnection",
+      "method": "POST",
+      "path": "/git-connections/{id}/clone",
+      "tag": "GitConnections",
+      "scope": "gitConnection:clone",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "disconnectGitConnection",
+      "method": "POST",
+      "path": "/git-connections/{id}/disconnect",
+      "tag": "GitConnections",
+      "scope": "gitConnection:clone",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getGitConnectionProjects",
+      "method": "GET",
+      "path": "/git-connections/{id}/projects",
+      "tag": "GitConnections",
+      "scope": "gitConnection:read",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "removeProjectFromGitConnection",
+      "method": "DELETE",
+      "path": "/git-connections/{id}/projects/{projectId}",
+      "tag": "GitConnections",
+      "scope": "gitConnection:manageProjects",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "addProjectToGitConnection",
+      "method": "POST",
+      "path": "/git-connections/{id}/projects/{projectId}",
+      "tag": "GitConnections",
+      "scope": "gitConnection:manageProjects",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "pullGitConnectionProjects",
+      "method": "POST",
+      "path": "/git-connections/{id}/pull",
+      "tag": "GitConnections",
+      "scope": "gitConnection:pull",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "pushGitConnectionProjects",
+      "method": "POST",
+      "path": "/git-connections/{id}/push",
+      "tag": "GitConnections",
+      "scope": "gitConnection:push",
+      "phase": 28,
+      "command": "",
+      "status": "planned"
+    }
+  ]
+}

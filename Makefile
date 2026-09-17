@@ -16,7 +16,7 @@ LDFLAGS := -s -w \
 	-X $(VERSION_PKG).commit=$(COMMIT) \
 	-X $(VERSION_PKG).date=$(DATE)
 
-.PHONY: all check fmt fmt-check test test-race vet lint vuln build clean tidy
+.PHONY: all check fmt fmt-check test test-race vet lint vuln build clean tidy docs spec integration
 
 all: check build
 
@@ -53,6 +53,21 @@ lint:
 ## vuln: govulncheck, pinned as a go tool directive.
 vuln:
 	go tool govulncheck ./...
+
+## docs: regenerate the command reference under docs/ from Cobra help.
+docs:
+	go test ./internal/docs -run TestDocsAreCurrent -update
+
+## spec: fetch the instance OpenAPI document to ./openapi.yml (gitignored).
+## Needs N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY.
+spec:
+	@test -n "$(N8N_INTEGRATION_URL)" || { echo "set N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY"; exit 1; }
+	curl -fsS -H "X-N8N-API-KEY: $(N8N_INTEGRATION_API_KEY)" \
+		"$(N8N_INTEGRATION_URL)/api/v1/openapi.yml" -o openapi.yml
+
+## integration: opt-in tests against a live instance. Skips without the env.
+integration:
+	go test -count=1 -v ./test/integration/...
 
 ## tidy: resolve and prune module requirements.
 tidy:
