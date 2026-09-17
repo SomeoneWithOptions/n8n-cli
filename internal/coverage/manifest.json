@@ -70,8 +70,8 @@
       "tag": "Credential",
       "scope": "credential:list",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential list",
+      "status": "implemented"
     },
     {
       "operationId": "createCredential",
@@ -80,8 +80,8 @@
       "tag": "Credential",
       "scope": "credential:create",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential create",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialType",
@@ -90,8 +90,8 @@
       "tag": "Credential",
       "scope": "none",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential schema",
+      "status": "implemented"
     },
     {
       "operationId": "getCredential",
@@ -100,8 +100,8 @@
       "tag": "Credential",
       "scope": "credential:read",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential get",
+      "status": "implemented"
     },
     {
       "operationId": "deleteCredential",
@@ -110,8 +110,8 @@
       "tag": "Credential",
       "scope": "credential:delete",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential delete",
+      "status": "implemented"
     },
     {
       "operationId": "updateCredential",
@@ -120,8 +120,8 @@
       "tag": "Credential",
       "scope": "credential:update",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential update",
+      "status": "implemented"
     },
     {
       "operationId": "testCredential",
@@ -130,8 +130,8 @@
       "tag": "Credential",
       "scope": "credential:read",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential test",
+      "status": "implemented"
     },
     {
       "operationId": "transferCredential",
@@ -140,8 +140,8 @@
       "tag": "Credential",
       "scope": "credential:move",
       "phase": 6,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential transfer",
+      "status": "implemented"
     },
     {
       "operationId": "getTags",

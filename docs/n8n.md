@@ -51,6 +51,7 @@ n8n [flags]
 * [n8n community-package](n8n_community-package.md)	 - Manage community node packages
 * [n8n completion](n8n_completion.md)	 - Generate a shell completion script
 * [n8n config](n8n_config.md)	 - Inspect and edit stored CLI configuration
+* [n8n credential](n8n_credential.md)	 - Manage node credentials without exposing secrets
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
 * [n8n version](n8n_version.md)	 - Print build information
 

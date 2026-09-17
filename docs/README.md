@@ -22,6 +22,15 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n config context use`](n8n_config_context_use.md) | Select the context used by subsequent commands |
 | [`n8n config context`](n8n_config_context.md) | Manage saved instance contexts |
 | [`n8n config`](n8n_config.md) | Inspect and edit stored CLI configuration |
+| [`n8n credential create`](n8n_credential_create.md) | Create a credential from secret JSON |
+| [`n8n credential delete`](n8n_credential_delete.md) | Permanently delete a credential |
+| [`n8n credential get`](n8n_credential_get.md) | Get credential metadata |
+| [`n8n credential list`](n8n_credential_list.md) | List credential metadata |
+| [`n8n credential schema`](n8n_credential_schema.md) | Show credential data JSON Schema |
+| [`n8n credential test`](n8n_credential_test.md) | Test stored credential data |
+| [`n8n credential transfer`](n8n_credential_transfer.md) | Transfer a credential to another project |
+| [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
+| [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
 | [`n8n discover`](n8n_discover.md) | List the API capabilities available to the current credential |
 | [`n8n version`](n8n_version.md) | Print build information |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |
