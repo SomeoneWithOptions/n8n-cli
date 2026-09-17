@@ -200,7 +200,7 @@ func TestManifestMatchesSpec(t *testing.T) {
 
 // deliveredThrough is the last PLAN.md phase whose operations are all
 // implemented. Raise it when a phase is finished, never before.
-const deliveredThrough = 13
+const deliveredThrough = 14
 
 // TestPhaseCounts is how a phase exit gate reads the manifest: every operation
 // a delivered phase owns must be implemented, and no later phase may have

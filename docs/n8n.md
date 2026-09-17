@@ -61,4 +61,5 @@ n8n [flags]
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles
 * [n8n variable](n8n_variable.md)	 - Manage instance and project variables
 * [n8n version](n8n_version.md)	 - Print build information
+* [n8n workflow](n8n_workflow.md)	 - Manage workflows, their versions and their tags
 

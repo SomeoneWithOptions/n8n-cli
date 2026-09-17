@@ -92,4 +92,21 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n variable update`](n8n_variable_update.md) | Fully replace a variable |
 | [`n8n variable`](n8n_variable.md) | Manage instance and project variables |
 | [`n8n version`](n8n_version.md) | Print build information |
+| [`n8n workflow archive`](n8n_workflow_archive.md) | Archive a workflow, the reversible soft delete |
+| [`n8n workflow create`](n8n_workflow_create.md) | Create a workflow from a definition or as an empty one |
+| [`n8n workflow delete`](n8n_workflow_delete.md) | Permanently delete a workflow |
+| [`n8n workflow get`](n8n_workflow_get.md) | Show one workflow with its definition |
+| [`n8n workflow history`](n8n_workflow_history.md) | List the saved versions of a workflow |
+| [`n8n workflow list`](n8n_workflow_list.md) | List workflows |
+| [`n8n workflow publish`](n8n_workflow_publish.md) | Publish a workflow so its triggers run |
+| [`n8n workflow tag list`](n8n_workflow_tag_list.md) | List the tags attached to a workflow |
+| [`n8n workflow tag set`](n8n_workflow_tag_set.md) | Replace the tags of a workflow |
+| [`n8n workflow tag`](n8n_workflow_tag.md) | Read and replace the tags of a workflow |
+| [`n8n workflow transfer`](n8n_workflow_transfer.md) | Move a workflow to another project |
+| [`n8n workflow unarchive`](n8n_workflow_unarchive.md) | Restore an archived workflow |
+| [`n8n workflow unpublish`](n8n_workflow_unpublish.md) | Take the published version of a workflow offline |
+| [`n8n workflow update`](n8n_workflow_update.md) | Replace the definition of a workflow |
+| [`n8n workflow version get`](n8n_workflow_version_get.md) | Show one stored version of a workflow |
+| [`n8n workflow version`](n8n_workflow_version.md) | Read a stored version of a workflow |
+| [`n8n workflow`](n8n_workflow.md) | Manage workflows, their versions and their tags |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |

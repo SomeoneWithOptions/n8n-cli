@@ -620,8 +620,8 @@
       "tag": "Workflow",
       "scope": "workflow:list",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow list",
+      "status": "implemented"
     },
     {
       "operationId": "createWorkflow",
@@ -630,8 +630,8 @@
       "tag": "Workflow",
       "scope": "workflow:create",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow create",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflowVersion",
@@ -640,8 +640,8 @@
       "tag": "Workflow",
       "scope": "workflow:read",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow version get-legacy",
+      "status": "implemented"
     },
     {
       "operationId": "deleteWorkflow",
@@ -650,8 +650,8 @@
       "tag": "Workflow",
       "scope": "workflow:delete",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow delete",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflow",
@@ -660,8 +660,8 @@
       "tag": "Workflow",
       "scope": "workflow:read",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow get",
+      "status": "implemented"
     },
     {
       "operationId": "updateWorkflow",
@@ -670,8 +670,8 @@
       "tag": "Workflow",
       "scope": "workflow:update",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow update",
+      "status": "implemented"
     },
     {
       "operationId": "activateWorkflow",
@@ -680,8 +680,8 @@
       "tag": "Workflow",
       "scope": "workflow:activate",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow activate",
+      "status": "implemented"
     },
     {
       "operationId": "archiveWorkflow",
@@ -690,8 +690,8 @@
       "tag": "Workflow",
       "scope": "workflow:delete",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow archive",
+      "status": "implemented"
     },
     {
       "operationId": "deactivateWorkflow",
@@ -700,8 +700,8 @@
       "tag": "Workflow",
       "scope": "workflow:deactivate",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow deactivate",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflowHistory",
@@ -710,8 +710,8 @@
       "tag": "Workflow",
       "scope": "workflow:read",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow history",
+      "status": "implemented"
     },
     {
       "operationId": "publishWorkflow",
@@ -720,8 +720,8 @@
       "tag": "Workflow",
       "scope": "workflow:activate",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow publish",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflowTags",
@@ -730,8 +730,8 @@
       "tag": "Workflow",
       "scope": "workflowTags:list",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow tag list",
+      "status": "implemented"
     },
     {
       "operationId": "updateWorkflowTags",
@@ -740,8 +740,8 @@
       "tag": "Workflow",
       "scope": "workflowTags:update",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow tag set",
+      "status": "implemented"
     },
     {
       "operationId": "transferWorkflow",
@@ -750,8 +750,8 @@
       "tag": "Workflow",
       "scope": "workflow:move",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow transfer",
+      "status": "implemented"
     },
     {
       "operationId": "unarchiveWorkflow",
@@ -760,8 +760,8 @@
       "tag": "Workflow",
       "scope": "workflow:delete",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow unarchive",
+      "status": "implemented"
     },
     {
       "operationId": "unpublishWorkflow",
@@ -770,8 +770,8 @@
       "tag": "Workflow",
       "scope": "workflow:deactivate",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow unpublish",
+      "status": "implemented"
     },
     {
       "operationId": "getWorkflowVersion",
@@ -780,8 +780,8 @@
       "tag": "Workflow",
       "scope": "workflow:read",
       "phase": 14,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow version get",
+      "status": "implemented"
     },
     {
       "operationId": "getExecutions",
