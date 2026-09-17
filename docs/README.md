@@ -11,6 +11,11 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n auth logout`](n8n_auth_logout.md) | Delete the stored credential for a context |
 | [`n8n auth status`](n8n_auth_status.md) | Show the active context, instance and credential state |
 | [`n8n auth`](n8n_auth.md) | Log in to an n8n instance and inspect stored credentials |
+| [`n8n community-package install`](n8n_community-package_install.md) | Install a community package |
+| [`n8n community-package list`](n8n_community-package_list.md) | List installed community packages |
+| [`n8n community-package uninstall`](n8n_community-package_uninstall.md) | Uninstall a community package |
+| [`n8n community-package update`](n8n_community-package_update.md) | Update an installed community package |
+| [`n8n community-package`](n8n_community-package.md) | Manage community node packages |
 | [`n8n completion`](n8n_completion.md) | Generate a shell completion script |
 | [`n8n config context delete`](n8n_config_context_delete.md) | Delete a context and its stored credential |
 | [`n8n config context list`](n8n_config_context_list.md) | List saved contexts |

@@ -48,6 +48,7 @@ n8n [flags]
 
 * [n8n audit](n8n_audit.md)	 - Generate security audits of an n8n instance
 * [n8n auth](n8n_auth.md)	 - Log in to an n8n instance and inspect stored credentials
+* [n8n community-package](n8n_community-package.md)	 - Manage community node packages
 * [n8n completion](n8n_completion.md)	 - Generate a shell completion script
 * [n8n config](n8n_config.md)	 - Inspect and edit stored CLI configuration
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential

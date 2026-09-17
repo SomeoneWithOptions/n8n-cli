@@ -30,8 +30,8 @@
       "tag": "CommunityPackage",
       "scope": "communityPackage:list",
       "phase": 5,
-      "command": "",
-      "status": "planned"
+      "command": "n8n community-package list",
+      "status": "implemented"
     },
     {
       "operationId": "installPackage",
@@ -40,8 +40,8 @@
       "tag": "CommunityPackage",
       "scope": "communityPackage:install",
       "phase": 5,
-      "command": "",
-      "status": "planned"
+      "command": "n8n community-package install",
+      "status": "implemented"
     },
     {
       "operationId": "uninstallPackage",
@@ -50,8 +50,8 @@
       "tag": "CommunityPackage",
       "scope": "communityPackage:uninstall",
       "phase": 5,
-      "command": "",
-      "status": "planned"
+      "command": "n8n community-package uninstall",
+      "status": "implemented"
     },
     {
       "operationId": "updatePackage",
@@ -60,8 +60,8 @@
       "tag": "CommunityPackage",
       "scope": "communityPackage:update",
       "phase": 5,
-      "command": "",
-      "status": "planned"
+      "command": "n8n community-package update",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentials",
