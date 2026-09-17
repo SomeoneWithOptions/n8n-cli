@@ -38,5 +38,10 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n tag list`](n8n_tag_list.md) | List tags |
 | [`n8n tag update`](n8n_tag_update.md) | Rename a tag |
 | [`n8n tag`](n8n_tag.md) | Manage workflow tags |
+| [`n8n variable create`](n8n_variable_create.md) | Create a variable |
+| [`n8n variable delete`](n8n_variable_delete.md) | Permanently delete a variable |
+| [`n8n variable list`](n8n_variable_list.md) | List variables and their values |
+| [`n8n variable update`](n8n_variable_update.md) | Fully replace a variable |
+| [`n8n variable`](n8n_variable.md) | Manage instance and project variables |
 | [`n8n version`](n8n_version.md) | Print build information |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |

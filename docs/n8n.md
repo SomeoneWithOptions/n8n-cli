@@ -54,5 +54,6 @@ n8n [flags]
 * [n8n credential](n8n_credential.md)	 - Manage node credentials without exposing secrets
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
+* [n8n variable](n8n_variable.md)	 - Manage instance and project variables
 * [n8n version](n8n_version.md)	 - Print build information
 

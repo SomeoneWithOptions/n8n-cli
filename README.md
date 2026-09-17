@@ -6,7 +6,8 @@ Command-line tools for working with n8n.
 
 Early development. Working today: `n8n auth login|status|logout`,
 `n8n config context list|use|delete`, `n8n discover`, `n8n audit generate`,
-and `n8n community-package list|install|update|uninstall`.
+`n8n community-package list|install|update|uninstall`, `n8n credential`,
+`n8n tag`, and `n8n variable` resource commands.
 
 ## Command reference
 
