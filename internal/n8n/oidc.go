@@ -131,8 +131,8 @@ func (c *Client) SetOIDCConfiguration(ctx context.Context, request SetOIDCConfig
 // redactOIDCAPIError prevents server-controlled error text from exposing a
 // submitted or stored client secret while preserving HTTP status classification.
 func redactOIDCAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

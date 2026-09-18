@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1277,7 +1278,7 @@ func readWorkflowDocument(opts Options, path string) (n8n.WorkflowDocument, erro
 		return nil, fmt.Errorf("workflow JSON exceeds %d bytes", maxWorkflowDocument)
 	}
 
-	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder := json.NewDecoder(bytes.NewReader(raw))
 	var doc n8n.WorkflowDocument
 	if err := decoder.Decode(&doc); err != nil {
 		return nil, fmt.Errorf("decode workflow JSON: %w", err)

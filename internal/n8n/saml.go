@@ -284,8 +284,8 @@ func (c *Client) SetSAMLConfiguration(ctx context.Context, request SetSAMLConfig
 // redactSAMLAPIError prevents server-controlled text from exposing submitted
 // or stored SAML secrets while preserving HTTP status classification.
 func redactSAMLAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

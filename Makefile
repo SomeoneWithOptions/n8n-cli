@@ -22,7 +22,9 @@ GO_FILES := $(shell find . -name '*.go' -not -path '*/.*')
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
-DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# Honor SOURCE_DATE_EPOCH for reproducible builds; fall back to the current
+# time. The GNU/BSD date variants cover Linux and macOS runners.
+DATE ?= $(shell if [ -n "$${SOURCE_DATE_EPOCH}" ]; then date -u -d "@$${SOURCE_DATE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$${SOURCE_DATE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ; else date -u +%Y-%m-%dT%H:%M:%SZ; fi)
 
 LDFLAGS := -s -w \
 	-X $(VERSION_PKG).version=$(VERSION) \
@@ -103,11 +105,15 @@ docs:
 	go test ./internal/docs -run TestDocsAreCurrent -update
 
 ## spec: fetch the instance OpenAPI document to ./openapi.yml (gitignored).
-## Needs N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY.
+## Needs N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY. The key travels in a
+## 0600 header file, never in argv, so it cannot leak through the process list.
 spec:
 	@test -n "$(N8N_INTEGRATION_URL)" || { echo "set N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY"; exit 1; }
-	curl -fsS -H "X-N8N-API-KEY: $(N8N_INTEGRATION_API_KEY)" \
-		"$(N8N_INTEGRATION_URL)/api/v1/openapi.yml" -o openapi.yml
+	header=$$(mktemp) && trap 'rm -f "$$header"' EXIT INT TERM && \
+		printf 'X-N8N-API-KEY: %s\r\n' "$(N8N_INTEGRATION_API_KEY)" > "$$header" && \
+		chmod 600 "$$header" && \
+		curl -fsS -H @"$$header" \
+			"$(N8N_INTEGRATION_URL)/api/v1/openapi.yml" -o openapi.yml
 
 ## spec-upstream: fetch the n8n docs instance OpenAPI document to
 ## ./openapi.upstream.yml (gitignored). It declares the groups the target

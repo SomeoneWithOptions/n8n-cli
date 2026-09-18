@@ -249,6 +249,11 @@ func (s *Store) openRoot(create bool) (*os.Root, error) {
 			return nil, err
 		}
 	}
+	// A symlinked config directory would redirect every read and write behind
+	// os.Root, so refuse it before opening.
+	if info, err := os.Lstat(s.dir); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%s is a symbolic link: refusing to follow it", s.dir)
+	}
 	root, err := os.OpenRoot(s.dir)
 	if err != nil {
 		return nil, err
@@ -285,8 +290,16 @@ func (s *Store) lock(root *os.Root) (func(), error) {
 	for {
 		f, err := root.OpenFile(lockFileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 		if err == nil {
-			fmt.Fprintf(f, "{\"pid\":%d,\"time\":%q}\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))
-			_ = f.Close()
+			_, werr := fmt.Fprintf(f, "{\"pid\":%d,\"time\":%q}\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))
+			cerr := f.Close()
+			if werr != nil {
+				_ = root.Remove(lockFileName)
+				return nil, fmt.Errorf("write %s: %w", s.Path(lockFileName), werr)
+			}
+			if cerr != nil {
+				_ = root.Remove(lockFileName)
+				return nil, fmt.Errorf("close %s: %w", s.Path(lockFileName), cerr)
+			}
 			return func() { _ = root.Remove(lockFileName) }, nil
 		}
 		if !errors.Is(err, fs.ErrExist) {

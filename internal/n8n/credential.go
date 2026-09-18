@@ -292,8 +292,8 @@ func validateCredentialText(field, value string, required bool) error {
 // redactCredentialAPIError preserves status, path, and request ID while
 // dropping server-controlled details which could echo secret request data.
 func redactCredentialAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

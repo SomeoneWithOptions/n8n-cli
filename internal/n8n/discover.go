@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -41,14 +41,14 @@ func (o DiscoverOptions) Apply(q url.Values) url.Values {
 	if q == nil {
 		q = url.Values{}
 	}
-	for name, value := range map[string]string{
-		"include":   o.Include,
-		"resource":  o.Resource,
-		"operation": o.Operation,
-	} {
-		if value != "" {
-			q.Set(name, value)
-		}
+	if o.Include != "" {
+		q.Set("include", o.Include)
+	}
+	if o.Resource != "" {
+		q.Set("resource", o.Resource)
+	}
+	if o.Operation != "" {
+		q.Set("operation", o.Operation)
 	}
 	return q
 }
@@ -140,12 +140,7 @@ func (d *Discovery) Resource(name string) (DiscoveredResource, bool) {
 // ResourceNames returns the resource keys in sorted order, so output and tests
 // do not depend on Go's map iteration order.
 func (d *Discovery) ResourceNames() []string {
-	names := make([]string, 0, len(d.Resources))
-	for name := range d.Resources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(d.Resources))
 }
 
 // Endpoint finds an endpoint by method and path, ignoring method case. Paths

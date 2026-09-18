@@ -227,8 +227,8 @@ func (c *Client) RunLDAPSync(ctx context.Context, request LDAPSyncRequest) (*LDA
 // redactLDAPAPIError prevents a server validation response from echoing a bind
 // password submitted in a replacement while preserving status classification.
 func redactLDAPAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

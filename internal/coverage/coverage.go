@@ -13,10 +13,11 @@
 package coverage
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func (o Operation) Key() string { return strings.ToUpper(o.Method) + " " + o.Pat
 // Load decodes the embedded manifest.
 func Load() (*Manifest, error) {
 	var m Manifest
-	dec := json.NewDecoder(strings.NewReader(string(manifestJSON)))
+	dec := json.NewDecoder(bytes.NewReader(manifestJSON))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("decode coverage manifest: %w", err)
@@ -99,13 +100,13 @@ func (m *Manifest) ByKey() map[string]Operation {
 
 // Implemented returns the operations a CLI command covers, sorted by key.
 func (m *Manifest) Implemented() []Operation {
-	var ops []Operation
+	ops := make([]Operation, 0, len(m.Operations))
 	for _, op := range m.Operations {
 		if op.Status == StatusImplemented {
 			ops = append(ops, op)
 		}
 	}
-	sort.Slice(ops, func(i, j int) bool { return ops[i].Key() < ops[j].Key() })
+	slices.SortFunc(ops, func(a, b Operation) int { return strings.Compare(a.Key(), b.Key()) })
 	return ops
 }
 

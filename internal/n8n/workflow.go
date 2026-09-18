@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -101,7 +101,7 @@ func (d WorkflowDocument) forWrite(allowed []string) (WorkflowDocument, []string
 			kept[field] = raw
 		}
 	}
-	sort.Strings(dropped)
+	slices.Sort(dropped)
 	return kept, dropped
 }
 
@@ -125,7 +125,7 @@ func (d WorkflowDocument) Validate() error {
 
 // isJSONNull reports whether raw is the JSON null literal.
 func isJSONNull(raw json.RawMessage) bool {
-	return string(bytes.TrimSpace(raw)) == "null"
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
 }
 
 // Workflow is one workflow as the API returns it.
@@ -206,14 +206,15 @@ func (w Workflow) MarshalJSON() ([]byte, error) {
 	if len(w.Extra) == 0 {
 		return base, nil
 	}
-	names := make([]string, 0, len(w.Extra))
-	for name := range w.Extra {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(w.Extra))
 
 	var b bytes.Buffer
-	b.Write(bytes.TrimSuffix(base, []byte("}")))
+	b.Grow(len(base) + len(w.Extra)*32)
+	trimmed := base
+	if len(trimmed) > 0 && trimmed[len(trimmed)-1] == '}' {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	b.Write(trimmed)
 	for i, name := range names {
 		if i > 0 || len(base) > 2 {
 			b.WriteByte(',')

@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -120,7 +120,7 @@ func writeDiscoveryText(opts Options, resolution config.Resolution, d *n8n.Disco
 	for _, name := range names {
 		resource := d.Resources[name]
 		operations := append([]string(nil), resource.Operations...)
-		sort.Strings(operations)
+		slices.Sort(operations)
 		fmt.Fprintf(tw, "%s\t%d\t%s\n", name, len(resource.Endpoints), strings.Join(operations, ", "))
 	}
 	if err := tw.Flush(); err != nil {

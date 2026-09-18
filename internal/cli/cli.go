@@ -127,7 +127,12 @@ func Run(ctx context.Context, args []string, opts Options) int {
 }
 
 // report writes err to the diagnostic stream and returns the matching exit code.
+// A nil stream (a zero Options in tests) falls back to discarding the message
+// rather than panicking: the exit code still reports the failure.
 func report(w io.Writer, err error) int {
+	if w == nil {
+		w = io.Discard
+	}
 	switch {
 	case err == nil:
 		return ExitSuccess

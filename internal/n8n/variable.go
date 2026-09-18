@@ -160,8 +160,8 @@ func redactVariableAPIError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

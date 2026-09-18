@@ -218,8 +218,8 @@ func redactOtelCollectorError(message string, headers *string) string {
 // redactOtelAPIError prevents collector authorization headers from being
 // echoed by server-controlled validation errors while preserving diagnostics.
 func redactOtelAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

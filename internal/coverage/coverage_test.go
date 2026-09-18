@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -241,8 +240,8 @@ func TestManifestMatchesSpec(t *testing.T) {
 					added = append(added, key+" ("+strings.Join(ids, ", ")+")")
 				}
 			}
-			sort.Strings(removed)
-			sort.Strings(added)
+			slices.Sort(removed)
+			slices.Sort(added)
 
 			if len(removed) > 0 {
 				t.Errorf("the %s document no longer describes %d manifest operation(s); update the manifest, its availability, and the owning phase:\n  %s",
@@ -271,7 +270,7 @@ func TestManifestMatchesSpec(t *testing.T) {
 		if !ok || len(ids) == 0 || slices.Contains(ids, op.OperationID) {
 			continue
 		}
-		sort.Strings(ids)
+		slices.Sort(ids)
 		t.Errorf("%s: the documents call this operation %s, the manifest calls it %q",
 			key, strings.Join(slices.Compact(ids), " or "), op.OperationID)
 	}

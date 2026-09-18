@@ -9,7 +9,8 @@ package config
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
@@ -73,12 +74,7 @@ func IsNotFound(err error) bool {
 
 // Names returns the context names in stable order.
 func (c *Config) Names() []string {
-	names := make([]string, 0, len(c.Contexts))
-	for name := range c.Contexts {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(c.Contexts))
 }
 
 // Lookup returns the named context, or the current one when name is empty.

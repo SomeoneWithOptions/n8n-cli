@@ -36,7 +36,7 @@ func (c Confirmer) Confirm(question string) error {
 	if c.AssumeYes {
 		return nil
 	}
-	if !c.Interactive || c.In == nil {
+	if !c.Interactive || c.In == nil || c.Out == nil {
 		return ErrNotInteractive
 	}
 

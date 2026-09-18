@@ -558,8 +558,8 @@ func validateGitConnectionType(connectionType string) error {
 // echoing a submitted username or password while preserving HTTP status
 // classification.
 func redactGitConnectionAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
-	"sort"
 	"strings"
 )
 
@@ -172,25 +172,22 @@ func (a Audit) MarshalJSON() ([]byte, error) {
 // ReportNames returns the report keys in sorted order, so output and tests do
 // not depend on Go's map iteration order.
 func (a *Audit) ReportNames() []string {
-	names := make([]string, 0, len(a.Reports))
-	for name := range a.Reports {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(a.Reports))
 }
 
 // Report looks a report up by category, e.g. Report("nodes"). It matches the
 // report's own risk field first and its name second, because the two disagree
 // on some instances.
 func (a *Audit) Report(category string) (RiskReport, bool) {
-	for _, name := range a.ReportNames() {
+	names := a.ReportNames()
+	for _, name := range names {
 		if strings.EqualFold(a.Reports[name].Risk, category) {
 			return a.Reports[name], true
 		}
 	}
-	for _, name := range a.ReportNames() {
-		if strings.HasPrefix(strings.ToLower(name), strings.ToLower(category)) {
+	folded := strings.ToLower(category)
+	for _, name := range names {
+		if strings.HasPrefix(strings.ToLower(name), folded) {
 			return a.Reports[name], true
 		}
 	}

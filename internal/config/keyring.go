@@ -12,8 +12,9 @@ import (
 const KeyringService = "n8n-cli"
 
 // probeRef is looked up to decide whether a credential store exists at all. It
-// is never written.
-const probeRef = "\x00probe"
+// is never written. The name stays plain ASCII because some backends reject
+// control characters such as NUL in account names.
+const probeRef = "__n8n_cli_probe__"
 
 // ErrKeyringUnavailable reports that no OS credential store answered. On Linux
 // that usually means no Secret Service (gnome-keyring, kwallet) is running.
@@ -57,7 +58,7 @@ func (k *KeyringStore) Available() error {
 	case err == nil, errors.Is(err, keyring.ErrNotFound):
 		return nil
 	default:
-		return fmt.Errorf("%w: %v", ErrKeyringUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrKeyringUnavailable, err)
 	}
 }
 
@@ -67,7 +68,7 @@ func (k *KeyringStore) Get(ref string) (Credential, error) {
 	case errors.Is(err, keyring.ErrNotFound):
 		return Credential{}, ErrCredentialNotFound
 	case err != nil:
-		return Credential{}, fmt.Errorf("%w: %v", ErrKeyringUnavailable, err)
+		return Credential{}, fmt.Errorf("%w: %w", ErrKeyringUnavailable, err)
 	}
 	return decodeCredential([]byte(value))
 }
@@ -78,7 +79,7 @@ func (k *KeyringStore) Set(ref string, cred Credential) error {
 		return err
 	}
 	if err := k.api.Set(k.service, ref, string(encoded)); err != nil {
-		return fmt.Errorf("%w: %v", ErrKeyringUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrKeyringUnavailable, err)
 	}
 	return nil
 }
@@ -89,6 +90,6 @@ func (k *KeyringStore) Delete(ref string) error {
 	case err == nil, errors.Is(err, keyring.ErrNotFound):
 		return nil
 	default:
-		return fmt.Errorf("%w: %v", ErrKeyringUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrKeyringUnavailable, err)
 	}
 }

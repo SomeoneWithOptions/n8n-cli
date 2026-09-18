@@ -1,6 +1,7 @@
 package n8n
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -98,7 +99,7 @@ func (r DataTableRow) RowID() (int64, bool) {
 // as the empty string, and anything else as its JSON form.
 func (r DataTableRow) Text(column string) string {
 	raw, ok := r[column]
-	if !ok || string(raw) == "null" {
+	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return ""
 	}
 	var text string
@@ -108,19 +109,21 @@ func (r DataTableRow) Text(column string) string {
 	return string(raw)
 }
 
+// dataTableSystemColumns are the system columns Columns reports first.
+var dataTableSystemColumns = []string{"id", "createdAt", "updatedAt"}
+
 // Columns returns the row's column names in a stable order: the system columns
 // first, then the user-defined ones sorted by name.
 func (r DataTableRow) Columns() []string {
-	system := []string{"id", "createdAt", "updatedAt"}
 	names := make([]string, 0, len(r))
 	for name := range r {
-		if !slices.Contains(system, name) {
+		if !slices.Contains(dataTableSystemColumns, name) {
 			names = append(names, name)
 		}
 	}
 	slices.Sort(names)
-	ordered := make([]string, 0, len(r))
-	for _, name := range system {
+	ordered := make([]string, 0, len(names)+len(dataTableSystemColumns))
+	for _, name := range dataTableSystemColumns {
 		if _, ok := r[name]; ok {
 			ordered = append(ordered, name)
 		}
@@ -868,6 +871,9 @@ func JSONValue(text string) json.RawMessage {
 // word. Numbers, booleans, null, objects, arrays and quoted strings are kept
 // as JSON; anything else is text.
 func isBareWord(trimmed string) bool {
+	if trimmed == "" {
+		return false
+	}
 	switch trimmed[0] {
 	case '{', '[', '"', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return false

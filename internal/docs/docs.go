@@ -8,9 +8,10 @@ package docs
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -76,8 +77,8 @@ func Write(root *cobra.Command, dir string) error {
 			}
 		}
 	}
-	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		if err := os.WriteFile(filepath.Join(dir, name), files[name], 0o644); err != nil {
 			return err
 		}
 	}
@@ -119,7 +120,7 @@ func index(root *cobra.Command) []byte {
 		}
 	}
 	walk(root)
-	sort.Strings(rows)
+	slices.Sort(rows)
 
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "# %s command reference\n\n", root.Name())

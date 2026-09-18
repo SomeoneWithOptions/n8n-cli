@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -645,9 +646,11 @@ func runDataTableRowList(ctx context.Context, opts Options, tableID string, f da
 // the columns present, system columns first.
 func writeDataTableRows(w io.Writer, rows []n8n.DataTableRow) error {
 	var columns []string
+	seen := make(map[string]struct{})
 	for _, row := range rows {
 		for _, name := range row.Columns() {
-			if !slices.Contains(columns, name) {
+			if _, ok := seen[name]; !ok {
+				seen[name] = struct{}{}
 				columns = append(columns, name)
 			}
 		}
@@ -1485,7 +1488,7 @@ func decodeDataTableJSON(r io.Reader, dst any) error {
 func joinInts(values []int64) string {
 	parts := make([]string, len(values))
 	for i, value := range values {
-		parts[i] = fmt.Sprint(value)
+		parts[i] = strconv.FormatInt(value, 10)
 	}
 	return strings.Join(parts, ", ")
 }

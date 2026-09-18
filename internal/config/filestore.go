@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+
+	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
 // FileStore keeps credentials in auth.json next to config.json.
@@ -45,14 +47,10 @@ func (f *FileStore) Get(ref string) (Credential, error) {
 		return Credential{}, err
 	}
 	stored, ok := parsed.Credentials[ref]
-	if !ok {
+	if !ok || stored.Value == "" {
 		return Credential{}, ErrCredentialNotFound
 	}
-	encoded, err := json.Marshal(stored)
-	if err != nil {
-		return Credential{}, err
-	}
-	return decodeCredential(encoded)
+	return Credential{Type: stored.Type, Value: n8n.Secret(stored.Value)}, nil
 }
 
 func (f *FileStore) Set(ref string, cred Credential) error {

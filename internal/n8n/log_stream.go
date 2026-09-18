@@ -247,20 +247,23 @@ func validateLogStreamParameters(fields map[string]json.RawMessage, name string)
 }
 
 func (c *Client) GetLogStreamEventTypes(ctx context.Context) (*LogStreamEventTypes, error) {
-	result := LogStreamEventTypes{Data: []string{}}
+	var result LogStreamEventTypes
 	if _, err := c.Do(ctx, Request{Path: LogStreamEventTypesPath}, &result); err != nil {
 		return nil, redactLogStreamError(err)
 	}
+	// Normalize both an empty body and an explicit {"data": null} to an
+	// empty array for stable JSON output.
 	if result.Data == nil {
 		result.Data = []string{}
 	}
 	return &result, nil
 }
 func (c *Client) ListLogStreamDestinations(ctx context.Context) (*LogStreamDestinations, error) {
-	result := LogStreamDestinations{Data: []LogStreamDestination{}}
+	var result LogStreamDestinations
 	if _, err := c.Do(ctx, Request{Path: LogStreamDestinationsPath}, &result); err != nil {
 		return nil, redactLogStreamError(err)
 	}
+	// Same null-normalization as above.
 	if result.Data == nil {
 		result.Data = []LogStreamDestination{}
 	}

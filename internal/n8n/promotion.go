@@ -965,8 +965,8 @@ func validatePromotionPromoteSettings(settings PromotionPromoteSettings, name st
 // redactPromotionProviderAPIError prevents server-controlled error text from
 // echoing a submitted password while preserving HTTP status classification.
 func redactPromotionProviderAPIError(err error) error {
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
 		return err
 	}
 	clone := *apiErr

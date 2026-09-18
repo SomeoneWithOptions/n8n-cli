@@ -327,7 +327,7 @@ func writeVariableMutation(opts Options, resolution config.Resolution, result va
 		return writeJSON(opts.Streams.Out, result)
 	}
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "%s:\t%s\n", strings.ToUpper(result.Action[:1])+result.Action[1:], firstVariableResult(result.Key, result.ID))
+	fmt.Fprintf(tw, "%s:\t%s\n", capitalizeAction(result.Action), firstVariableResult(result.Key, result.ID))
 	if result.ID != "" && result.Key != "" {
 		fmt.Fprintf(tw, "ID:\t%s\n", result.ID)
 	}
@@ -339,6 +339,15 @@ func writeVariableMutation(opts Options, resolution config.Resolution, result va
 	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	return tw.Flush()
+}
+
+// capitalizeAction uppercases the first letter of a mutation verb. An empty
+// action yields an empty string rather than panicking on a zero-length slice.
+func capitalizeAction(action string) string {
+	if action == "" {
+		return ""
+	}
+	return strings.ToUpper(action[:1]) + action[1:]
 }
 
 func firstVariableResult(values ...string) string {

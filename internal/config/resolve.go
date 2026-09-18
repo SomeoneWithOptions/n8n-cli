@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
@@ -133,7 +133,7 @@ func (r *Resolver) EnvCredential() (Credential, bool, error) {
 	case 1:
 		return cred, true, nil
 	default:
-		sort.Strings(found)
+		slices.Sort(found)
 		return Credential{}, false, fmt.Errorf("%v are all set: unset all but one", found)
 	}
 }

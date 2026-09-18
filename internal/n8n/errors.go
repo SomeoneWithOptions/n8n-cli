@@ -1,6 +1,7 @@
 package n8n
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,7 +151,7 @@ func firstText(values ...json.RawMessage) string {
 // numbers pass through, arrays join, and objects fall back to their message,
 // error or description field.
 func flattenText(raw json.RawMessage) string {
-	if len(raw) == 0 || string(raw) == "null" {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return ""
 	}
 

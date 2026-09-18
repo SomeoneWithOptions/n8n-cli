@@ -49,6 +49,7 @@ func (p terminalPrompter) PromptSecret(prompt string) (n8n.Secret, error) {
 	if err != nil {
 		return "", fmt.Errorf("read credential: %w", err)
 	}
+	defer clear(data)
 
 	secret := n8n.Secret(strings.TrimRight(string(data), "\r\n"))
 	if secret.Empty() {
@@ -57,15 +58,23 @@ func (p terminalPrompter) PromptSecret(prompt string) (n8n.Secret, error) {
 	return secret, nil
 }
 
+// maxSecretStdin caps a credential piped on stdin. One byte more is read so
+// an overlong input fails instead of silently authenticating with a prefix.
+const maxSecretStdin = 1 << 20
+
 // readSecretFrom consumes a credential piped on stdin. Only a trailing newline
 // is stripped: everything else is credential material.
 func readSecretFrom(r io.Reader) (n8n.Secret, error) {
 	if r == nil {
 		return "", errors.New("no stdin to read a credential from")
 	}
-	data, err := io.ReadAll(io.LimitReader(r, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(r, maxSecretStdin+1))
 	if err != nil {
 		return "", fmt.Errorf("read credential from stdin: %w", err)
+	}
+	defer clear(data)
+	if len(data) > maxSecretStdin {
+		return "", fmt.Errorf("credential on stdin exceeds %d bytes", maxSecretStdin)
 	}
 	secret := n8n.Secret(strings.TrimRight(string(data), "\r\n"))
 	if secret.Empty() {
@@ -84,16 +93,13 @@ func promptLine(in io.Reader, out io.Writer, prompt string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
-// isTerminal reports whether a stream is attached to a character device. This
-// is the standard-library TTY test; no dependency needed.
+// isTerminal reports whether a stream is a terminal. It uses the same test as
+// the credential prompt, so interactivity and prompting agree: /dev/null is a
+// character device but not a terminal, and must fail closed in both.
 func isTerminal(stream any) bool {
 	f, ok := stream.(*os.File)
 	if !ok {
 		return false
 	}
-	info, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return info.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
