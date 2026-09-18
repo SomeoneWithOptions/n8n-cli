@@ -21,9 +21,11 @@ import (
 
 // Process exit codes.
 const (
-	ExitSuccess  = 0
-	ExitError    = 1
-	ExitCanceled = 130
+	ExitSuccess = 0
+	ExitError   = 1
+	// ExitDiffError distinguishes a failed comparison from detected differences.
+	ExitDiffError = 2
+	ExitCanceled  = 130
 )
 
 // Streams are the three standard streams a command tree reads and writes.
@@ -123,7 +125,15 @@ func Run(ctx context.Context, args []string, opts Options) int {
 	root := NewRootCommand(opts)
 	root.SetArgs(args)
 
-	return report(opts.Streams.Err, root.ExecuteContext(ctx))
+	cmd, err := root.ExecuteContextC(ctx)
+	if errors.Is(err, errWorkflowDifferent) {
+		return ExitError // A successful comparison with differences; no diagnostic.
+	}
+	code := report(opts.Streams.Err, err)
+	if code == ExitError && cmd != nil && cmd.Annotations["diffExitCodes"] == "true" {
+		return ExitDiffError
+	}
+	return code
 }
 
 // report writes err to the diagnostic stream and returns the matching exit code.

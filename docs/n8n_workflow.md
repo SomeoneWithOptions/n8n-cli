@@ -45,6 +45,7 @@ n8n workflow [flags]
 * [n8n workflow archive](n8n_workflow_archive.md)	 - Archive a workflow, the reversible soft delete
 * [n8n workflow create](n8n_workflow_create.md)	 - Create a workflow from a definition or as an empty one
 * [n8n workflow delete](n8n_workflow_delete.md)	 - Permanently delete a workflow
+* [n8n workflow diff](n8n_workflow_diff.md)	 - Compare saved workflows across two contexts
 * [n8n workflow get](n8n_workflow_get.md)	 - Show one workflow with its definition
 * [n8n workflow history](n8n_workflow_history.md)	 - List the saved versions of a workflow
 * [n8n workflow list](n8n_workflow_list.md)	 - List workflows

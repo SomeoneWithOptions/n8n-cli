@@ -3,6 +3,8 @@
 Generated from the command help. Do not edit these files by hand:
 edit the command's Short, Long, Example or flag usage and run `make docs`.
 
+## n8n API
+
 | Command | Description |
 |---|---|
 | [`n8n audit generate`](n8n_audit_generate.md) | Generate a security audit of the instance |
@@ -220,3 +222,11 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n workflow version`](n8n_workflow_version.md) | Read a stored version of a workflow |
 | [`n8n workflow`](n8n_workflow.md) | Manage workflows, their versions and their tags |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |
+
+## CLI-only extensions
+
+Beyond-spec helpers, maintained here. No equivalent n8n endpoint.
+
+| Command | Description |
+|---|---|
+| [`n8n workflow diff`](n8n_workflow_diff.md) | Compare saved workflows across two contexts |

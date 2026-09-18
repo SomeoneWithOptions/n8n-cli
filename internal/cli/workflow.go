@@ -52,6 +52,7 @@ func newWorkflowCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(
 		newWorkflowListCommand(opts),
 		newWorkflowGetCommand(opts),
+		newWorkflowDiffCommand(opts),
 		newWorkflowCreateCommand(opts),
 		newWorkflowUpdateCommand(opts),
 		newWorkflowDeleteCommand(opts),

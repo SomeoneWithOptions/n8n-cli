@@ -106,28 +106,42 @@ func fileName(cmd *cobra.Command) string {
 func link(name string) string { return name }
 
 // index lists every command in one page, so a reader (or an agent) can find a
-// command without opening each file.
+// command without opening each file. Commands annotated with cliOnly=true
+// render under CLI-only extensions; everything else renders under n8n API.
 func index(root *cobra.Command) []byte {
-	var rows []string
+	var apiRows, cliRows []string
 	var walk func(cmd *cobra.Command)
 	walk = func(cmd *cobra.Command) {
 		if !cmd.IsAvailableCommand() && cmd != root {
 			return
 		}
-		rows = append(rows, fmt.Sprintf("| [`%s`](%s) | %s |", cmd.CommandPath(), fileName(cmd), cmd.Short))
+		row := fmt.Sprintf("| [`%s`](%s) | %s |", cmd.CommandPath(), fileName(cmd), cmd.Short)
+		if cmd.Annotations["cliOnly"] == "true" {
+			cliRows = append(cliRows, row)
+		} else {
+			apiRows = append(apiRows, row)
+		}
 		for _, sub := range cmd.Commands() {
 			walk(sub)
 		}
 	}
 	walk(root)
-	slices.Sort(rows)
+	slices.Sort(apiRows)
+	slices.Sort(cliRows)
 
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "# %s command reference\n\n", root.Name())
 	fmt.Fprintf(&b, "Generated from the command help. Do not edit these files by hand:\n")
 	fmt.Fprintf(&b, "edit the command's Short, Long, Example or flag usage and run `make docs`.\n\n")
+	fmt.Fprintf(&b, "## n8n API\n\n")
 	fmt.Fprintf(&b, "| Command | Description |\n|---|---|\n")
-	for _, row := range rows {
+	for _, row := range apiRows {
+		fmt.Fprintln(&b, row)
+	}
+	fmt.Fprintf(&b, "\n## CLI-only extensions\n\n")
+	fmt.Fprintf(&b, "Beyond-spec helpers, maintained here. No equivalent n8n endpoint.\n\n")
+	fmt.Fprintf(&b, "| Command | Description |\n|---|---|\n")
+	for _, row := range cliRows {
 		fmt.Fprintln(&b, row)
 	}
 	return b.Bytes()
