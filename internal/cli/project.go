@@ -490,7 +490,7 @@ func projectRelations(opts Options, f projectUserAddFlags) ([]n8n.ProjectRelatio
 }
 
 func readProjectDocument(opts Options, path string, dst any) error {
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

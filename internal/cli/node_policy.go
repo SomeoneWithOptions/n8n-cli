@@ -310,7 +310,7 @@ func readNodePolicyDocument(opts Options, path string) (n8n.ReplaceNodeTypePolic
 	if strings.TrimSpace(path) == "" {
 		return request, fmt.Errorf("--input is required: start from 'n8n node-policy ... get --output json' and pass the edited file, or --input - for stdin")
 	}
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

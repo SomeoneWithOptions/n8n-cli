@@ -4,6 +4,7 @@
 // version bump. Export streams a gzipped tar archive (.n8np) down; import
 // streams one up as multipart form data. Both directions stream: the archive
 // is never buffered whole in memory.
+
 package n8n
 
 import (
@@ -219,16 +220,12 @@ func (c *Client) ExportPackage(ctx context.Context, request ExportPackageRequest
 	}
 	defer drainAndClose(resp.Body)
 
-	result := &Response{
-		StatusCode: resp.StatusCode,
-		Header:     resp.Header,
-		RequestID:  requestID(resp.Header),
-	}
+	reqID := requestID(resp.Header)
 	c.logger.DebugContext(ctx, "n8n response",
 		"method", http.MethodPost,
 		"url", endpoint.Redacted(),
 		"status", resp.StatusCode,
-		"requestID", result.RequestID,
+		"requestID", reqID,
 		"duration", time.Since(start),
 	)
 
@@ -660,7 +657,8 @@ func (e *ImportBlockedError) Error() string {
 		fmt.Fprintf(&b, "HTTP %d", e.StatusCode)
 	}
 	if e.Message != "" {
-		b.WriteString(": " + e.Message)
+		b.WriteString(": ")
+		b.WriteString(e.Message)
 	}
 	if len(e.Issues) > 0 {
 		types := make([]string, 0, len(e.Issues))
@@ -670,7 +668,9 @@ func (e *ImportBlockedError) Error() string {
 		fmt.Fprintf(&b, " (%d issue(s): %s)", len(e.Issues), strings.Join(types, ", "))
 	}
 	if e.RequestID != "" {
-		b.WriteString(" (request id " + e.RequestID + ")")
+		b.WriteString(" (request id ")
+		b.WriteString(e.RequestID)
+		b.WriteString(")")
 	}
 	return b.String()
 }
@@ -687,8 +687,7 @@ func AsImportBlocked(err error) (*ImportBlockedError, bool) {
 	if err == nil {
 		return nil, false
 	}
-	var blocked *ImportBlockedError
-	if errors.As(err, &blocked) {
+	if blocked, ok := errors.AsType[*ImportBlockedError](err); ok {
 		return blocked, true
 	}
 	return nil, false

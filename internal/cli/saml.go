@@ -158,7 +158,7 @@ func readSAMLConfigurationDocument(opts Options, path string, dst *n8n.SetSAMLCo
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("--input is required: start from 'n8n saml get --output json' and pass the complete edited file, or --input - for stdin")
 	}
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	var file *os.File
 	if path != "-" {
 		var err error

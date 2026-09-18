@@ -1260,7 +1260,7 @@ func writeWorkflowResult(opts Options, resolution config.Resolution, action stri
 // a file or stdin, capped so a wrong path cannot pull an arbitrarily large file
 // into memory.
 func readWorkflowDocument(opts Options, path string) (n8n.WorkflowDocument, error) {
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -212,11 +213,7 @@ func containsLogStreamRedaction(value any) bool {
 	case string:
 		return strings.Contains(v, Redacted)
 	case []any:
-		for _, item := range v {
-			if containsLogStreamRedaction(item) {
-				return true
-			}
-		}
+		return slices.ContainsFunc(v, containsLogStreamRedaction)
 	case map[string]any:
 		for _, item := range v {
 			if containsLogStreamRedaction(item) {
@@ -321,8 +318,7 @@ func validateLogStreamID(id string) error {
 // Redact all server-controlled error details: even read/test/delete errors may
 // echo stored destination credentials. Preserve status, method and request ID.
 func redactLogStreamError(err error) error {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		clone := *apiErr
 		clone.Code, clone.Hint, clone.Body = "", "", ""
 		clone.Message = "log streaming request failed; response details redacted"

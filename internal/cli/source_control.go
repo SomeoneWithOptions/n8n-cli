@@ -241,11 +241,14 @@ func runSourceControlPull(ctx context.Context, opts Options, f sourceControlPull
 	if err != nil {
 		return err
 	}
-	question := fmt.Sprintf("Pull the connected Git branch into %s and rewrite local content? Imported workflows keep their local published state.", resolution.URL)
-	if request.AutoPublish == n8n.SourceControlAutoPublishAll {
+	var question string
+	switch request.AutoPublish {
+	case n8n.SourceControlAutoPublishAll:
 		question = fmt.Sprintf("Pull the connected Git branch into %s and rewrite local content? Every imported workflow is published.", resolution.URL)
-	} else if request.AutoPublish == n8n.SourceControlAutoPublishPublished {
+	case n8n.SourceControlAutoPublishPublished:
 		question = fmt.Sprintf("Pull the connected Git branch into %s and rewrite local content? Workflows published locally before the import are published again.", resolution.URL)
+	default:
+		question = fmt.Sprintf("Pull the connected Git branch into %s and rewrite local content? Imported workflows keep their local published state.", resolution.URL)
 	}
 	if request.Force {
 		question += " Uncommitted local changes are discarded and cannot be recovered."
@@ -320,7 +323,7 @@ func parseSourceControlFile(raw string) (n8n.SourceControlFileSelector, error) {
 
 func readSourceControlPushDocument(opts Options, path string) (n8n.PushSourceControlRequest, error) {
 	var request n8n.PushSourceControlRequest
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

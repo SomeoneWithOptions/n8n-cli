@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -60,12 +61,7 @@ func (o AuditOptions) Validate() error {
 }
 
 func validAuditCategory(category string) bool {
-	for _, known := range AuditCategories {
-		if category == known {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(AuditCategories, category)
 }
 
 // empty reports whether the options would produce an empty request body.

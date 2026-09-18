@@ -186,8 +186,10 @@ func TestExportPackageBadCountsHeader(t *testing.T) {
 func TestExportPackageNilContext(t *testing.T) {
 	server := newCommunityPackageServer(t, exportGzipHandler(t, "", ""))
 	var out bytes.Buffer
-	//lint:ignore SA1012 the guard against a nil context is the behavior under test.
-	if _, err := server.client(t).ExportPackage(nil, ExportPackageRequest{WorkflowIDs: []string{"a"}}, &out); err == nil { //nolint:staticcheck
+	// A nil context is the behavior under test, so it is bound to a variable
+	// rather than written as a literal that the analysers reject.
+	var ctx context.Context
+	if _, err := server.client(t).ExportPackage(ctx, ExportPackageRequest{WorkflowIDs: []string{"a"}}, &out); err == nil {
 		t.Error("nil context: want an error")
 	}
 }

@@ -149,7 +149,7 @@ func readSecurityPolicyDocument(opts Options, path string, dst *n8n.UpdateSecuri
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("--input is required: start from 'n8n security-policy get --output json' and pass the edited file, or --input - for stdin")
 	}
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	var file *os.File
 	if path != "-" {
 		var err error

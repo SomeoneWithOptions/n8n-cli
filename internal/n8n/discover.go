@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -117,12 +118,7 @@ func (c *Client) Discover(ctx context.Context, opts DiscoverOptions) (*Discovery
 // HasScope reports whether the credential holds an exact scope, e.g.
 // "workflow:read".
 func (d *Discovery) HasScope(scope string) bool {
-	for _, s := range d.Scopes {
-		if s == scope {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(d.Scopes, scope)
 }
 
 // Resource looks a resource group up by name, case-insensitively, because the
@@ -173,10 +169,5 @@ func (d *Discovery) HasOperation(resource, operation string) bool {
 	if !ok {
 		return false
 	}
-	for _, op := range r.Operations {
-		if op == operation {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Operations, operation)
 }

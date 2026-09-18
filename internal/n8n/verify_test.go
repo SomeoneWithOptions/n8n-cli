@@ -74,8 +74,7 @@ func TestRequireAPIKey(t *testing.T) {
 				}
 				return
 			}
-			var apiKeyErr *ErrAPIKeyRequired
-			if !errors.As(err, &apiKeyErr) {
+			if _, ok := errors.AsType[*ErrAPIKeyRequired](err); !ok {
 				t.Fatalf("RequireAPIKey(%q) = %v, want *ErrAPIKeyRequired", tt.authType, err)
 			}
 			if !strings.Contains(err.Error(), tt.wantText) {

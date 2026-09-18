@@ -41,15 +41,21 @@ func (e *APIError) Error() string {
 	}
 	switch {
 	case e.Message != "":
-		b.WriteString(": " + e.Message)
+		b.WriteString(": ")
+		b.WriteString(e.Message)
 	case e.Body != "":
-		b.WriteString(": " + singleLine(e.Body))
+		b.WriteString(": ")
+		b.WriteString(singleLine(e.Body))
 	}
 	if e.Hint != "" {
-		b.WriteString(" (" + e.Hint + ")")
+		b.WriteString(" (")
+		b.WriteString(e.Hint)
+		b.WriteString(")")
 	}
 	if e.RequestID != "" {
-		b.WriteString(" (request id " + e.RequestID + ")")
+		b.WriteString(" (request id ")
+		b.WriteString(e.RequestID)
+		b.WriteString(")")
 	}
 	return b.String()
 }
@@ -67,8 +73,7 @@ func (e *APIError) statusText() string {
 // StatusCodeOf returns the HTTP status carried by err, or 0 when err is not an
 // [APIError].
 func StatusCodeOf(err error) int {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr.StatusCode
 	}
 	return 0

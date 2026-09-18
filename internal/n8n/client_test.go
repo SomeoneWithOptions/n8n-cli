@@ -456,8 +456,10 @@ func TestDoNilContext(t *testing.T) {
 		t.Error("server was called, want the nil context rejected first")
 	})
 
-	//lint:ignore SA1012 the guard against a nil context is the behavior under test.
-	if _, err := client.Do(nil, Request{Path: "/discover"}, nil); err == nil { //nolint:staticcheck
+	// A nil context is the behavior under test, so it is bound to a variable
+	// rather than written as a literal that the analysers reject.
+	var ctx context.Context
+	if _, err := client.Do(ctx, Request{Path: "/discover"}, nil); err == nil {
 		t.Fatal("Do: want an error")
 	}
 }

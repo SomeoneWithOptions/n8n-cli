@@ -371,7 +371,7 @@ func readRoleMappingDocument(opts Options, path string, dst any) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("--input is required: pass a JSON file path or --input - for stdin")
 	}
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

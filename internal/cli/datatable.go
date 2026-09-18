@@ -1446,7 +1446,7 @@ func writeDataTableMutation(opts Options, resolution config.Resolution, result d
 // readDataTableInput reads a JSON payload from a file or stdin, capped so a
 // wrong path cannot pull an arbitrarily large file into memory.
 func readDataTableInput(opts Options, path string) ([]byte, error) {
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {

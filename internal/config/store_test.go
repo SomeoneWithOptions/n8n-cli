@@ -209,14 +209,12 @@ func TestStoreUpdateSerializesConcurrentWriters(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make([]error, writers)
 	for i := range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			name := "ctx" + strconv.Itoa(i)
 			errs[i] = store.Update(func(cfg *Config) error {
 				return cfg.Put(name, testContext("https://n8n.example.com"))
 			})
-		}()
+		})
 	}
 	wg.Wait()
 

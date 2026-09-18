@@ -228,7 +228,7 @@ func readOtelDocument(opts Options, path string, dst any, kind string) error {
 	if strings.TrimSpace(path) == "" {
 		return fmt.Errorf("--input is required: pass an OpenTelemetry %s JSON file, or --input - for stdin", kind)
 	}
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	var file *os.File
 	if path != "-" {
 		var err error

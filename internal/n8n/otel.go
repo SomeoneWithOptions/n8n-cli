@@ -199,7 +199,7 @@ func redactOtelCollectorError(message string, headers *string) string {
 		return message
 	}
 	message = strings.ReplaceAll(message, *headers, "[redacted exporter headers]")
-	for _, pair := range strings.Split(*headers, ",") {
+	for pair := range strings.SplitSeq(*headers, ",") {
 		pair = strings.TrimSpace(pair)
 		if pair == "" {
 			continue

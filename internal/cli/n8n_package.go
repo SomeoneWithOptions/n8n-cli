@@ -213,7 +213,7 @@ func packageExportRequest(opts Options, f packageExportFlags, changed map[string
 
 func readPackageExportDocument(opts Options, path string) (n8n.ExportPackageRequest, error) {
 	var request n8n.ExportPackageRequest
-	var reader io.Reader = opts.Streams.In
+	reader := opts.Streams.In
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {
