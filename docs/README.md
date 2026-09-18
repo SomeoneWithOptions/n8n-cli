@@ -75,6 +75,16 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
 | [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
 | [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
+| [`n8n log-stream destination create`](n8n_log-stream_destination_create.md) | Create a log streaming destination |
+| [`n8n log-stream destination delete`](n8n_log-stream_destination_delete.md) | Delete a log streaming destination |
+| [`n8n log-stream destination get`](n8n_log-stream_destination_get.md) | Get a log streaming destination |
+| [`n8n log-stream destination list`](n8n_log-stream_destination_list.md) | List configured log streaming destinations |
+| [`n8n log-stream destination test`](n8n_log-stream_destination_test.md) | Send one test message to a destination |
+| [`n8n log-stream destination update`](n8n_log-stream_destination_update.md) | Fully replace a log streaming destination |
+| [`n8n log-stream destination`](n8n_log-stream_destination.md) | Create, inspect, replace, test, or delete destinations |
+| [`n8n log-stream event-type list`](n8n_log-stream_event-type_list.md) | List event names available for streaming |
+| [`n8n log-stream event-type`](n8n_log-stream_event-type.md) | Inspect streamable event types |
+| [`n8n log-stream`](n8n_log-stream.md) | Manage licensed log streaming destinations |
 | [`n8n node-policy instance get`](n8n_node-policy_instance_get.md) | Get the instance node type policy |
 | [`n8n node-policy instance set`](n8n_node-policy_instance_set.md) | Fully replace the instance node type policy |
 | [`n8n node-policy instance`](n8n_node-policy_instance.md) | Manage the instance node type policy |

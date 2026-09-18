@@ -1078,8 +1078,8 @@
       "scope": "eventBusDestination:list",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination list",
+      "status": "implemented"
     },
     {
       "operationId": "createDestination",
@@ -1089,8 +1089,8 @@
       "scope": "eventBusDestination:create",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteDestination",
@@ -1100,8 +1100,8 @@
       "scope": "eventBusDestination:delete",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination delete",
+      "status": "implemented"
     },
     {
       "operationId": "getDestination",
@@ -1111,8 +1111,8 @@
       "scope": "eventBusDestination:read",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination get",
+      "status": "implemented"
     },
     {
       "operationId": "updateDestination",
@@ -1122,8 +1122,8 @@
       "scope": "eventBusDestination:update",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination update",
+      "status": "implemented"
     },
     {
       "operationId": "testDestination",
@@ -1133,8 +1133,8 @@
       "scope": "eventBusDestination:test",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream destination test",
+      "status": "implemented"
     },
     {
       "operationId": "getEventTypes",
@@ -1144,8 +1144,8 @@
       "scope": "eventBusDestination:list",
       "availability": "both",
       "phase": 21,
-      "command": "",
-      "status": "planned"
+      "command": "n8n log-stream event-type list",
+      "status": "implemented"
     },
     {
       "operationId": "getLdapConfiguration",
