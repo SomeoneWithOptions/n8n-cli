@@ -75,28 +75,10 @@ n8n auth status --check
 n8n discover
 ```
 
-## Status
-
-Early development, pre-1.0: minor versions may change command behavior. The CLI
-version is independent of the n8n API version it talks to. Commands cover audit,
-auth, community packages, config, credentials, data tables, discover,
-evaluations, executions, folders, Git connections, insights, LDAP, log streams,
-node policies, OIDC, OpenTelemetry, packages (beta), projects, promotions,
-roles, role mappings, SAML, security policy, source control, tags, users,
-variables, workflows and version.
-
 ## Command reference
 
 [`docs/README.md`](docs/README.md) is generated from the command help.
 Regenerate it with `make docs` after changing any command's help text.
-
-## Development
-
-`make check` is the definition of green: formatting, vet, staticcheck, tests
-with and without the race detector, cross-compilation of every release target,
-module tidiness and `govulncheck`. CI runs the same targets on Linux, macOS and
-Windows; `make dist` builds the release artifacts the release workflow
-publishes.
 
 ## License
 

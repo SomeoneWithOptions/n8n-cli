@@ -2,6 +2,10 @@
 # CI in Phase 31 runs the same ones; keep them in sync by calling them, not
 # by reimplementing them in a workflow file.
 
+# Recipes and $(shell ...) use POSIX syntax. Selecting bash in CI's outer
+# step does not select Make's own shell on Windows; use Git Bash there.
+SHELL := bash
+
 NAME        := n8n
 # Windows will not execute a file without the extension, and CI runs the built
 # binary on all three platforms.
@@ -25,7 +29,8 @@ DEADCODE  := golang.org/x/tools/cmd/deadcode@v0.44.0
 # Every target the cross-compile gate must build. Pure Go, so no toolchain setup.
 CROSS_TARGETS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 
-GO_FILES := $(shell find . -name '*.go' -not -path '*/.*')
+# Only enumerate files when the optional analyze target needs them.
+GO_FILES = $(shell find . -name '*.go' -not -path '*/.*')
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
@@ -51,7 +56,7 @@ fmt:
 
 ## fmt-check: fail when sources are not gofmt-clean.
 fmt-check:
-	@files=$$(gofmt -s -l .); \
+	@files=$$(gofmt -s -l .) || exit 1; \
 	if [ -n "$$files" ]; then \
 		echo "not gofmt-clean:"; echo "$$files"; exit 1; \
 	fi

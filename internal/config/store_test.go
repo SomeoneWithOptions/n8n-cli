@@ -329,11 +329,22 @@ func TestStoreSurvivesInterruptedWrite(t *testing.T) {
 }
 
 func TestDefaultDir(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("XDG_CONFIG_HOME does not apply on Windows")
-	}
 	base := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", base)
+	switch runtime.GOOS {
+	case "windows":
+		// Keep this distinct from XDG_CONFIG_HOME to verify Windows ignores it.
+		base = filepath.Join(base, "AppData")
+		t.Setenv("AppData", base)
+	case "darwin", "ios":
+		// macOS ignores XDG_CONFIG_HOME. Resolving the path does not read
+		// or write any files in the user's actual config directory.
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("UserHomeDir: %v", err)
+		}
+		base = filepath.Join(home, "Library", "Application Support")
+	}
 
 	dir, err := DefaultDir()
 	if err != nil {

@@ -1,0 +1,3 @@
+# Keep source, generated docs and scripts identical on every platform,
+# including Windows checkouts with core.autocrlf enabled.
+* text=auto eol=lf

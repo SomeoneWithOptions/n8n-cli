@@ -7,6 +7,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -25,8 +26,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
-        # bash everywhere, so make finds a POSIX shell on the Windows runner
-        # and the targets behave identically on all three platforms.
+        # Use Git Bash on Windows; the Makefile also selects bash explicitly.
         shell: bash
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,9 @@ jobs:
 
       - name: Lint
         run: make lint
+
+      - name: Tests
+        run: make test
 
       - name: Tests (race)
         run: make test-race
