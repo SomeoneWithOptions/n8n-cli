@@ -217,6 +217,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newSAMLCommand(opts),
 		newSourceControlCommand(opts),
 		newPackageCommand(opts),
+		newGitConnectionCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

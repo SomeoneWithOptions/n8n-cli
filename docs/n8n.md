@@ -57,6 +57,7 @@ n8n [flags]
 * [n8n evaluation](n8n_evaluation.md)	 - Run and inspect workflow evaluations
 * [n8n execution](n8n_execution.md)	 - Inspect, stop, retry and delete workflow executions
 * [n8n folder](n8n_folder.md)	 - Manage the folders of a project
+* [n8n git-connection](n8n_git-connection.md)	 - Manage the Git connection, its projects, and push/pull sync
 * [n8n insight](n8n_insight.md)	 - Read aggregate execution insights
 * [n8n ldap](n8n_ldap.md)	 - Manage licensed LDAP settings and synchronization
 * [n8n log-stream](n8n_log-stream.md)	 - Manage licensed log streaming destinations

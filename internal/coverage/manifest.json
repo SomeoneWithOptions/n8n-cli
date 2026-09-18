@@ -1353,8 +1353,8 @@
       "scope": "gitConnection:list",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection list",
+      "status": "implemented"
     },
     {
       "operationId": "createGitConnection",
@@ -1364,8 +1364,8 @@
       "scope": "gitConnection:create",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteGitConnection",
@@ -1375,8 +1375,8 @@
       "scope": "gitConnection:delete",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection delete",
+      "status": "implemented"
     },
     {
       "operationId": "getGitConnection",
@@ -1386,8 +1386,8 @@
       "scope": "gitConnection:read",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection get",
+      "status": "implemented"
     },
     {
       "operationId": "updateGitConnection",
@@ -1397,8 +1397,8 @@
       "scope": "gitConnection:update",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection update",
+      "status": "implemented"
     },
     {
       "operationId": "cloneGitConnection",
@@ -1408,8 +1408,8 @@
       "scope": "gitConnection:clone",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection clone",
+      "status": "implemented"
     },
     {
       "operationId": "disconnectGitConnection",
@@ -1419,8 +1419,8 @@
       "scope": "gitConnection:clone",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection disconnect",
+      "status": "implemented"
     },
     {
       "operationId": "getGitConnectionProjects",
@@ -1430,8 +1430,8 @@
       "scope": "gitConnection:read",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection project list",
+      "status": "implemented"
     },
     {
       "operationId": "removeProjectFromGitConnection",
@@ -1441,8 +1441,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection project remove",
+      "status": "implemented"
     },
     {
       "operationId": "addProjectToGitConnection",
@@ -1452,8 +1452,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection project add",
+      "status": "implemented"
     },
     {
       "operationId": "pullGitConnectionProjects",
@@ -1463,8 +1463,8 @@
       "scope": "gitConnection:pull",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection pull",
+      "status": "implemented"
     },
     {
       "operationId": "pushGitConnectionProjects",
@@ -1474,8 +1474,8 @@
       "scope": "gitConnection:push",
       "availability": "target-only",
       "phase": 28,
-      "command": "",
-      "status": "planned"
+      "command": "n8n git-connection push",
+      "status": "implemented"
     },
     {
       "operationId": "getInstancePolicy",

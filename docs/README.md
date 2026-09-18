@@ -73,6 +73,20 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder list`](n8n_folder_list.md) | List the folders of a project |
 | [`n8n folder update`](n8n_folder_update.md) | Rename a folder or move it under another folder |
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
+| [`n8n git-connection clone`](n8n_git-connection_clone.md) | Clone the Git repository locally |
+| [`n8n git-connection create`](n8n_git-connection_create.md) | Create the Git connection |
+| [`n8n git-connection delete`](n8n_git-connection_delete.md) | Permanently delete a Git connection |
+| [`n8n git-connection disconnect`](n8n_git-connection_disconnect.md) | Remove the local Git checkout |
+| [`n8n git-connection get`](n8n_git-connection_get.md) | Show one Git connection |
+| [`n8n git-connection list`](n8n_git-connection_list.md) | List Git connections |
+| [`n8n git-connection project add`](n8n_git-connection_project_add.md) | Add a project to a Git connection |
+| [`n8n git-connection project list`](n8n_git-connection_project_list.md) | List projects linked to a Git connection |
+| [`n8n git-connection project remove`](n8n_git-connection_project_remove.md) | Remove a project from a Git connection |
+| [`n8n git-connection project`](n8n_git-connection_project.md) | Manage projects linked to a Git connection |
+| [`n8n git-connection pull`](n8n_git-connection_pull.md) | Pull the Git remote into this instance |
+| [`n8n git-connection push`](n8n_git-connection_push.md) | Push all team projects to the Git remote |
+| [`n8n git-connection update`](n8n_git-connection_update.md) | Update a Git connection |
+| [`n8n git-connection`](n8n_git-connection.md) | Manage the Git connection, its projects, and push/pull sync |
 | [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
 | [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
 | [`n8n ldap get`](n8n_ldap_get.md) | Get LDAP configuration |

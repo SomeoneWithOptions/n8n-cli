@@ -1,5 +1,5 @@
 # These targets are the single definition of "green" for this project.
-# CI in Phase 29 runs the same ones; keep them in sync by calling them, not
+# CI in Phase 31 runs the same ones; keep them in sync by calling them, not
 # by reimplementing them in a workflow file.
 
 BINARY      := n8n
