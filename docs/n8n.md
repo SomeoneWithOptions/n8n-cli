@@ -61,6 +61,7 @@ n8n [flags]
 * [n8n ldap](n8n_ldap.md)	 - Manage licensed LDAP settings and synchronization
 * [n8n log-stream](n8n_log-stream.md)	 - Manage licensed log streaming destinations
 * [n8n node-policy](n8n_node-policy.md)	 - Manage node type availability policies
+* [n8n oidc](n8n_oidc.md)	 - Manage licensed OIDC SSO settings
 * [n8n otel](n8n_otel.md)	 - Manage OpenTelemetry tracing settings
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles

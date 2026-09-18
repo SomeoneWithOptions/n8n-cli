@@ -212,6 +212,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newOtelCommand(opts),
 		newLogStreamCommand(opts),
 		newLDAPCommand(opts),
+		newOIDCCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

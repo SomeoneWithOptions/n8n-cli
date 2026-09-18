@@ -1199,8 +1199,8 @@
       "scope": "oidc:manage",
       "availability": "both",
       "phase": 23,
-      "command": "",
-      "status": "planned"
+      "command": "n8n oidc get",
+      "status": "implemented"
     },
     {
       "operationId": "setOidcConfiguration",
@@ -1210,8 +1210,8 @@
       "scope": "oidc:manage",
       "availability": "both",
       "phase": 23,
-      "command": "",
-      "status": "planned"
+      "command": "n8n oidc set",
+      "status": "implemented"
     },
     {
       "operationId": "getSamlConfiguration",

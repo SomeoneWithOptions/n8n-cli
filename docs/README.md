@@ -98,6 +98,9 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n node-policy project set`](n8n_node-policy_project_set.md) | Fully replace a project's node type policy |
 | [`n8n node-policy project`](n8n_node-policy_project.md) | Manage a project's node type policy |
 | [`n8n node-policy`](n8n_node-policy.md) | Manage node type availability policies |
+| [`n8n oidc get`](n8n_oidc_get.md) | Get OIDC SSO configuration |
+| [`n8n oidc set`](n8n_oidc_set.md) | Fully replace OIDC SSO configuration |
+| [`n8n oidc`](n8n_oidc.md) | Manage licensed OIDC SSO settings |
 | [`n8n otel get`](n8n_otel_get.md) | Get effective OpenTelemetry settings |
 | [`n8n otel set`](n8n_otel_set.md) | Fully replace OpenTelemetry settings |
 | [`n8n otel test-trace`](n8n_otel_test-trace.md) | Send one test span to an OTLP collector |
