@@ -75,6 +75,12 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
 | [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
 | [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
+| [`n8n ldap get`](n8n_ldap_get.md) | Get LDAP configuration |
+| [`n8n ldap set`](n8n_ldap_set.md) | Fully replace LDAP configuration |
+| [`n8n ldap sync history`](n8n_ldap_sync_history.md) | List LDAP synchronization history |
+| [`n8n ldap sync run`](n8n_ldap_sync_run.md) | Run LDAP synchronization |
+| [`n8n ldap sync`](n8n_ldap_sync.md) | Inspect or run LDAP synchronization |
+| [`n8n ldap`](n8n_ldap.md) | Manage licensed LDAP settings and synchronization |
 | [`n8n log-stream destination create`](n8n_log-stream_destination_create.md) | Create a log streaming destination |
 | [`n8n log-stream destination delete`](n8n_log-stream_destination_delete.md) | Delete a log streaming destination |
 | [`n8n log-stream destination get`](n8n_log-stream_destination_get.md) | Get a log streaming destination |

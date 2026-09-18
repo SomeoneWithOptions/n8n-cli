@@ -1155,8 +1155,8 @@
       "scope": "ldap:manage",
       "availability": "both",
       "phase": 22,
-      "command": "",
-      "status": "planned"
+      "command": "n8n ldap get",
+      "status": "implemented"
     },
     {
       "operationId": "updateLdapConfiguration",
@@ -1166,8 +1166,8 @@
       "scope": "ldap:manage",
       "availability": "both",
       "phase": 22,
-      "command": "",
-      "status": "planned"
+      "command": "n8n ldap set",
+      "status": "implemented"
     },
     {
       "operationId": "getLdapSync",
@@ -1177,8 +1177,8 @@
       "scope": "ldap:sync",
       "availability": "both",
       "phase": 22,
-      "command": "",
-      "status": "planned"
+      "command": "n8n ldap sync history",
+      "status": "implemented"
     },
     {
       "operationId": "runLdapSync",
@@ -1188,8 +1188,8 @@
       "scope": "ldap:sync",
       "availability": "both",
       "phase": 22,
-      "command": "",
-      "status": "planned"
+      "command": "n8n ldap sync run",
+      "status": "implemented"
     },
     {
       "operationId": "getOidcConfiguration",
