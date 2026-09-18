@@ -80,6 +80,10 @@ n8n discover
 [`docs/README.md`](docs/README.md) is generated from the command help.
 Regenerate it with `make docs` after changing any command's help text.
 
+## Contributing
+
+Contribute via fork + PR, or open issue. See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
