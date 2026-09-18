@@ -1,0 +1,47 @@
+name: Bug report
+description: Report broken behavior
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `n8n version`
+      placeholder: n8n v0.1.0, commit ..., date ...
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS / arch / install method
+      placeholder: linux/amd64 via install.sh
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      description: Commands run, config (redact secrets), expected vs actual
+      placeholder: |
+        1. n8n auth login --url ...
+        2. n8n ...
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant output. Redact API keys, tokens, URLs with secrets.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: No secrets in this report
+          required: true

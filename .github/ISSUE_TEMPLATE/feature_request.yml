@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose new behavior
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What pain / use case? Why now?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Desired CLI shape, e.g. `n8n foo --bar`. Alternatives considered?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / notes
+      description: Out of scope, compat concerns, docs impact
+    validations:
+      required: false
