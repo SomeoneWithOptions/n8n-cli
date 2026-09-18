@@ -121,6 +121,12 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n role get`](n8n_role_get.md) | Get one role |
 | [`n8n role list`](n8n_role_list.md) | List global and project roles |
 | [`n8n role update`](n8n_role_update.md) | Fully replace a custom role |
+| [`n8n role-mapping create`](n8n_role-mapping_create.md) | Create a role-mapping rule |
+| [`n8n role-mapping delete`](n8n_role-mapping_delete.md) | Permanently delete a role-mapping rule |
+| [`n8n role-mapping list`](n8n_role-mapping_list.md) | List role-mapping rules |
+| [`n8n role-mapping move`](n8n_role-mapping_move.md) | Move a rule in its evaluation order |
+| [`n8n role-mapping update`](n8n_role-mapping_update.md) | Update a role-mapping rule |
+| [`n8n role-mapping`](n8n_role-mapping.md) | Manage identity-provider role-mapping rules |
 | [`n8n role`](n8n_role.md) | Manage global and project roles |
 | [`n8n saml get`](n8n_saml_get.md) | Get SAML SSO configuration |
 | [`n8n saml set`](n8n_saml_set.md) | Fully replace SAML SSO configuration |

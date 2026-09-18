@@ -1243,8 +1243,8 @@
       "scope": "roleMappingRule:list",
       "availability": "both",
       "phase": 25,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role-mapping list",
+      "status": "implemented"
     },
     {
       "operationId": "createRoleMappingRule",
@@ -1254,8 +1254,8 @@
       "scope": "roleMappingRule:create",
       "availability": "both",
       "phase": 25,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role-mapping create",
+      "status": "implemented"
     },
     {
       "operationId": "deleteRoleMappingRule",
@@ -1265,8 +1265,8 @@
       "scope": "roleMappingRule:delete",
       "availability": "both",
       "phase": 25,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role-mapping delete",
+      "status": "implemented"
     },
     {
       "operationId": "updateRoleMappingRule",
@@ -1276,8 +1276,8 @@
       "scope": "roleMappingRule:update",
       "availability": "both",
       "phase": 25,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role-mapping update",
+      "status": "implemented"
     },
     {
       "operationId": "moveRoleMappingRule",
@@ -1287,8 +1287,8 @@
       "scope": "roleMappingRule:update",
       "availability": "both",
       "phase": 25,
-      "command": "",
-      "status": "planned"
+      "command": "n8n role-mapping move",
+      "status": "implemented"
     },
     {
       "operationId": "pullSourceControl",
