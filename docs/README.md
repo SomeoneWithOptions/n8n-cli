@@ -134,6 +134,10 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n security-policy get`](n8n_security-policy_get.md) | Get effective security policy |
 | [`n8n security-policy set`](n8n_security-policy_set.md) | Fully replace security policy |
 | [`n8n security-policy`](n8n_security-policy.md) | Manage instance security policy |
+| [`n8n source-control pull`](n8n_source-control_pull.md) | Pull remote Git changes into this instance |
+| [`n8n source-control push`](n8n_source-control_push.md) | Commit and push local changes to the Git remote |
+| [`n8n source-control status`](n8n_source-control_status.md) | Preview pending source-control changes |
+| [`n8n source-control`](n8n_source-control.md) | Preview, push, and pull source-controlled instance changes |
 | [`n8n tag create`](n8n_tag_create.md) | Create a tag |
 | [`n8n tag delete`](n8n_tag_delete.md) | Permanently delete a tag |
 | [`n8n tag get`](n8n_tag_get.md) | Get one tag |

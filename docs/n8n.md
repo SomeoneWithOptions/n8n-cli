@@ -68,6 +68,7 @@ n8n [flags]
 * [n8n role-mapping](n8n_role-mapping.md)	 - Manage identity-provider role-mapping rules
 * [n8n saml](n8n_saml.md)	 - Manage licensed SAML SSO settings
 * [n8n security-policy](n8n_security-policy.md)	 - Manage instance security policy
+* [n8n source-control](n8n_source-control.md)	 - Preview, push, and pull source-controlled instance changes
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles
 * [n8n variable](n8n_variable.md)	 - Manage instance and project variables

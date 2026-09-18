@@ -215,6 +215,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newLDAPCommand(opts),
 		newOIDCCommand(opts),
 		newSAMLCommand(opts),
+		newSourceControlCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
 		newCompletionCommand(),

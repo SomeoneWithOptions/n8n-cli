@@ -1298,8 +1298,8 @@
       "scope": "sourceControl:pull",
       "availability": "both",
       "phase": 26,
-      "command": "",
-      "status": "planned"
+      "command": "n8n source-control pull",
+      "status": "implemented"
     },
     {
       "operationId": "pushSourceControl",
@@ -1309,8 +1309,8 @@
       "scope": "sourceControl:push",
       "availability": "both",
       "phase": 26,
-      "command": "",
-      "status": "planned"
+      "command": "n8n source-control push",
+      "status": "implemented"
     },
     {
       "operationId": "getSourceControlStatus",
@@ -1320,8 +1320,8 @@
       "scope": "sourceControl:read",
       "availability": "both",
       "phase": 26,
-      "command": "",
-      "status": "planned"
+      "command": "n8n source-control status",
+      "status": "implemented"
     },
     {
       "operationId": "exportPackage",
