@@ -950,8 +950,8 @@
       "tag": "SettingsOtel",
       "scope": "otel:manage",
       "phase": 20,
-      "command": "",
-      "status": "planned"
+      "command": "n8n otel get",
+      "status": "implemented"
     },
     {
       "operationId": "updateOtelSettings",
@@ -960,8 +960,8 @@
       "tag": "SettingsOtel",
       "scope": "otel:manage",
       "phase": 20,
-      "command": "",
-      "status": "planned"
+      "command": "n8n otel set",
+      "status": "implemented"
     },
     {
       "operationId": "testOtelTrace",
@@ -970,8 +970,8 @@
       "tag": "SettingsOtel",
       "scope": "otel:manage",
       "phase": 20,
-      "command": "",
-      "status": "planned"
+      "command": "n8n otel test-trace",
+      "status": "implemented"
     },
     {
       "operationId": "getDestinations",

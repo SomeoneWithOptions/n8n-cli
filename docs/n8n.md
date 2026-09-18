@@ -58,6 +58,7 @@ n8n [flags]
 * [n8n execution](n8n_execution.md)	 - Inspect, stop, retry and delete workflow executions
 * [n8n folder](n8n_folder.md)	 - Manage the folders of a project
 * [n8n insight](n8n_insight.md)	 - Read aggregate execution insights
+* [n8n otel](n8n_otel.md)	 - Manage OpenTelemetry tracing settings
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles
 * [n8n security-policy](n8n_security-policy.md)	 - Manage instance security policy

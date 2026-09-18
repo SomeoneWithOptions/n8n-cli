@@ -75,6 +75,10 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
 | [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
 | [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
+| [`n8n otel get`](n8n_otel_get.md) | Get effective OpenTelemetry settings |
+| [`n8n otel set`](n8n_otel_set.md) | Fully replace OpenTelemetry settings |
+| [`n8n otel test-trace`](n8n_otel_test-trace.md) | Send one test span to an OTLP collector |
+| [`n8n otel`](n8n_otel.md) | Manage OpenTelemetry tracing settings |
 | [`n8n project create`](n8n_project_create.md) | Create a project |
 | [`n8n project delete`](n8n_project_delete.md) | Permanently delete a project |
 | [`n8n project list`](n8n_project_list.md) | List projects |
