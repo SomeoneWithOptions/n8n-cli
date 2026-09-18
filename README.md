@@ -81,7 +81,7 @@ n8n discover
 Regenerate it with `make docs` after changing any command's help text.
 
 - [n8n API](docs/README.md#n8n-api) — 1:1 coverage of the n8n public API.
-- [CLI-only extensions](docs/README.md#cli-only-extensions) — beyond-spec helpers, maintained here.
+- [CLI-only extensions](docs/README.md#cli-only-extensions) — CLI setup and beyond-spec helpers, maintained here.
 
 ## Contributing
 
