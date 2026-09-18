@@ -2,10 +2,14 @@
 // per documented API operation, what phase owns it, and which CLI command
 // implements it.
 //
-// The manifest is the artifact, not `openapi.yml`: the specification is served
-// by an instance and gitignored locally, so it cannot be the thing tests read
-// in CI. The opt-in test in this package cross-checks the two whenever the
-// specification is present.
+// The manifest is the artifact, not the OpenAPI documents: a specification is
+// served by an instance and gitignored locally, so it cannot be the thing tests
+// read in CI. The opt-in test in this package cross-checks them whenever a
+// document is present.
+//
+// No single server serves the whole API, so the manifest records the union of
+// every document the project builds against and says which servers offer each
+// operation through [Operation.Availability].
 package coverage
 
 import (
@@ -27,6 +31,20 @@ const (
 	StatusImplemented = "implemented"
 )
 
+// Availability is which OpenAPI documents declare an operation. It records what
+// servers offer, never whether the CLI implements it: an operation one server
+// omits still ships, and reports 404 or 503 where the module is absent.
+const (
+	// AvailabilityBoth means every document declares the operation.
+	AvailabilityBoth = "both"
+	// AvailabilityTargetOnly means only the target instance document declares
+	// it, e.g. GitConnections.
+	AvailabilityTargetOnly = "target-only"
+	// AvailabilityUpstreamOnly means only the upstream document declares it,
+	// e.g. NodeTypePolicy and Promotions.
+	AvailabilityUpstreamOnly = "upstream-only"
+)
+
 // Manifest is the committed operation inventory.
 type Manifest struct {
 	SchemaVersion int         `json:"schemaVersion"`
@@ -45,6 +63,9 @@ type Operation struct {
 	Path        string `json:"path"`
 	Tag         string `json:"tag"`
 	Scope       string `json:"scope"`
+	// Availability is which OpenAPI documents declare this operation: one of
+	// the Availability constants.
+	Availability string `json:"availability"`
 	// Phase is the PLAN.md implementation phase that owns this operation.
 	Phase int `json:"phase"`
 	// Command is the full CLI command path, e.g. "n8n discover". Empty while

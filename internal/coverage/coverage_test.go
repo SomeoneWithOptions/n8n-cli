@@ -3,6 +3,8 @@ package coverage_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,9 +18,35 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-// specPath is the OpenAPI document at the repository root. It is gitignored:
-// refresh it with `make spec`, and every test here skips without it.
-const specPath = "../../openapi.yml"
+// The OpenAPI documents at the repository root. Both are gitignored: refresh
+// them with `make spec` and `make spec-upstream`. No single server serves the
+// whole API, so the manifest is checked against whichever documents are
+// present, and the spec tests skip when neither is.
+const (
+	targetSpecPath   = "../../openapi.yml"
+	upstreamSpecPath = "../../openapi.upstream.yml"
+)
+
+// specs pairs a document with the availability values whose operations it must
+// declare.
+var specs = []struct {
+	name       string
+	path       string
+	availables []string
+}{
+	{"target", targetSpecPath, []string{coverage.AvailabilityBoth, coverage.AvailabilityTargetOnly}},
+	{"upstream", upstreamSpecPath, []string{coverage.AvailabilityBoth, coverage.AvailabilityUpstreamOnly}},
+}
+
+// pathParameter matches one OpenAPI path parameter, so keys can be compared
+// across documents that name the same parameter differently: /tags/{id} and
+// /tags/{tagId} are the same operation.
+var pathParameter = regexp.MustCompile(`\{[^}]+\}`)
+
+// normalizeKey reduces a method and path to the form both documents share.
+func normalizeKey(method, path string) string {
+	return strings.ToUpper(method) + " " + pathParameter.ReplaceAllString(path, "{}")
+}
 
 func load(t *testing.T) *coverage.Manifest {
 	t.Helper()
@@ -60,6 +88,11 @@ func TestManifestIsWellFormed(t *testing.T) {
 		}
 		if op.Phase <= 0 {
 			t.Errorf("%s: phase = %d, want the PLAN.md phase that owns it", op.Key(), op.Phase)
+		}
+		switch op.Availability {
+		case coverage.AvailabilityBoth, coverage.AvailabilityTargetOnly, coverage.AvailabilityUpstreamOnly:
+		default:
+			t.Errorf("%s: unknown availability %q", op.Key(), op.Availability)
 		}
 		switch op.Status {
 		case coverage.StatusPlanned:
@@ -116,17 +149,21 @@ func find(root *cobra.Command, path string) (*cobra.Command, bool) {
 	return cmd, true
 }
 
-// specOperations reads method+path keys from the OpenAPI document. It returns
-// nil when the document is absent, because it is gitignored.
-func specOperations(t *testing.T) map[string]string {
+// specOperations reads normalized method+path keys from one OpenAPI document,
+// mapped to the identifiers that document offers for the operation. It reports
+// false when the document is absent, because both are gitignored.
+//
+// Both identifiers are kept because the documents disagree: POST
+// /source-control/pull carries operationId pullSourceControl upstream and only
+// x-eov-operation-id pull on the target instance.
+func specOperations(t *testing.T, path string) (map[string][]string, bool) {
 	t.Helper()
-	data, err := os.ReadFile(specPath)
+	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		abs, _ := filepath.Abs(specPath)
-		t.Skipf("no OpenAPI document at %s: run 'make spec' to fetch it", abs)
+		return nil, false
 	}
 	if err != nil {
-		t.Fatalf("read %s: %v", specPath, err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 
 	var doc struct {
@@ -139,75 +176,147 @@ func specOperations(t *testing.T) map[string]string {
 		} `yaml:"paths"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("parse %s: %v", specPath, err)
+		t.Fatalf("parse %s: %v", path, err)
 	}
 
 	methods := map[string]bool{"get": true, "post": true, "put": true, "delete": true, "patch": true}
-	ops := map[string]string{}
-	for path, item := range doc.Paths {
+	ops := map[string][]string{}
+	for p, item := range doc.Paths {
 		for method, op := range item {
 			if !methods[method] {
 				continue
 			}
-			id := op.OperationID
-			if id == "" {
-				id = op.EOVOperationID
+			var ids []string
+			for _, id := range []string{op.OperationID, op.EOVOperationID} {
+				// "unreachable" is the placeholder the document uses where the
+				// real identifier lives in operationId.
+				if id != "" && id != "unreachable" {
+					ids = append(ids, id)
+				}
 			}
-			ops[strings.ToUpper(method)+" "+path] = id
+			ops[normalizeKey(method, p)] = ids
 		}
 	}
-	return ops
+	return ops, true
 }
 
 // TestManifestMatchesSpec fails when a documented operation disappears or
-// changes, and reports operations the specification has gained. New operations
-// are a manifest edit, never a silently generated command.
+// changes, and reports operations a document has gained. New operations are a
+// manifest edit, never a silently generated command.
+//
+// Each document is checked against the operations it is supposed to declare.
+// An operation absent from one server is not missing: it belongs to the other
+// document, which the availability field records.
 func TestManifestMatchesSpec(t *testing.T) {
-	spec := specOperations(t)
 	m := load(t)
 	manifest := m.ByKey()
+	normalized := make(map[string]coverage.Operation, len(m.Operations))
+	for _, op := range m.Operations {
+		normalized[normalizeKey(op.Method, op.Path)] = op
+	}
 
-	var removed, added []string
-	for key, op := range manifest {
-		if _, ok := spec[key]; !ok {
-			removed = append(removed, key+" ("+op.OperationID+", phase "+strconv.Itoa(op.Phase)+")")
+	// documented collects every identifier any present document uses for an
+	// operation. The documents disagree on some of them, so the manifest must
+	// match one of them rather than all of them.
+	documented := map[string][]string{}
+	checked := 0
+	for _, spec := range specs {
+		ops, present := specOperations(t, spec.path)
+		if !present {
+			continue
 		}
+		checked++
+		t.Run(spec.name, func(t *testing.T) {
+			var removed, added []string
+			for _, op := range m.Operations {
+				if !slices.Contains(spec.availables, op.Availability) {
+					continue
+				}
+				if _, ok := ops[normalizeKey(op.Method, op.Path)]; !ok {
+					removed = append(removed, op.Key()+" ("+op.OperationID+", phase "+strconv.Itoa(op.Phase)+", "+op.Availability+")")
+				}
+			}
+			for key, ids := range ops {
+				if _, ok := normalized[key]; !ok {
+					added = append(added, key+" ("+strings.Join(ids, ", ")+")")
+				}
+			}
+			sort.Strings(removed)
+			sort.Strings(added)
+
+			if len(removed) > 0 {
+				t.Errorf("the %s document no longer describes %d manifest operation(s); update the manifest, its availability, and the owning phase:\n  %s",
+					spec.name, len(removed), strings.Join(removed, "\n  "))
+			}
+			if len(added) > 0 {
+				t.Errorf("the %s document describes %d operation(s) the manifest does not list; add them to the manifest and to a phase:\n  %s",
+					spec.name, len(added), strings.Join(added, "\n  "))
+			}
+
+			for key, ids := range ops {
+				documented[key] = append(documented[key], ids...)
+			}
+		})
 	}
-	for key, id := range spec {
-		if _, ok := manifest[key]; !ok {
-			added = append(added, key+" ("+id+")")
+	if checked == 0 {
+		target, _ := filepath.Abs(targetSpecPath)
+		upstream, _ := filepath.Abs(upstreamSpecPath)
+		t.Skipf("no OpenAPI document at %s or %s: run 'make spec' and 'make spec-upstream' to fetch them", target, upstream)
+	}
+	// Identifiers move around between releases and between documents; the key
+	// stays the contract. The manifest records one identifier, which must be
+	// one some document actually uses.
+	for key, ids := range documented {
+		op, ok := normalized[key]
+		if !ok || len(ids) == 0 || slices.Contains(ids, op.OperationID) {
+			continue
 		}
-	}
-	sort.Strings(removed)
-	sort.Strings(added)
-
-	if len(removed) > 0 {
-		t.Errorf("the API no longer documents %d manifest operation(s); the manifest and the owning phase need updating:\n  %s",
-			len(removed), strings.Join(removed, "\n  "))
-	}
-	if len(added) > 0 {
-		t.Errorf("the API documents %d operation(s) the manifest does not list; add them to the manifest and to a phase:\n  %s",
-			len(added), strings.Join(added, "\n  "))
+		sort.Strings(ids)
+		t.Errorf("%s: the documents call this operation %s, the manifest calls it %q",
+			key, strings.Join(slices.Compact(ids), " or "), op.OperationID)
 	}
 
-	// Identifiers move around between releases; the key stays the contract.
-	for key, id := range spec {
-		if op, ok := manifest[key]; ok && id != "" && op.OperationID != id {
-			t.Errorf("%s: operationId = %q in the spec, %q in the manifest", key, id, op.OperationID)
+	if len(manifest) != len(normalized) {
+		t.Errorf("%d operations collapse to %d normalized keys; two entries differ only in path parameter names", len(manifest), len(normalized))
+	}
+}
+
+// TestAvailabilityMatchesSpecs checks the recorded availability against reality
+// once both documents are present. It is the guard that keeps an upstream-only
+// group from being quietly dropped when the target instance is re-fetched.
+func TestAvailabilityMatchesSpecs(t *testing.T) {
+	target, targetPresent := specOperations(t, targetSpecPath)
+	upstream, upstreamPresent := specOperations(t, upstreamSpecPath)
+	if !targetPresent || !upstreamPresent {
+		t.Skip("availability needs both documents: run 'make spec' and 'make spec-upstream'")
+	}
+
+	for _, op := range load(t).Operations {
+		key := normalizeKey(op.Method, op.Path)
+		_, inTarget := target[key]
+		_, inUpstream := upstream[key]
+		want := coverage.AvailabilityBoth
+		switch {
+		case inTarget && inUpstream:
+		case inTarget:
+			want = coverage.AvailabilityTargetOnly
+		case inUpstream:
+			want = coverage.AvailabilityUpstreamOnly
+		default:
+			continue // reported by TestManifestMatchesSpec
+		}
+		if op.Availability != want {
+			t.Errorf("%s: availability = %q, want %q", op.Key(), op.Availability, want)
 		}
 	}
 }
 
 // deliveredThrough is the last PLAN.md phase whose operations are all
-// implemented or whose absence from the target specification was verified.
-// Raise it when a phase is finished, never before.
+// implemented. Raise it when a phase is finished, never before.
+//
+// A phase is never excused because one server does not serve its resource:
+// every phase owns operations from the union of the documents.
 const deliveredThrough = 20
-
-// noOperationPhases records delivered phases whose planned resource is absent
-// from the target OpenAPI specification and therefore owns no manifest entry.
-var noOperationPhases = map[int]string{
-	18: "NodeTypePolicies is absent from the target OpenAPI specification",
-}
 
 // TestPhaseCounts is how a phase exit gate reads the manifest: every operation
 // a delivered phase owns must be implemented, and no later phase may have
@@ -219,9 +328,6 @@ func TestPhaseCounts(t *testing.T) {
 	for phase := 3; phase <= deliveredThrough; phase++ {
 		c, ok := counts[phase]
 		if !ok {
-			if _, verifiedAbsent := noOperationPhases[phase]; verifiedAbsent {
-				continue
-			}
 			t.Errorf("phase %d owns no operation, but it is marked delivered", phase)
 			continue
 		}

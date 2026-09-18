@@ -75,6 +75,13 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n folder`](n8n_folder.md) | Manage the folders of a project |
 | [`n8n insight summary`](n8n_insight_summary.md) | Show aggregate execution insights |
 | [`n8n insight`](n8n_insight.md) | Read aggregate execution insights |
+| [`n8n node-policy instance get`](n8n_node-policy_instance_get.md) | Get the instance node type policy |
+| [`n8n node-policy instance set`](n8n_node-policy_instance_set.md) | Fully replace the instance node type policy |
+| [`n8n node-policy instance`](n8n_node-policy_instance.md) | Manage the instance node type policy |
+| [`n8n node-policy project get`](n8n_node-policy_project_get.md) | Get a project's node type policy |
+| [`n8n node-policy project set`](n8n_node-policy_project_set.md) | Fully replace a project's node type policy |
+| [`n8n node-policy project`](n8n_node-policy_project.md) | Manage a project's node type policy |
+| [`n8n node-policy`](n8n_node-policy.md) | Manage node type availability policies |
 | [`n8n otel get`](n8n_otel_get.md) | Get effective OpenTelemetry settings |
 | [`n8n otel set`](n8n_otel_set.md) | Fully replace OpenTelemetry settings |
 | [`n8n otel test-trace`](n8n_otel_test-trace.md) | Send one test span to an OTLP collector |

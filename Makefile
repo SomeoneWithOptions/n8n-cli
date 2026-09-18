@@ -7,6 +7,8 @@ BIN_DIR     := bin
 PKG         := github.com/SomeoneWithOptions/n8n-cli
 VERSION_PKG := $(PKG)/internal/version
 
+UPSTREAM_SPEC_URL ?= https://internal.users.n8n.cloud/api/v1/openapi.yml
+
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -16,7 +18,7 @@ LDFLAGS := -s -w \
 	-X $(VERSION_PKG).commit=$(COMMIT) \
 	-X $(VERSION_PKG).date=$(DATE)
 
-.PHONY: all check fmt fmt-check test test-race vet lint vuln build clean tidy docs spec integration
+.PHONY: all check fmt fmt-check test test-race vet lint vuln build clean tidy docs spec spec-upstream integration
 
 all: check build
 
@@ -64,6 +66,12 @@ spec:
 	@test -n "$(N8N_INTEGRATION_URL)" || { echo "set N8N_INTEGRATION_URL and N8N_INTEGRATION_API_KEY"; exit 1; }
 	curl -fsS -H "X-N8N-API-KEY: $(N8N_INTEGRATION_API_KEY)" \
 		"$(N8N_INTEGRATION_URL)/api/v1/openapi.yml" -o openapi.yml
+
+## spec-upstream: fetch the n8n docs instance OpenAPI document to
+## ./openapi.upstream.yml (gitignored). It declares the groups the target
+## instance does not serve, so the union of both is the contract.
+spec-upstream:
+	curl -fsS "$(UPSTREAM_SPEC_URL)" -o openapi.upstream.yml
 
 ## integration: opt-in tests against a live instance. Skips without the env.
 integration:

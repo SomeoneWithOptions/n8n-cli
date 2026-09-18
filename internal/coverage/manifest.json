@@ -9,6 +9,7 @@
       "path": "/discover",
       "tag": "Discover",
       "scope": "none",
+      "availability": "both",
       "phase": 3,
       "command": "n8n discover",
       "status": "implemented"
@@ -19,6 +20,7 @@
       "path": "/audit",
       "tag": "Audit",
       "scope": "securityAudit:generate",
+      "availability": "both",
       "phase": 4,
       "command": "n8n audit generate",
       "status": "implemented"
@@ -29,6 +31,7 @@
       "path": "/community-packages",
       "tag": "CommunityPackage",
       "scope": "communityPackage:list",
+      "availability": "both",
       "phase": 5,
       "command": "n8n community-package list",
       "status": "implemented"
@@ -39,6 +42,7 @@
       "path": "/community-packages",
       "tag": "CommunityPackage",
       "scope": "communityPackage:install",
+      "availability": "both",
       "phase": 5,
       "command": "n8n community-package install",
       "status": "implemented"
@@ -49,6 +53,7 @@
       "path": "/community-packages/{name}",
       "tag": "CommunityPackage",
       "scope": "communityPackage:uninstall",
+      "availability": "both",
       "phase": 5,
       "command": "n8n community-package uninstall",
       "status": "implemented"
@@ -59,6 +64,7 @@
       "path": "/community-packages/{name}",
       "tag": "CommunityPackage",
       "scope": "communityPackage:update",
+      "availability": "both",
       "phase": 5,
       "command": "n8n community-package update",
       "status": "implemented"
@@ -69,6 +75,7 @@
       "path": "/credentials",
       "tag": "Credential",
       "scope": "credential:list",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential list",
       "status": "implemented"
@@ -79,6 +86,7 @@
       "path": "/credentials",
       "tag": "Credential",
       "scope": "credential:create",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential create",
       "status": "implemented"
@@ -89,6 +97,7 @@
       "path": "/credentials/schema/{credentialTypeName}",
       "tag": "Credential",
       "scope": "none",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential schema",
       "status": "implemented"
@@ -99,6 +108,7 @@
       "path": "/credentials/{credentialId}",
       "tag": "Credential",
       "scope": "credential:read",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential get",
       "status": "implemented"
@@ -109,6 +119,7 @@
       "path": "/credentials/{id}",
       "tag": "Credential",
       "scope": "credential:delete",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential delete",
       "status": "implemented"
@@ -119,6 +130,7 @@
       "path": "/credentials/{id}",
       "tag": "Credential",
       "scope": "credential:update",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential update",
       "status": "implemented"
@@ -129,6 +141,7 @@
       "path": "/credentials/{id}/test",
       "tag": "Credential",
       "scope": "credential:read",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential test",
       "status": "implemented"
@@ -139,6 +152,7 @@
       "path": "/credentials/{id}/transfer",
       "tag": "Credential",
       "scope": "credential:move",
+      "availability": "both",
       "phase": 6,
       "command": "n8n credential transfer",
       "status": "implemented"
@@ -149,6 +163,7 @@
       "path": "/tags",
       "tag": "Tags",
       "scope": "tag:list",
+      "availability": "both",
       "phase": 7,
       "command": "n8n tag list",
       "status": "implemented"
@@ -159,6 +174,7 @@
       "path": "/tags",
       "tag": "Tags",
       "scope": "tag:create",
+      "availability": "both",
       "phase": 7,
       "command": "n8n tag create",
       "status": "implemented"
@@ -169,6 +185,7 @@
       "path": "/tags/{id}",
       "tag": "Tags",
       "scope": "tag:delete",
+      "availability": "both",
       "phase": 7,
       "command": "n8n tag delete",
       "status": "implemented"
@@ -179,6 +196,7 @@
       "path": "/tags/{id}",
       "tag": "Tags",
       "scope": "tag:read",
+      "availability": "both",
       "phase": 7,
       "command": "n8n tag get",
       "status": "implemented"
@@ -189,6 +207,7 @@
       "path": "/tags/{id}",
       "tag": "Tags",
       "scope": "tag:update",
+      "availability": "both",
       "phase": 7,
       "command": "n8n tag update",
       "status": "implemented"
@@ -199,6 +218,7 @@
       "path": "/variables",
       "tag": "Variables",
       "scope": "variable:list",
+      "availability": "both",
       "phase": 8,
       "command": "n8n variable list",
       "status": "implemented"
@@ -209,6 +229,7 @@
       "path": "/variables",
       "tag": "Variables",
       "scope": "variable:create",
+      "availability": "both",
       "phase": 8,
       "command": "n8n variable create",
       "status": "implemented"
@@ -219,6 +240,7 @@
       "path": "/variables/{id}",
       "tag": "Variables",
       "scope": "variable:delete",
+      "availability": "both",
       "phase": 8,
       "command": "n8n variable delete",
       "status": "implemented"
@@ -229,6 +251,7 @@
       "path": "/variables/{id}",
       "tag": "Variables",
       "scope": "variable:update",
+      "availability": "both",
       "phase": 8,
       "command": "n8n variable update",
       "status": "implemented"
@@ -239,6 +262,7 @@
       "path": "/roles",
       "tag": "Role",
       "scope": "role:list",
+      "availability": "both",
       "phase": 9,
       "command": "n8n role list",
       "status": "implemented"
@@ -249,6 +273,7 @@
       "path": "/roles",
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
+      "availability": "both",
       "phase": 9,
       "command": "n8n role create",
       "status": "implemented"
@@ -259,6 +284,7 @@
       "path": "/roles/{slug}",
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
+      "availability": "both",
       "phase": 9,
       "command": "n8n role delete",
       "status": "implemented"
@@ -269,6 +295,7 @@
       "path": "/roles/{slug}",
       "tag": "Role",
       "scope": "role:read",
+      "availability": "both",
       "phase": 9,
       "command": "n8n role get",
       "status": "implemented"
@@ -279,6 +306,7 @@
       "path": "/roles/{slug}",
       "tag": "Role",
       "scope": "role:manage,role:manageProject",
+      "availability": "both",
       "phase": 9,
       "command": "n8n role update",
       "status": "implemented"
@@ -289,6 +317,7 @@
       "path": "/users",
       "tag": "User",
       "scope": "user:list",
+      "availability": "both",
       "phase": 10,
       "command": "n8n user list",
       "status": "implemented"
@@ -299,6 +328,7 @@
       "path": "/users",
       "tag": "User",
       "scope": "user:create",
+      "availability": "both",
       "phase": 10,
       "command": "n8n user create",
       "status": "implemented"
@@ -309,6 +339,7 @@
       "path": "/users/{id}",
       "tag": "User",
       "scope": "user:delete",
+      "availability": "both",
       "phase": 10,
       "command": "n8n user delete",
       "status": "implemented"
@@ -319,6 +350,7 @@
       "path": "/users/{id}",
       "tag": "User",
       "scope": "user:read",
+      "availability": "both",
       "phase": 10,
       "command": "n8n user get",
       "status": "implemented"
@@ -329,6 +361,7 @@
       "path": "/users/{id}/role",
       "tag": "User",
       "scope": "user:changeRole",
+      "availability": "both",
       "phase": 10,
       "command": "n8n user role set",
       "status": "implemented"
@@ -339,6 +372,7 @@
       "path": "/projects",
       "tag": "Projects",
       "scope": "project:list",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project list",
       "status": "implemented"
@@ -349,6 +383,7 @@
       "path": "/projects",
       "tag": "Projects",
       "scope": "project:create",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project create",
       "status": "implemented"
@@ -359,6 +394,7 @@
       "path": "/projects/{projectId}",
       "tag": "Projects",
       "scope": "project:delete",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project delete",
       "status": "implemented"
@@ -369,6 +405,7 @@
       "path": "/projects/{projectId}",
       "tag": "Projects",
       "scope": "project:update",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project update",
       "status": "implemented"
@@ -379,6 +416,7 @@
       "path": "/projects/{projectId}/users",
       "tag": "Projects",
       "scope": "user:list",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project user list",
       "status": "implemented"
@@ -389,6 +427,7 @@
       "path": "/projects/{projectId}/users",
       "tag": "Projects",
       "scope": "project:manageMembers",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project user add",
       "status": "implemented"
@@ -399,6 +438,7 @@
       "path": "/projects/{projectId}/users/{userId}",
       "tag": "Projects",
       "scope": "project:manageMembers",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project user remove",
       "status": "implemented"
@@ -409,6 +449,7 @@
       "path": "/projects/{projectId}/users/{userId}",
       "tag": "Projects",
       "scope": "project:manageMembers",
+      "availability": "both",
       "phase": 11,
       "command": "n8n project user role set",
       "status": "implemented"
@@ -419,6 +460,7 @@
       "path": "/projects/{projectId}/folders",
       "tag": "Folders",
       "scope": "folder:list",
+      "availability": "both",
       "phase": 12,
       "command": "n8n folder list",
       "status": "implemented"
@@ -429,6 +471,7 @@
       "path": "/projects/{projectId}/folders",
       "tag": "Folders",
       "scope": "folder:create",
+      "availability": "both",
       "phase": 12,
       "command": "n8n folder create",
       "status": "implemented"
@@ -439,6 +482,7 @@
       "path": "/projects/{projectId}/folders/{folderId}",
       "tag": "Folders",
       "scope": "folder:delete",
+      "availability": "both",
       "phase": 12,
       "command": "n8n folder delete",
       "status": "implemented"
@@ -449,6 +493,7 @@
       "path": "/projects/{projectId}/folders/{folderId}",
       "tag": "Folders",
       "scope": "folder:read",
+      "availability": "both",
       "phase": 12,
       "command": "n8n folder get",
       "status": "implemented"
@@ -459,6 +504,7 @@
       "path": "/projects/{projectId}/folders/{folderId}",
       "tag": "Folders",
       "scope": "folder:update",
+      "availability": "both",
       "phase": 12,
       "command": "n8n folder update",
       "status": "implemented"
@@ -469,6 +515,7 @@
       "path": "/data-tables",
       "tag": "DataTable",
       "scope": "dataTable:list",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table list",
       "status": "implemented"
@@ -479,6 +526,7 @@
       "path": "/data-tables",
       "tag": "DataTable",
       "scope": "dataTable:create",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table create",
       "status": "implemented"
@@ -489,6 +537,7 @@
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
       "scope": "dataTable:delete",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table delete",
       "status": "implemented"
@@ -499,6 +548,7 @@
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
       "scope": "dataTable:read",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table get",
       "status": "implemented"
@@ -509,6 +559,7 @@
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
       "scope": "dataTable:update",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table update",
       "status": "implemented"
@@ -519,6 +570,7 @@
       "path": "/data-tables/{dataTableId}/columns",
       "tag": "DataTable",
       "scope": "dataTableColumn:read",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table column list",
       "status": "implemented"
@@ -529,6 +581,7 @@
       "path": "/data-tables/{dataTableId}/columns",
       "tag": "DataTable",
       "scope": "dataTableColumn:create",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table column create",
       "status": "implemented"
@@ -539,6 +592,7 @@
       "path": "/data-tables/{dataTableId}/columns/{columnId}",
       "tag": "DataTable",
       "scope": "dataTableColumn:delete",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table column delete",
       "status": "implemented"
@@ -549,6 +603,7 @@
       "path": "/data-tables/{dataTableId}/columns/{columnId}",
       "tag": "DataTable",
       "scope": "dataTableColumn:update",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table column update",
       "status": "implemented"
@@ -559,6 +614,7 @@
       "path": "/data-tables/{dataTableId}/rows",
       "tag": "DataTable",
       "scope": "dataTableRow:read",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row list",
       "status": "implemented"
@@ -569,6 +625,7 @@
       "path": "/data-tables/{dataTableId}/rows",
       "tag": "DataTable",
       "scope": "dataTableRow:create",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row insert",
       "status": "implemented"
@@ -579,6 +636,7 @@
       "path": "/data-tables/{dataTableId}/rows/clear",
       "tag": "DataTable",
       "scope": "dataTableRow:delete",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row clear",
       "status": "implemented"
@@ -589,6 +647,7 @@
       "path": "/data-tables/{dataTableId}/rows/delete",
       "tag": "DataTable",
       "scope": "dataTableRow:delete",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row delete",
       "status": "implemented"
@@ -599,6 +658,7 @@
       "path": "/data-tables/{dataTableId}/rows/update",
       "tag": "DataTable",
       "scope": "dataTableRow:update",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row update",
       "status": "implemented"
@@ -609,6 +669,7 @@
       "path": "/data-tables/{dataTableId}/rows/upsert",
       "tag": "DataTable",
       "scope": "dataTableRow:upsert",
+      "availability": "both",
       "phase": 13,
       "command": "n8n data-table row upsert",
       "status": "implemented"
@@ -619,6 +680,7 @@
       "path": "/workflows",
       "tag": "Workflow",
       "scope": "workflow:list",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow list",
       "status": "implemented"
@@ -629,6 +691,7 @@
       "path": "/workflows",
       "tag": "Workflow",
       "scope": "workflow:create",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow create",
       "status": "implemented"
@@ -639,6 +702,7 @@
       "path": "/workflows/{id}/{versionId}",
       "tag": "Workflow",
       "scope": "workflow:read",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow version get-legacy",
       "status": "implemented"
@@ -649,6 +713,7 @@
       "path": "/workflows/{workflowId}",
       "tag": "Workflow",
       "scope": "workflow:delete",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow delete",
       "status": "implemented"
@@ -659,6 +724,7 @@
       "path": "/workflows/{workflowId}",
       "tag": "Workflow",
       "scope": "workflow:read",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow get",
       "status": "implemented"
@@ -669,6 +735,7 @@
       "path": "/workflows/{workflowId}",
       "tag": "Workflow",
       "scope": "workflow:update",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow update",
       "status": "implemented"
@@ -679,6 +746,7 @@
       "path": "/workflows/{workflowId}/activate",
       "tag": "Workflow",
       "scope": "workflow:activate",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow activate",
       "status": "implemented"
@@ -689,6 +757,7 @@
       "path": "/workflows/{workflowId}/archive",
       "tag": "Workflow",
       "scope": "workflow:delete",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow archive",
       "status": "implemented"
@@ -699,6 +768,7 @@
       "path": "/workflows/{workflowId}/deactivate",
       "tag": "Workflow",
       "scope": "workflow:deactivate",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow deactivate",
       "status": "implemented"
@@ -709,6 +779,7 @@
       "path": "/workflows/{workflowId}/history",
       "tag": "Workflow",
       "scope": "workflow:read",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow history",
       "status": "implemented"
@@ -719,6 +790,7 @@
       "path": "/workflows/{workflowId}/publish",
       "tag": "Workflow",
       "scope": "workflow:activate",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow publish",
       "status": "implemented"
@@ -729,6 +801,7 @@
       "path": "/workflows/{workflowId}/tags",
       "tag": "Workflow",
       "scope": "workflowTags:list",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow tag list",
       "status": "implemented"
@@ -739,6 +812,7 @@
       "path": "/workflows/{workflowId}/tags",
       "tag": "Workflow",
       "scope": "workflowTags:update",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow tag set",
       "status": "implemented"
@@ -749,6 +823,7 @@
       "path": "/workflows/{workflowId}/transfer",
       "tag": "Workflow",
       "scope": "workflow:move",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow transfer",
       "status": "implemented"
@@ -759,6 +834,7 @@
       "path": "/workflows/{workflowId}/unarchive",
       "tag": "Workflow",
       "scope": "workflow:delete",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow unarchive",
       "status": "implemented"
@@ -769,6 +845,7 @@
       "path": "/workflows/{workflowId}/unpublish",
       "tag": "Workflow",
       "scope": "workflow:deactivate",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow unpublish",
       "status": "implemented"
@@ -779,6 +856,7 @@
       "path": "/workflows/{workflowId}/versions/{versionId}",
       "tag": "Workflow",
       "scope": "workflow:read",
+      "availability": "both",
       "phase": 14,
       "command": "n8n workflow version get",
       "status": "implemented"
@@ -789,6 +867,7 @@
       "path": "/executions",
       "tag": "Executions",
       "scope": "execution:list",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution list",
       "status": "implemented"
@@ -799,6 +878,7 @@
       "path": "/executions/stop",
       "tag": "Executions",
       "scope": "execution:stop",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution stop-many",
       "status": "implemented"
@@ -809,6 +889,7 @@
       "path": "/executions/{executionId}",
       "tag": "Executions",
       "scope": "execution:delete",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution delete",
       "status": "implemented"
@@ -819,6 +900,7 @@
       "path": "/executions/{executionId}",
       "tag": "Executions",
       "scope": "execution:read",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution get",
       "status": "implemented"
@@ -829,6 +911,7 @@
       "path": "/executions/{executionId}/retry",
       "tag": "Executions",
       "scope": "execution:retry",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution retry",
       "status": "implemented"
@@ -839,6 +922,7 @@
       "path": "/executions/{executionId}/stop",
       "tag": "Executions",
       "scope": "execution:stop",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution stop",
       "status": "implemented"
@@ -849,6 +933,7 @@
       "path": "/executions/{executionId}/tags",
       "tag": "Executions",
       "scope": "executionTags:list",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution tag list",
       "status": "implemented"
@@ -859,6 +944,7 @@
       "path": "/executions/{executionId}/tags",
       "tag": "Executions",
       "scope": "executionTags:update",
+      "availability": "both",
       "phase": 15,
       "command": "n8n execution tag set",
       "status": "implemented"
@@ -869,6 +955,7 @@
       "path": "/workflows/{id}/test-runs",
       "tag": "Evaluation",
       "scope": "testRun:list",
+      "availability": "both",
       "phase": 16,
       "command": "n8n evaluation list",
       "status": "implemented"
@@ -879,6 +966,7 @@
       "path": "/workflows/{id}/test-runs",
       "tag": "Evaluation",
       "scope": "testRun:create",
+      "availability": "both",
       "phase": 16,
       "command": "n8n evaluation create",
       "status": "implemented"
@@ -889,6 +977,7 @@
       "path": "/workflows/{id}/test-runs/{runId}",
       "tag": "Evaluation",
       "scope": "testRun:read",
+      "availability": "both",
       "phase": 16,
       "command": "n8n evaluation get",
       "status": "implemented"
@@ -899,6 +988,7 @@
       "path": "/workflows/{id}/test-runs/{runId}/cancel",
       "tag": "Evaluation",
       "scope": "testRun:cancel",
+      "availability": "both",
       "phase": 16,
       "command": "n8n evaluation cancel",
       "status": "implemented"
@@ -909,6 +999,7 @@
       "path": "/workflows/{id}/test-runs/{runId}/test-cases",
       "tag": "Evaluation",
       "scope": "testRun:read",
+      "availability": "both",
       "phase": 16,
       "command": "n8n evaluation case list",
       "status": "implemented"
@@ -919,6 +1010,7 @@
       "path": "/insights/summary",
       "tag": "Insights",
       "scope": "insights:read",
+      "availability": "both",
       "phase": 17,
       "command": "n8n insight summary",
       "status": "implemented"
@@ -929,6 +1021,7 @@
       "path": "/settings/security-policy",
       "tag": "SecurityPolicy",
       "scope": "securitySettings:manage",
+      "availability": "both",
       "phase": 19,
       "command": "n8n security-policy get",
       "status": "implemented"
@@ -939,6 +1032,7 @@
       "path": "/settings/security-policy",
       "tag": "SecurityPolicy",
       "scope": "securitySettings:manage",
+      "availability": "both",
       "phase": 19,
       "command": "n8n security-policy set",
       "status": "implemented"
@@ -949,6 +1043,7 @@
       "path": "/settings/otel",
       "tag": "SettingsOtel",
       "scope": "otel:manage",
+      "availability": "both",
       "phase": 20,
       "command": "n8n otel get",
       "status": "implemented"
@@ -959,6 +1054,7 @@
       "path": "/settings/otel",
       "tag": "SettingsOtel",
       "scope": "otel:manage",
+      "availability": "both",
       "phase": 20,
       "command": "n8n otel set",
       "status": "implemented"
@@ -969,6 +1065,7 @@
       "path": "/settings/otel/test-trace",
       "tag": "SettingsOtel",
       "scope": "otel:manage",
+      "availability": "both",
       "phase": 20,
       "command": "n8n otel test-trace",
       "status": "implemented"
@@ -979,6 +1076,7 @@
       "path": "/settings/log-streaming/destinations",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:list",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -989,6 +1087,7 @@
       "path": "/settings/log-streaming/destinations",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:create",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -999,6 +1098,7 @@
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:delete",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -1009,6 +1109,7 @@
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:read",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -1019,6 +1120,7 @@
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:update",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -1029,6 +1131,7 @@
       "path": "/settings/log-streaming/destinations/{id}/test",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:test",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -1039,6 +1142,7 @@
       "path": "/settings/log-streaming/event-types",
       "tag": "LogStreaming",
       "scope": "eventBusDestination:list",
+      "availability": "both",
       "phase": 21,
       "command": "",
       "status": "planned"
@@ -1049,6 +1153,7 @@
       "path": "/settings/ldap",
       "tag": "SettingsLdap",
       "scope": "ldap:manage",
+      "availability": "both",
       "phase": 22,
       "command": "",
       "status": "planned"
@@ -1059,6 +1164,7 @@
       "path": "/settings/ldap",
       "tag": "SettingsLdap",
       "scope": "ldap:manage",
+      "availability": "both",
       "phase": 22,
       "command": "",
       "status": "planned"
@@ -1069,6 +1175,7 @@
       "path": "/settings/ldap/sync",
       "tag": "SettingsLdap",
       "scope": "ldap:sync",
+      "availability": "both",
       "phase": 22,
       "command": "",
       "status": "planned"
@@ -1079,6 +1186,7 @@
       "path": "/settings/ldap/sync",
       "tag": "SettingsLdap",
       "scope": "ldap:sync",
+      "availability": "both",
       "phase": 22,
       "command": "",
       "status": "planned"
@@ -1089,6 +1197,7 @@
       "path": "/settings/sso/oidc",
       "tag": "SettingsSsoOidc",
       "scope": "oidc:manage",
+      "availability": "both",
       "phase": 23,
       "command": "",
       "status": "planned"
@@ -1099,6 +1208,7 @@
       "path": "/settings/sso/oidc",
       "tag": "SettingsSsoOidc",
       "scope": "oidc:manage",
+      "availability": "both",
       "phase": 23,
       "command": "",
       "status": "planned"
@@ -1109,6 +1219,7 @@
       "path": "/settings/sso/saml",
       "tag": "SettingsSsoSaml",
       "scope": "saml:manage",
+      "availability": "both",
       "phase": 24,
       "command": "",
       "status": "planned"
@@ -1119,6 +1230,7 @@
       "path": "/settings/sso/saml",
       "tag": "SettingsSsoSaml",
       "scope": "saml:manage",
+      "availability": "both",
       "phase": 24,
       "command": "",
       "status": "planned"
@@ -1129,6 +1241,7 @@
       "path": "/role-mapping-rules",
       "tag": "RoleMappingRule",
       "scope": "roleMappingRule:list",
+      "availability": "both",
       "phase": 25,
       "command": "",
       "status": "planned"
@@ -1139,6 +1252,7 @@
       "path": "/role-mapping-rules",
       "tag": "RoleMappingRule",
       "scope": "roleMappingRule:create",
+      "availability": "both",
       "phase": 25,
       "command": "",
       "status": "planned"
@@ -1149,6 +1263,7 @@
       "path": "/role-mapping-rules/{roleMappingRuleId}",
       "tag": "RoleMappingRule",
       "scope": "roleMappingRule:delete",
+      "availability": "both",
       "phase": 25,
       "command": "",
       "status": "planned"
@@ -1159,6 +1274,7 @@
       "path": "/role-mapping-rules/{roleMappingRuleId}",
       "tag": "RoleMappingRule",
       "scope": "roleMappingRule:update",
+      "availability": "both",
       "phase": 25,
       "command": "",
       "status": "planned"
@@ -1169,16 +1285,18 @@
       "path": "/role-mapping-rules/{roleMappingRuleId}/move",
       "tag": "RoleMappingRule",
       "scope": "roleMappingRule:update",
+      "availability": "both",
       "phase": 25,
       "command": "",
       "status": "planned"
     },
     {
-      "operationId": "pull",
+      "operationId": "pullSourceControl",
       "method": "POST",
       "path": "/source-control/pull",
       "tag": "SourceControl",
       "scope": "sourceControl:pull",
+      "availability": "both",
       "phase": 26,
       "command": "",
       "status": "planned"
@@ -1189,6 +1307,7 @@
       "path": "/source-control/push",
       "tag": "SourceControl",
       "scope": "sourceControl:push",
+      "availability": "both",
       "phase": 26,
       "command": "",
       "status": "planned"
@@ -1199,6 +1318,7 @@
       "path": "/source-control/status",
       "tag": "SourceControl",
       "scope": "sourceControl:read",
+      "availability": "both",
       "phase": 26,
       "command": "",
       "status": "planned"
@@ -1209,6 +1329,7 @@
       "path": "/n8n-packages/export",
       "tag": "N8nPackage",
       "scope": "project:export,workflow:export",
+      "availability": "both",
       "phase": 27,
       "command": "",
       "status": "planned"
@@ -1219,6 +1340,7 @@
       "path": "/n8n-packages/import",
       "tag": "N8nPackage",
       "scope": "workflow:import",
+      "availability": "both",
       "phase": 27,
       "command": "",
       "status": "planned"
@@ -1229,6 +1351,7 @@
       "path": "/git-connections",
       "tag": "GitConnections",
       "scope": "gitConnection:list",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1239,6 +1362,7 @@
       "path": "/git-connections",
       "tag": "GitConnections",
       "scope": "gitConnection:create",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1249,6 +1373,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:delete",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1259,6 +1384,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:read",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1269,6 +1395,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:update",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1279,6 +1406,7 @@
       "path": "/git-connections/{id}/clone",
       "tag": "GitConnections",
       "scope": "gitConnection:clone",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1289,6 +1417,7 @@
       "path": "/git-connections/{id}/disconnect",
       "tag": "GitConnections",
       "scope": "gitConnection:clone",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1299,6 +1428,7 @@
       "path": "/git-connections/{id}/projects",
       "tag": "GitConnections",
       "scope": "gitConnection:read",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1309,6 +1439,7 @@
       "path": "/git-connections/{id}/projects/{projectId}",
       "tag": "GitConnections",
       "scope": "gitConnection:manageProjects",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1319,6 +1450,7 @@
       "path": "/git-connections/{id}/projects/{projectId}",
       "tag": "GitConnections",
       "scope": "gitConnection:manageProjects",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1329,6 +1461,7 @@
       "path": "/git-connections/{id}/pull",
       "tag": "GitConnections",
       "scope": "gitConnection:pull",
+      "availability": "target-only",
       "phase": 28,
       "command": "",
       "status": "planned"
@@ -1339,7 +1472,272 @@
       "path": "/git-connections/{id}/push",
       "tag": "GitConnections",
       "scope": "gitConnection:push",
+      "availability": "target-only",
       "phase": 28,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getInstancePolicy",
+      "method": "GET",
+      "path": "/node-type-policies/instance",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 18,
+      "command": "n8n node-policy instance get",
+      "status": "implemented"
+    },
+    {
+      "operationId": "putInstancePolicy",
+      "method": "PUT",
+      "path": "/node-type-policies/instance",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 18,
+      "command": "n8n node-policy instance set",
+      "status": "implemented"
+    },
+    {
+      "operationId": "getProjectPolicy",
+      "method": "GET",
+      "path": "/node-type-policies/projects/{projectId}",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 18,
+      "command": "n8n node-policy project get",
+      "status": "implemented"
+    },
+    {
+      "operationId": "putProjectPolicy",
+      "method": "PUT",
+      "path": "/node-type-policies/projects/{projectId}",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 18,
+      "command": "n8n node-policy project set",
+      "status": "implemented"
+    },
+    {
+      "operationId": "getPromotionConnections",
+      "method": "GET",
+      "path": "/promotions/connections",
+      "tag": "Promotions",
+      "scope": "gitConnection:list",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createPromotionConnection",
+      "method": "POST",
+      "path": "/promotions/connections",
+      "tag": "Promotions",
+      "scope": "gitConnection:create",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deletePromotionConnection",
+      "method": "DELETE",
+      "path": "/promotions/connections/{promotionConnectionId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:delete",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionConnection",
+      "method": "GET",
+      "path": "/promotions/connections/{promotionConnectionId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:read",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updatePromotionConnection",
+      "method": "PUT",
+      "path": "/promotions/connections/{promotionConnectionId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "applyPackage",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/apply",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "upsertPromotionApplyConfig",
+      "method": "PUT",
+      "path": "/promotions/connections/{promotionConnectionId}/configs/apply",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "upsertPromotionPromoteConfig",
+      "method": "PUT",
+      "path": "/promotions/connections/{promotionConnectionId}/configs/promote",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deletePromotionConfig",
+      "method": "DELETE",
+      "path": "/promotions/connections/{promotionConnectionId}/configs/{direction}",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionConnectionProjects",
+      "method": "GET",
+      "path": "/promotions/connections/{promotionConnectionId}/projects",
+      "tag": "Promotions",
+      "scope": "gitConnection:read",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "removeProjectFromPromotionConnection",
+      "method": "DELETE",
+      "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:manageProjects",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "addProjectToPromotionConnection",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:manageProjects",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "promotePackage",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/promote",
+      "tag": "Promotions",
+      "scope": "gitConnection:push",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "clonePromotionCheckout",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/{direction}/clone",
+      "tag": "Promotions",
+      "scope": "gitConnection:clone",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "disconnectPromotionCheckout",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/{direction}/disconnect",
+      "tag": "Promotions",
+      "scope": "gitConnection:clone",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionProviders",
+      "method": "GET",
+      "path": "/promotions/providers",
+      "tag": "Promotions",
+      "scope": "gitConnection:list",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createPromotionProvider",
+      "method": "POST",
+      "path": "/promotions/providers",
+      "tag": "Promotions",
+      "scope": "gitConnection:create",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deletePromotionProvider",
+      "method": "DELETE",
+      "path": "/promotions/providers/{promotionProviderId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:delete",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionProvider",
+      "method": "GET",
+      "path": "/promotions/providers/{promotionProviderId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:read",
+      "availability": "upstream-only",
+      "phase": 29,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updatePromotionProvider",
+      "method": "PUT",
+      "path": "/promotions/providers/{promotionProviderId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 29,
       "command": "",
       "status": "planned"
     }

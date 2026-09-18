@@ -1,5 +1,6 @@
 # Local API source and development plan.
 /openapi.yml
+/openapi.upstream.yml
 /openapi.yaml
 /PLAN.md
 /bin/
