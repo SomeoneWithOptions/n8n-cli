@@ -930,8 +930,8 @@
       "tag": "SecurityPolicy",
       "scope": "securitySettings:manage",
       "phase": 19,
-      "command": "",
-      "status": "planned"
+      "command": "n8n security-policy get",
+      "status": "implemented"
     },
     {
       "operationId": "updateSecurityPolicy",
@@ -940,8 +940,8 @@
       "tag": "SecurityPolicy",
       "scope": "securitySettings:manage",
       "phase": 19,
-      "command": "",
-      "status": "planned"
+      "command": "n8n security-policy set",
+      "status": "implemented"
     },
     {
       "operationId": "getOtelSettings",

@@ -60,6 +60,7 @@ n8n [flags]
 * [n8n insight](n8n_insight.md)	 - Read aggregate execution insights
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles
+* [n8n security-policy](n8n_security-policy.md)	 - Manage instance security policy
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles
 * [n8n variable](n8n_variable.md)	 - Manage instance and project variables

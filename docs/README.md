@@ -92,6 +92,9 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n role list`](n8n_role_list.md) | List global and project roles |
 | [`n8n role update`](n8n_role_update.md) | Fully replace a custom role |
 | [`n8n role`](n8n_role.md) | Manage global and project roles |
+| [`n8n security-policy get`](n8n_security-policy_get.md) | Get effective security policy |
+| [`n8n security-policy set`](n8n_security-policy_set.md) | Fully replace security policy |
+| [`n8n security-policy`](n8n_security-policy.md) | Manage instance security policy |
 | [`n8n tag create`](n8n_tag_create.md) | Create a tag |
 | [`n8n tag delete`](n8n_tag_delete.md) | Permanently delete a tag |
 | [`n8n tag get`](n8n_tag_get.md) | Get one tag |

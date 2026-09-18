@@ -201,7 +201,7 @@ func TestManifestMatchesSpec(t *testing.T) {
 // deliveredThrough is the last PLAN.md phase whose operations are all
 // implemented or whose absence from the target specification was verified.
 // Raise it when a phase is finished, never before.
-const deliveredThrough = 18
+const deliveredThrough = 19
 
 // noOperationPhases records delivered phases whose planned resource is absent
 // from the target OpenAPI specification and therefore owns no manifest entry.
