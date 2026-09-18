@@ -100,4 +100,4 @@ publishes.
 
 ## License
 
-License not yet specified.
+MIT. See [LICENSE](LICENSE).
