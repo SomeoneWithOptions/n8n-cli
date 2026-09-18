@@ -791,8 +791,73 @@ func TestAuthLogout(t *testing.T) {
 		if _, ok := f.config().Contexts["production"]; !ok {
 			t.Error("logout removed the context; it must only remove the credential")
 		}
-		if again := f.run("auth", "logout", "--yes"); again.code != ExitSuccess {
+		if !strings.Contains(got.stderr, "Deleted the keyring credential") {
+			t.Errorf("stderr = %q, want it to report the deletion", got.stderr)
+		}
+
+		again := f.run("auth", "logout", "--yes")
+		if again.code != ExitSuccess {
 			t.Errorf("second logout exit code = %d, want it to be idempotent", again.code)
+		}
+		if !strings.Contains(again.stderr, "No credential was stored") {
+			t.Errorf("second logout stderr = %q, want it to say nothing was there", again.stderr)
+		}
+	})
+
+	t.Run("purge", func(t *testing.T) {
+		f := newFixture(t)
+		f.login("--context", "production")
+
+		got := f.run("auth", "logout", "--context", "production", "--purge", "--yes")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+		}
+		if _, err := f.keyring.Get("production"); !errors.Is(err, config.ErrCredentialNotFound) {
+			t.Errorf("credential store = %v, want the credential gone", err)
+		}
+		cfg := f.config()
+		if _, ok := cfg.Contexts["production"]; ok {
+			t.Error("--purge kept the context; it must remove it from config.json")
+		}
+		if cfg.CurrentContext == "production" {
+			t.Error("--purge left the removed context selected")
+		}
+		if !strings.Contains(got.stderr, "removed the context") {
+			t.Errorf("stderr = %q, want it to report the context removal", got.stderr)
+		}
+	})
+
+	t.Run("purge without a stored credential", func(t *testing.T) {
+		f := newFixture(t)
+		f.login("--context", "production")
+		f.run("auth", "logout", "--context", "production", "--yes")
+
+		got := f.run("auth", "logout", "--context", "production", "--purge", "--yes")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+		}
+		if _, ok := f.config().Contexts["production"]; ok {
+			t.Error("--purge kept the context when no credential was stored")
+		}
+		if !strings.Contains(got.stderr, "No credential was stored") {
+			t.Errorf("stderr = %q, want it to say nothing was stored", got.stderr)
+		}
+	})
+
+	t.Run("declined purge keeps both", func(t *testing.T) {
+		f := newFixture(t)
+		f.login("--context", "production")
+		f.stdin = "n\n"
+
+		got := f.run("auth", "logout", "--context", "production", "--purge")
+		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") {
+			t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
+		}
+		if _, err := f.keyring.Get("production"); err != nil {
+			t.Errorf("a declined purge deleted the credential: %v", err)
+		}
+		if _, ok := f.config().Contexts["production"]; !ok {
+			t.Error("a declined purge removed the context")
 		}
 	})
 

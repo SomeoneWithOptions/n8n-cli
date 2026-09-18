@@ -454,6 +454,7 @@ func writeStatusText(opts Options, report statusReport) error {
 type logoutFlags struct {
 	context string
 	yes     bool
+	purge   bool
 }
 
 func newAuthLogoutCommand(opts Options) *cobra.Command {
@@ -464,11 +465,14 @@ func newAuthLogoutCommand(opts Options) *cobra.Command {
 		Short: "Delete the stored credential for a context",
 		Long: "Delete the stored credential for a context.\n\n" +
 			"Use this to revoke local access without touching the server. The context\n" +
-			"itself is kept, so 'n8n auth login' can restore it. Remove the\n" +
-			"context with 'n8n config context delete'. The API key stays valid on the\n" +
-			"n8n instance until revoked there. Use --yes for scripts.",
+			"itself is kept, so 'n8n auth login' can restore it. With --purge the context\n" +
+			"is removed from config.json too, which is what 'n8n config context delete'\n" +
+			"does. The API key stays valid on the n8n instance until revoked there. Use\n" +
+			"--yes for scripts.",
 		Example: "  n8n auth logout\n" +
-			"  n8n auth logout --context production --yes",
+			"  n8n auth logout --context production --yes\n" +
+			"  # Forget the credential and the context itself:\n" +
+			"  n8n auth logout --context production --purge --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runAuthLogout(opts, f)
@@ -477,6 +481,7 @@ func newAuthLogoutCommand(opts Options) *cobra.Command {
 
 	cmd.Flags().StringVar(&f.context, "context", "", "context to log out of (default: the current context)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "delete without asking (required in non-interactive use)")
+	cmd.Flags().BoolVar(&f.purge, "purge", false, "also remove the context itself from config.json")
 
 	return cmd
 }
@@ -496,6 +501,9 @@ func runAuthLogout(opts Options, f logoutFlags) error {
 	}
 
 	question := fmt.Sprintf("Delete the stored credential for context %q (%s)?", name, saved.URL)
+	if f.purge {
+		question = fmt.Sprintf("Delete context %q (%s) and its stored credential?", name, saved.URL)
+	}
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
@@ -504,11 +512,32 @@ func runAuthLogout(opts Options, f logoutFlags) error {
 	if err != nil {
 		return err
 	}
+	// Delete is idempotent by contract, so it cannot say whether anything was
+	// there. Look first, so a repeated logout does not claim a deletion it did
+	// not make. Only a definite miss counts as nothing stored: an entry that is
+	// unreadable or corrupt is still an entry and must be removed.
+	_, getErr := backend.Get(saved.CredentialRef)
+	hadCredential := !errors.Is(getErr, config.ErrCredentialNotFound)
 	if err := backend.Delete(saved.CredentialRef); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(opts.Streams.Err, "Deleted the %s credential for context %q. The context is kept.\n", saved.Storage, name)
+	if f.purge {
+		if err := resolver.Store.Update(func(cfg *config.Config) error { return cfg.Remove(name) }); err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case hadCredential && f.purge:
+		fmt.Fprintf(opts.Streams.Err, "Deleted the %s credential for context %q and removed the context.\n", saved.Storage, name)
+	case hadCredential:
+		fmt.Fprintf(opts.Streams.Err, "Deleted the %s credential for context %q. The context is kept.\n", saved.Storage, name)
+	case f.purge:
+		fmt.Fprintf(opts.Streams.Err, "No credential was stored for context %q. Removed the context.\n", name)
+	default:
+		fmt.Fprintf(opts.Streams.Err, "No credential was stored for context %q. The context is kept.\n", name)
+	}
 	return nil
 }
 
