@@ -1331,8 +1331,8 @@
       "scope": "project:export,workflow:export",
       "availability": "both",
       "phase": 27,
-      "command": "",
-      "status": "planned"
+      "command": "n8n package export",
+      "status": "implemented"
     },
     {
       "operationId": "importPackage",
@@ -1342,8 +1342,8 @@
       "scope": "workflow:import",
       "availability": "both",
       "phase": 27,
-      "command": "",
-      "status": "planned"
+      "command": "n8n package import",
+      "status": "implemented"
     },
     {
       "operationId": "getGitConnections",

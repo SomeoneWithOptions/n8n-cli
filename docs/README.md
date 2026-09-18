@@ -105,6 +105,9 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n otel set`](n8n_otel_set.md) | Fully replace OpenTelemetry settings |
 | [`n8n otel test-trace`](n8n_otel_test-trace.md) | Send one test span to an OTLP collector |
 | [`n8n otel`](n8n_otel.md) | Manage OpenTelemetry tracing settings |
+| [`n8n package export`](n8n_package_export.md) | Export workflows, folders, or projects as an n8n package (beta) |
+| [`n8n package import`](n8n_package_import.md) | Import an n8n package into a project (beta) |
+| [`n8n package`](n8n_package.md) | Export and import n8n packages (beta) |
 | [`n8n project create`](n8n_project_create.md) | Create a project |
 | [`n8n project delete`](n8n_project_delete.md) | Permanently delete a project |
 | [`n8n project list`](n8n_project_list.md) | List projects |

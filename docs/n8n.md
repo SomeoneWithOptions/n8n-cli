@@ -63,6 +63,7 @@ n8n [flags]
 * [n8n node-policy](n8n_node-policy.md)	 - Manage node type availability policies
 * [n8n oidc](n8n_oidc.md)	 - Manage licensed OIDC SSO settings
 * [n8n otel](n8n_otel.md)	 - Manage OpenTelemetry tracing settings
+* [n8n package](n8n_package.md)	 - Export and import n8n packages (beta)
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles
 * [n8n role-mapping](n8n_role-mapping.md)	 - Manage identity-provider role-mapping rules
