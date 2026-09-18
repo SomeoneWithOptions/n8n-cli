@@ -122,6 +122,9 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n role list`](n8n_role_list.md) | List global and project roles |
 | [`n8n role update`](n8n_role_update.md) | Fully replace a custom role |
 | [`n8n role`](n8n_role.md) | Manage global and project roles |
+| [`n8n saml get`](n8n_saml_get.md) | Get SAML SSO configuration |
+| [`n8n saml set`](n8n_saml_set.md) | Fully replace SAML SSO configuration |
+| [`n8n saml`](n8n_saml.md) | Manage licensed SAML SSO settings |
 | [`n8n security-policy get`](n8n_security-policy_get.md) | Get effective security policy |
 | [`n8n security-policy set`](n8n_security-policy_set.md) | Fully replace security policy |
 | [`n8n security-policy`](n8n_security-policy.md) | Manage instance security policy |

@@ -1221,8 +1221,8 @@
       "scope": "saml:manage",
       "availability": "both",
       "phase": 24,
-      "command": "",
-      "status": "planned"
+      "command": "n8n saml get",
+      "status": "implemented"
     },
     {
       "operationId": "updateSamlConfiguration",
@@ -1232,8 +1232,8 @@
       "scope": "saml:manage",
       "availability": "both",
       "phase": 24,
-      "command": "",
-      "status": "planned"
+      "command": "n8n saml set",
+      "status": "implemented"
     },
     {
       "operationId": "getRoleMappingRules",

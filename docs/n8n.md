@@ -65,6 +65,7 @@ n8n [flags]
 * [n8n otel](n8n_otel.md)	 - Manage OpenTelemetry tracing settings
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n role](n8n_role.md)	 - Manage global and project roles
+* [n8n saml](n8n_saml.md)	 - Manage licensed SAML SSO settings
 * [n8n security-policy](n8n_security-policy.md)	 - Manage instance security policy
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles
