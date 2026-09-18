@@ -199,8 +199,15 @@ func TestManifestMatchesSpec(t *testing.T) {
 }
 
 // deliveredThrough is the last PLAN.md phase whose operations are all
-// implemented. Raise it when a phase is finished, never before.
-const deliveredThrough = 17
+// implemented or whose absence from the target specification was verified.
+// Raise it when a phase is finished, never before.
+const deliveredThrough = 18
+
+// noOperationPhases records delivered phases whose planned resource is absent
+// from the target OpenAPI specification and therefore owns no manifest entry.
+var noOperationPhases = map[int]string{
+	18: "NodeTypePolicies is absent from the target OpenAPI specification",
+}
 
 // TestPhaseCounts is how a phase exit gate reads the manifest: every operation
 // a delivered phase owns must be implemented, and no later phase may have
@@ -212,6 +219,9 @@ func TestPhaseCounts(t *testing.T) {
 	for phase := 3; phase <= deliveredThrough; phase++ {
 		c, ok := counts[phase]
 		if !ok {
+			if _, verifiedAbsent := noOperationPhases[phase]; verifiedAbsent {
+				continue
+			}
 			t.Errorf("phase %d owns no operation, but it is marked delivered", phase)
 			continue
 		}
