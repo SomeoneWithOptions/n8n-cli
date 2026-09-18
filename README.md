@@ -80,6 +80,9 @@ n8n discover
 [`docs/README.md`](docs/README.md) is generated from the command help.
 Regenerate it with `make docs` after changing any command's help text.
 
+- [n8n API](docs/README.md#n8n-api) — 1:1 coverage of the n8n public API.
+- [CLI-only extensions](docs/README.md#cli-only-extensions) — CLI setup and beyond-spec helpers, maintained here.
+
 ## Contributing
 
 Contribute via fork + PR, or open issue. See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).

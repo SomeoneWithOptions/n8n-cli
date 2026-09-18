@@ -20,8 +20,9 @@ func newCompletionCommand() *cobra.Command {
 			"  powershell: n8n completion powershell | Out-String | Invoke-Expression",
 		Example: "  source <(n8n completion bash)\n" +
 			"  n8n completion zsh > \"${fpath[1]}/_n8n\"",
-		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		Annotations: map[string]string{"cliOnly": "true"},
+		Args:        cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		ValidArgs:   []string{"bash", "zsh", "fish", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			root := cmd.Root()

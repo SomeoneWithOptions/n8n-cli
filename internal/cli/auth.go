@@ -29,8 +29,9 @@ func newAuthCommand(opts Options) *cobra.Command {
 		Example: "  n8n auth login --url https://n8n.example.com\n" +
 			"  n8n auth status --check\n" +
 			"  n8n auth logout",
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		Annotations: map[string]string{"cliOnly": "true"},
+		Args:        cobra.NoArgs,
+		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(
 		newAuthLoginCommand(opts),

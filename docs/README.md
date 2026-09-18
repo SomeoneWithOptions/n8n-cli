@@ -3,25 +3,17 @@
 Generated from the command help. Do not edit these files by hand:
 edit the command's Short, Long, Example or flag usage and run `make docs`.
 
+## n8n API
+
 | Command | Description |
 |---|---|
 | [`n8n audit generate`](n8n_audit_generate.md) | Generate a security audit of the instance |
 | [`n8n audit`](n8n_audit.md) | Generate security audits of an n8n instance |
-| [`n8n auth login`](n8n_auth_login.md) | Store a credential for an n8n instance |
-| [`n8n auth logout`](n8n_auth_logout.md) | Delete the stored credential for a context |
-| [`n8n auth status`](n8n_auth_status.md) | Show the active context, instance and credential state |
-| [`n8n auth`](n8n_auth.md) | Log in to an n8n instance and inspect stored credentials |
 | [`n8n community-package install`](n8n_community-package_install.md) | Install a community package |
 | [`n8n community-package list`](n8n_community-package_list.md) | List installed community packages |
 | [`n8n community-package uninstall`](n8n_community-package_uninstall.md) | Uninstall a community package |
 | [`n8n community-package update`](n8n_community-package_update.md) | Update an installed community package |
 | [`n8n community-package`](n8n_community-package.md) | Manage community node packages |
-| [`n8n completion`](n8n_completion.md) | Generate a shell completion script |
-| [`n8n config context delete`](n8n_config_context_delete.md) | Delete a context and its stored credential |
-| [`n8n config context list`](n8n_config_context_list.md) | List saved contexts |
-| [`n8n config context use`](n8n_config_context_use.md) | Select the context used by subsequent commands |
-| [`n8n config context`](n8n_config_context.md) | Manage saved instance contexts |
-| [`n8n config`](n8n_config.md) | Inspect and edit stored CLI configuration |
 | [`n8n credential create`](n8n_credential_create.md) | Create a credential from secret JSON |
 | [`n8n credential delete`](n8n_credential_delete.md) | Permanently delete a credential |
 | [`n8n credential get`](n8n_credential_get.md) | Get credential metadata |
@@ -201,7 +193,6 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n variable list`](n8n_variable_list.md) | List variables and their values |
 | [`n8n variable update`](n8n_variable_update.md) | Fully replace a variable |
 | [`n8n variable`](n8n_variable.md) | Manage instance and project variables |
-| [`n8n version`](n8n_version.md) | Print build information |
 | [`n8n workflow archive`](n8n_workflow_archive.md) | Archive a workflow, the reversible soft delete |
 | [`n8n workflow create`](n8n_workflow_create.md) | Create a workflow from a definition or as an empty one |
 | [`n8n workflow delete`](n8n_workflow_delete.md) | Permanently delete a workflow |
@@ -219,4 +210,23 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n workflow version get`](n8n_workflow_version_get.md) | Show one stored version of a workflow |
 | [`n8n workflow version`](n8n_workflow_version.md) | Read a stored version of a workflow |
 | [`n8n workflow`](n8n_workflow.md) | Manage workflows, their versions and their tags |
+
+## CLI-only extensions
+
+CLI setup and beyond-spec helpers, maintained here. No equivalent n8n endpoint.
+
+| Command | Description |
+|---|---|
+| [`n8n auth login`](n8n_auth_login.md) | Store a credential for an n8n instance |
+| [`n8n auth logout`](n8n_auth_logout.md) | Delete the stored credential for a context |
+| [`n8n auth status`](n8n_auth_status.md) | Show the active context, instance and credential state |
+| [`n8n auth`](n8n_auth.md) | Log in to an n8n instance and inspect stored credentials |
+| [`n8n completion`](n8n_completion.md) | Generate a shell completion script |
+| [`n8n config context delete`](n8n_config_context_delete.md) | Delete a context and its stored credential |
+| [`n8n config context list`](n8n_config_context_list.md) | List saved contexts |
+| [`n8n config context use`](n8n_config_context_use.md) | Select the context used by subsequent commands |
+| [`n8n config context`](n8n_config_context.md) | Manage saved instance contexts |
+| [`n8n config`](n8n_config.md) | Inspect and edit stored CLI configuration |
+| [`n8n version`](n8n_version.md) | Print build information |
+| [`n8n workflow diff`](n8n_workflow_diff.md) | Compare saved workflows across two contexts |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |

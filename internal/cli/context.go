@@ -19,8 +19,9 @@ func newConfigCommand(opts Options) *cobra.Command {
 			"'n8n config context use NAME'.",
 		Example: "  n8n config context list\n" +
 			"  n8n config context use production",
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+		Annotations: map[string]string{"cliOnly": "true"},
+		Args:        cobra.NoArgs,
+		RunE:        func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(newContextCommand(opts))
 	return cmd
