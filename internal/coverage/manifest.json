@@ -1529,8 +1529,8 @@
       "scope": "gitConnection:list",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion connection list",
+      "status": "implemented"
     },
     {
       "operationId": "createPromotionConnection",
@@ -1540,8 +1540,8 @@
       "scope": "gitConnection:create",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion connection create",
+      "status": "implemented"
     },
     {
       "operationId": "deletePromotionConnection",
@@ -1551,8 +1551,8 @@
       "scope": "gitConnection:delete",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion connection delete",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionConnection",
@@ -1562,8 +1562,8 @@
       "scope": "gitConnection:read",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion connection get",
+      "status": "implemented"
     },
     {
       "operationId": "updatePromotionConnection",
@@ -1573,8 +1573,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion connection update",
+      "status": "implemented"
     },
     {
       "operationId": "applyPackage",
@@ -1584,8 +1584,8 @@
       "scope": "gitConnection:pull",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion apply",
+      "status": "implemented"
     },
     {
       "operationId": "upsertPromotionApplyConfig",
@@ -1595,8 +1595,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion config apply set",
+      "status": "implemented"
     },
     {
       "operationId": "upsertPromotionPromoteConfig",
@@ -1606,8 +1606,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion config promote set",
+      "status": "implemented"
     },
     {
       "operationId": "deletePromotionConfig",
@@ -1617,8 +1617,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion config delete",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionConnectionProjects",
@@ -1628,8 +1628,8 @@
       "scope": "gitConnection:read",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project list",
+      "status": "implemented"
     },
     {
       "operationId": "removeProjectFromPromotionConnection",
@@ -1639,8 +1639,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project remove",
+      "status": "implemented"
     },
     {
       "operationId": "addProjectToPromotionConnection",
@@ -1650,8 +1650,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project add",
+      "status": "implemented"
     },
     {
       "operationId": "promotePackage",
@@ -1661,8 +1661,8 @@
       "scope": "gitConnection:push",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion promote",
+      "status": "implemented"
     },
     {
       "operationId": "clonePromotionCheckout",
@@ -1672,8 +1672,8 @@
       "scope": "gitConnection:clone",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion checkout clone",
+      "status": "implemented"
     },
     {
       "operationId": "disconnectPromotionCheckout",
@@ -1683,8 +1683,8 @@
       "scope": "gitConnection:clone",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion checkout disconnect",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionProviders",
@@ -1694,8 +1694,8 @@
       "scope": "gitConnection:list",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider list",
+      "status": "implemented"
     },
     {
       "operationId": "createPromotionProvider",
@@ -1705,8 +1705,8 @@
       "scope": "gitConnection:create",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider create",
+      "status": "implemented"
     },
     {
       "operationId": "deletePromotionProvider",
@@ -1716,8 +1716,8 @@
       "scope": "gitConnection:delete",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider delete",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionProvider",
@@ -1727,8 +1727,8 @@
       "scope": "gitConnection:read",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider get",
+      "status": "implemented"
     },
     {
       "operationId": "updatePromotionProvider",
@@ -1738,8 +1738,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 29,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider update",
+      "status": "implemented"
     }
   ]
 }
