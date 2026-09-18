@@ -1,6 +1,6 @@
 # Contributing to n8n-cli
 
-Thanks for input. Maintainer merges to `main` and cuts releases. Everyone else contributes via fork + pull request, or via issues.
+Thanks for input. Contribute via fork + pull request, or via issues.
 
 ## Ownership model
 

@@ -82,7 +82,7 @@ Regenerate it with `make docs` after changing any command's help text.
 
 ## Contributing
 
-Maintainer merges to `main` and cuts releases. Contribute via fork + PR, or open issue. See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
+Contribute via fork + PR, or open issue. See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
 
 ## License
 
