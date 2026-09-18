@@ -12,6 +12,12 @@ on:
 permissions:
   contents: read
 
+# Serialize reruns for the same tag without interrupting publication.
+# Keep this distinct from the reusable CI workflow's concurrency group.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   checks:
     name: Release checks
@@ -21,18 +27,21 @@ jobs:
     name: build and publish
     needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
+          persist-credentials: false
           # git describe needs history and tags for the version stamp fallback.
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
-          cache: true
+          # Build release artifacts without restoring shared CI caches.
+          cache: false
 
       - name: Build release artifacts
         run: make dist VERSION="${GITHUB_REF_NAME}"
@@ -47,7 +56,7 @@ jobs:
           esac
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.3
         with:
           generate_release_notes: true
           fail_on_unmatched_files: true
@@ -65,12 +74,15 @@ jobs:
     name: install.sh (${{ matrix.os }})
     needs: release
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install from the published release
         env:
@@ -90,8 +102,11 @@ jobs:
     name: install.ps1
     needs: release
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install from the published release
         shell: pwsh

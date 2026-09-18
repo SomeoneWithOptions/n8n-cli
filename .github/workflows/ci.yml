@@ -14,12 +14,14 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never interrupt the reusable checks gating a tagged release.
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   check:
     name: check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -29,12 +31,15 @@ jobs:
         # Use Git Bash on Windows; the Makefile also selects bash explicitly.
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Install make (Windows)
         if: runner.os == 'Windows'
@@ -73,8 +78,11 @@ jobs:
   scripts:
     name: install scripts
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: ShellCheck (install.sh)
         run: shellcheck --shell=sh install.sh
