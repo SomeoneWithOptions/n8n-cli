@@ -1,0 +1,107 @@
+# Release builds the same artifacts `make dist` builds locally, publishes them
+# under the exact names install.sh and install.ps1 fetch, then proves both
+# install paths work by running them against the release it just created.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git describe needs history and tags for the version stamp fallback.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Full check
+        run: make check
+
+      - name: Build release artifacts
+        run: make dist VERSION="${GITHUB_REF_NAME}"
+
+      - name: Verify the stamped version matches the tag
+        run: |
+          set -e
+          reported=$(./dist/n8n-linux-amd64 version | head -n 1)
+          case "$reported" in
+            "n8n ${GITHUB_REF_NAME}") ;;
+            *) echo "version reports '$reported', expected 'n8n ${GITHUB_REF_NAME}'"; exit 1 ;;
+          esac
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/n8n-linux-amd64
+            dist/n8n-linux-arm64
+            dist/n8n-darwin-amd64
+            dist/n8n-darwin-arm64
+            dist/n8n-windows-amd64.exe
+            dist/checksums.txt
+            dist/install.sh
+            dist/install.ps1
+
+  install-unix:
+    name: install.sh (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install from the published release
+        env:
+          N8N_CLI_VERSION: ${{ github.ref_name }}
+        run: sh install.sh
+
+      - name: Run the installed binary
+        run: |
+          set -e
+          reported=$("$HOME/.local/bin/n8n" version | head -n 1)
+          case "$reported" in
+            "n8n ${GITHUB_REF_NAME}") ;;
+            *) echo "version reports '$reported', expected 'n8n ${GITHUB_REF_NAME}'"; exit 1 ;;
+          esac
+
+  install-windows:
+    name: install.ps1
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install from the published release
+        shell: pwsh
+        env:
+          N8N_CLI_VERSION: ${{ github.ref_name }}
+        run: ./install.ps1
+
+      - name: Run the installed binary
+        shell: pwsh
+        env:
+          N8N_CLI_VERSION: ${{ github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'n8n-cli\bin\n8n.exe'
+          $reported = (& $exe version | Select-Object -First 1)
+          if ($reported -ne "n8n $env:N8N_CLI_VERSION") {
+            throw "version reports '$reported', expected 'n8n $env:N8N_CLI_VERSION'"
+          }

@@ -2,8 +2,15 @@
 # CI in Phase 31 runs the same ones; keep them in sync by calling them, not
 # by reimplementing them in a workflow file.
 
-BINARY      := n8n
+NAME        := n8n
+# Windows will not execute a file without the extension, and CI runs the built
+# binary on all three platforms.
+ifeq ($(OS),Windows_NT)
+EXE         := .exe
+endif
+BINARY      := $(NAME)$(EXE)
 BIN_DIR     := bin
+DIST_DIR    := dist
 PKG         := github.com/SomeoneWithOptions/n8n-cli
 VERSION_PKG := $(PKG)/internal/version
 
@@ -31,7 +38,7 @@ LDFLAGS := -s -w \
 	-X $(VERSION_PKG).commit=$(COMMIT) \
 	-X $(VERSION_PKG).date=$(DATE)
 
-.PHONY: all check fmt fmt-check test test-race test-shuffle vet lint vuln analyze cross tidy-check deadcode build clean tidy docs spec spec-upstream integration
+.PHONY: all check fmt fmt-check test test-race test-shuffle vet lint vuln analyze cross tidy-check deps-check deadcode build dist smoke clean tidy docs spec spec-upstream integration
 
 all: check build
 
@@ -92,6 +99,11 @@ cross:
 tidy-check:
 	go mod tidy -diff
 
+## deps-check: fail when go.mod gains a direct requirement the plan does not
+## allow. Part of `test` too; named here so CI reports it as its own step.
+deps-check:
+	go test ./internal/deps
+
 ## deadcode: cross-package unreachability from the real entry point.
 deadcode:
 	go run $(DEADCODE) ./cmd/n8n
@@ -133,6 +145,29 @@ tidy:
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o $(BIN_DIR)/$(BINARY) ./cmd/n8n
 
+## smoke: the built binary answers the three commands that need no instance.
+smoke: build
+	$(BIN_DIR)/$(BINARY) version
+	$(BIN_DIR)/$(BINARY) --help > /dev/null
+	$(BIN_DIR)/$(BINARY) completion bash > /dev/null
+
+## dist: release artifacts for every target, named exactly as install.sh and
+## install.ps1 expect, plus checksums and copies of the install scripts. The
+## release workflow calls this target; it adds no build logic of its own.
+dist:
+	rm -rf $(DIST_DIR)
+	mkdir -p $(DIST_DIR)
+	@for target in $(CROSS_TARGETS); do \
+		os=$${target%/*}; arch=$${target#*/}; \
+		out=$(DIST_DIR)/$(NAME)-$$os-$$arch; \
+		if [ "$$os" = "windows" ]; then out=$$out.exe; fi; \
+		echo "build $$out"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
+			go build -trimpath -ldflags '$(LDFLAGS)' -o $$out ./cmd/n8n || exit 1; \
+	done
+	cp install.sh install.ps1 $(DIST_DIR)/
+	cd $(DIST_DIR) && { sha256sum * > checksums.txt 2>/dev/null || shasum -a 256 * > checksums.txt; }
+
 ## clean: remove build output.
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) $(DIST_DIR)

@@ -1,0 +1,90 @@
+# CI runs the same Makefile targets that gate a change locally. If a step here
+# does something the Makefile cannot do, the step is wrong: add the target
+# instead, so a failure is reproducible with one command on a laptop.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        # bash everywhere, so make finds a POSIX shell on the Windows runner
+        # and the targets behave identically on all three platforms.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install make (Windows)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress --yes
+
+      - name: Formatting
+        run: make fmt-check
+
+      - name: Vet
+        run: make vet
+
+      - name: Lint
+        run: make lint
+
+      - name: Tests (race)
+        run: make test-race
+
+      - name: Dependency allowlist
+        run: make deps-check
+
+      - name: Module tidiness
+        run: make tidy-check
+
+      - name: Cross-compile targets
+        run: make cross
+
+      - name: Vulnerabilities
+        run: make vuln
+
+      - name: Smoke
+        run: make smoke
+
+  scripts:
+    name: install scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck (install.sh)
+        run: shellcheck --shell=sh install.sh
+
+      - name: PSScriptAnalyzer (install.ps1)
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+            Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -Repository PSGallery
+          }
+          $issues = Invoke-ScriptAnalyzer -Path ./install.ps1 -Severity Error,Warning
+          if ($issues) {
+            $issues | Format-Table -AutoSize | Out-String | Write-Output
+            throw "PSScriptAnalyzer reported $($issues.Count) issue(s)"
+          }
