@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -229,6 +230,28 @@ func TestStoreUpdateSerializesConcurrentWriters(t *testing.T) {
 	}
 	if len(cfg.Contexts) != writers {
 		t.Errorf("stored %d contexts, want %d: a concurrent write was lost", len(cfg.Contexts), writers)
+	}
+}
+
+func TestLockHeldReportsContention(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		// Unix reports the lock race as Exists.
+		{name: "exists", err: fmt.Errorf("openat .lock: %w", fs.ErrExist), want: true},
+		// Windows reports the same race as Access Denied (ErrPermission).
+		{name: "permission", err: fmt.Errorf("openat .lock: Access is denied.: %w", fs.ErrPermission), want: true},
+		{name: "other", err: errors.New("boom"), want: false},
+		{name: "nil", err: nil, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lockHeld(tt.err); got != tt.want {
+				t.Errorf("lockHeld(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 
