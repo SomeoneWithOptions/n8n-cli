@@ -1,29 +1,49 @@
-# Custom release notes
+# Release notes
 
-Optional per-release body text. Filename must match the tag exactly:
+Every release lands a notes file (`.github/release-notes/vX.Y.Z.md`) on `main` via PR before tagging. Filename matches the tag exactly:
 
 ```sh
-.github/release-notes/v0.2.0.md   # ships on tag v0.2.0
+.github/release-notes/v0.3.0.md   # ships on tag v0.3.0
 ```
+
+This PR-first flow is the single standard release path for both feature and patch releases.
 
 Flow (maintainer only):
 
 ```sh
+# 1. Pre-flight
 git checkout main && git pull
 make check
-# optional custom body, via PR so CI gates it:
+
+# 2. Add notes file on branch
 git checkout -b chore/release-notes-vX.Y.Z
 cat > .github/release-notes/vX.Y.Z.md <<'EOF'
-## Highlights
+## Highlights # or ## Bug Fixes
 
 - One line per change.
 EOF
 make release-notes VERSION=vX.Y.Z && cat dist/release-notes.md  # preview
 git add .github/release-notes/vX.Y.Z.md && git commit -m "chore(release): notes for vX.Y.Z"
-git push origin chore/release-notes-vX.Y.Z
-# open PR, wait for CI, squash-merge. Then tag the merge result:
+git push -u origin chore/release-notes-vX.Y.Z
+
+# 3. Open PR, gate with CI, squash-merge
+gh pr create --fill
+gh pr checks --watch
+gh pr merge --squash --delete-branch
+
+# 4. Pull main & verify HEAD is the merge commit
 git checkout main && git pull
+git log --oneline --decorate -5
+
+# 5. Tag main HEAD and push
 git tag vX.Y.Z && git push origin vX.Y.Z
+
+# 6. Monitor release run
+gh run list --workflow=Release --limit 1
+
+# 7. Curate release notes on GitHub (drop chore PRs from What's Changed)
+gh release view vX.Y.Z --json body --jq .body
+gh release edit vX.Y.Z --notes-file /tmp/notes.md
 ```
 
 Rules:
