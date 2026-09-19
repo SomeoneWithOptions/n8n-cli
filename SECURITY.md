@@ -4,6 +4,15 @@
 
 Latest `v*` release only. Older tags get no patches.
 
+## Release integrity
+
+Releases are not signed. `install.sh`, `install.ps1` and `n8n update` fetch
+assets over HTTPS and verify them against the `checksums.txt` published with the
+same release, which proves the download arrived intact, not who produced it. A
+compromised release or repository would therefore still install. `n8n update`
+additionally runs the downloaded binary once and refuses it unless it reports
+the expected release tag.
+
 ## Reporting
 
 Do **not** open public issues for vulnerabilities.
