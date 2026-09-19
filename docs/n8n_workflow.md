@@ -13,6 +13,9 @@ Start with 'list' to find workflow IDs. The edit workflow is read, edit, write:
 'get ID --output json' writes the definition, 'update ID --input FILE' sends it
 back. 'update' is a full replacement, so always start from a fresh 'get'.
 
+Across two saved contexts, 'diff' compares saved definitions without writing
+and 'copy' writes one of them onto the other instance.
+
 Publishing is what n8n v1 called activating: a published workflow runs its
 triggers in production. 'archive' is the reversible soft delete and 'delete' is
 permanent; delete, unpublish and transfer ask for confirmation.
@@ -26,6 +29,7 @@ n8n workflow [flags]
 ```
   n8n workflow list --active true
   n8n workflow get WORKFLOW_ID --output json > workflow.json
+  n8n workflow copy --name "Invoice sync" --from-context staging --to-context prod
   n8n workflow update WORKFLOW_ID --input workflow.json
   n8n workflow publish WORKFLOW_ID
   n8n workflow history WORKFLOW_ID
@@ -43,6 +47,7 @@ n8n workflow [flags]
 
 * [n8n](n8n.md)	 - Command-line client for the n8n API
 * [n8n workflow archive](n8n_workflow_archive.md)	 - Archive a workflow, the reversible soft delete
+* [n8n workflow copy](n8n_workflow_copy.md)	 - Copy a saved workflow definition from one context to another
 * [n8n workflow create](n8n_workflow_create.md)	 - Create a workflow from a definition or as an empty one
 * [n8n workflow delete](n8n_workflow_delete.md)	 - Permanently delete a workflow
 * [n8n workflow diff](n8n_workflow_diff.md)	 - Compare saved workflows across two contexts

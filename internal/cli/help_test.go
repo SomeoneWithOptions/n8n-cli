@@ -143,6 +143,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"workflow", "list"},
 		{"workflow", "get"},
 		{"workflow", "diff"},
+		{"workflow", "copy"},
 		{"workflow", "create"},
 		{"workflow", "update"},
 		{"workflow", "delete"},
