@@ -2,9 +2,10 @@
 # It builds the same artifacts `make dist` builds locally, publishes them
 # under the exact names install.sh and install.ps1 fetch, then proves both
 # install paths work by running them against the release it just created.
-# Custom body text is optional: commit `.github/release-notes/vX.Y.Z.md`
-# (filename must match the tag) before tagging and it ships above the
-# GitHub auto-generated PR list. No file -> generated notes only.
+# Custom body text is optional: land `.github/release-notes/vX.Y.Z.md`
+# on main via PR first (filename must match the tag), then tag main HEAD.
+# It ships above the GitHub auto-generated PR list. No file -> generated notes
+# only. Tagging before merge double-runs CI and leaves the tag off main.
 name: Release
 
 on:
