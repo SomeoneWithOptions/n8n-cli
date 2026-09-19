@@ -36,11 +36,14 @@ func newWorkflowCommand(opts Options) *cobra.Command {
 			"Start with 'list' to find workflow IDs. The edit workflow is read, edit, write:\n" +
 			"'get ID --output json' writes the definition, 'update ID --input FILE' sends it\n" +
 			"back. 'update' is a full replacement, so always start from a fresh 'get'.\n\n" +
+			"Across two saved contexts, 'diff' compares saved definitions without writing\n" +
+			"and 'copy' writes one of them onto the other instance.\n\n" +
 			"Publishing is what n8n v1 called activating: a published workflow runs its\n" +
 			"triggers in production. 'archive' is the reversible soft delete and 'delete' is\n" +
 			"permanent; delete, unpublish and transfer ask for confirmation.",
 		Example: "  n8n workflow list --active true\n" +
 			"  n8n workflow get WORKFLOW_ID --output json > workflow.json\n" +
+			"  n8n workflow copy --name \"Invoice sync\" --from-context staging --to-context prod\n" +
 			"  n8n workflow update WORKFLOW_ID --input workflow.json\n" +
 			"  n8n workflow publish WORKFLOW_ID\n" +
 			"  n8n workflow history WORKFLOW_ID\n" +
@@ -53,6 +56,7 @@ func newWorkflowCommand(opts Options) *cobra.Command {
 		newWorkflowListCommand(opts),
 		newWorkflowGetCommand(opts),
 		newWorkflowDiffCommand(opts),
+		newWorkflowCopyCommand(opts),
 		newWorkflowCreateCommand(opts),
 		newWorkflowUpdateCommand(opts),
 		newWorkflowDeleteCommand(opts),

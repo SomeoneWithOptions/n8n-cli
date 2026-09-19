@@ -231,5 +231,6 @@ CLI setup and beyond-spec helpers, maintained here. No equivalent n8n endpoint.
 | [`n8n execution watch`](n8n_execution_watch.md) | Show executions live as they start and finish |
 | [`n8n update`](n8n_update.md) | Update this CLI to the latest release |
 | [`n8n version`](n8n_version.md) | Print build information |
+| [`n8n workflow copy`](n8n_workflow_copy.md) | Copy a saved workflow definition from one context to another |
 | [`n8n workflow diff`](n8n_workflow_diff.md) | Compare saved workflows across two contexts |
 | [`n8n`](n8n.md) | Command-line client for the n8n API |

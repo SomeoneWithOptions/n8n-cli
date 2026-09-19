@@ -18,12 +18,17 @@ import (
 
 var errWorkflowDifferent = errors.New("workflow definitions differ")
 
-type workflowDiffSide struct {
+// errWorkflowNameNotFound reports a name lookup that completed and matched
+// nothing, as opposed to one that failed. Only a completed lookup may be read
+// as "create it", which is what 'n8n workflow copy' does with it.
+var errWorkflowNameNotFound = errors.New("no exact match")
+
+type workflowSide struct {
 	context, id, projectID string
 }
 
 type workflowDiffFlags struct {
-	from, to           workflowDiffSide
+	from, to           workflowSide
 	name, output       string
 	only               []string
 	pins, state, quiet bool
@@ -84,7 +89,7 @@ func newWorkflowDiffCommand(opts Options) *cobra.Command {
 	return cmd
 }
 
-type workflowDiffEndpoint struct {
+type workflowEndpoint struct {
 	Context         string `json:"context"`
 	URL             string `json:"url"`
 	WorkflowID      string `json:"workflowId"`
@@ -96,11 +101,11 @@ type workflowDiffEndpoint struct {
 }
 
 type workflowDiffResult struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	Mode          string               `json:"mode"`
-	From          workflowDiffEndpoint `json:"from"`
-	To            workflowDiffEndpoint `json:"to"`
-	Fields        []string             `json:"fields"`
+	SchemaVersion int              `json:"schemaVersion"`
+	Mode          string           `json:"mode"`
+	From          workflowEndpoint `json:"from"`
+	To            workflowEndpoint `json:"to"`
+	Fields        []string         `json:"fields"`
 	workflowdiff.Result
 }
 
@@ -139,11 +144,11 @@ func runWorkflowDiff(ctx context.Context, opts Options, f workflowDiffFlags) err
 		return fmt.Errorf("target context %q: %w", f.to.context, err)
 	}
 	excludePins := !slices.Contains(fields, "pinData")
-	from, err := readDiffWorkflow(ctx, fromClient, fromResolution, f.from, f.name, excludePins)
+	from, err := readWorkflowSide(ctx, fromClient, fromResolution, f.from, f.name, excludePins)
 	if err != nil {
 		return fmt.Errorf("source: %w", err)
 	}
-	to, err := readDiffWorkflow(ctx, toClient, toResolution, f.to, f.name, excludePins)
+	to, err := readWorkflowSide(ctx, toClient, toResolution, f.to, f.name, excludePins)
 	if err != nil {
 		return fmt.Errorf("target: %w", err)
 	}
@@ -153,7 +158,7 @@ func runWorkflowDiff(ctx context.Context, opts Options, f workflowDiffFlags) err
 	}
 	result := workflowDiffResult{
 		SchemaVersion: 1, Mode: "saved", Fields: fields, Result: diff,
-		From: diffEndpoint(fromResolution, from), To: diffEndpoint(toResolution, to),
+		From: workflowEndpointFor(fromResolution, from), To: workflowEndpointFor(toResolution, to),
 	}
 	if !f.quiet {
 		if f.output == outputJSON {
@@ -171,19 +176,19 @@ func runWorkflowDiff(ctx context.Context, opts Options, f workflowDiffFlags) err
 	return nil
 }
 
-func diffEndpoint(r config.Resolution, w *n8n.Workflow) workflowDiffEndpoint {
-	return workflowDiffEndpoint{
+func workflowEndpointFor(r config.Resolution, w *n8n.Workflow) workflowEndpoint {
+	return workflowEndpoint{
 		Context: r.ContextName, URL: r.URL, WorkflowID: w.ID, Name: w.Name,
 		VersionID: w.VersionID, ActiveVersionID: w.ActiveVersionID,
 		Published: w.Active, Archived: w.IsArchived,
 	}
 }
 
-func readDiffWorkflow(ctx context.Context, client *n8n.Client, r config.Resolution, side workflowDiffSide, name string, excludePins bool) (*n8n.Workflow, error) {
+func readWorkflowSide(ctx context.Context, client *n8n.Client, r config.Resolution, side workflowSide, name string, excludePins bool) (*n8n.Workflow, error) {
 	id := side.id
 	if name != "" {
 		var err error
-		id, err = resolveDiffName(ctx, client, name, side.projectID)
+		id, err = resolveWorkflowName(ctx, client, name, side.projectID)
 		if err != nil {
 			return nil, fmt.Errorf("context %q (%s), workflow %q: %w", r.ContextName, r.URL, name, workflowAPIError(err, r, "list"))
 		}
@@ -200,7 +205,7 @@ func readDiffWorkflow(ctx context.Context, client *n8n.Client, r config.Resoluti
 
 // Do not use Collect here: its successful truncation at max cannot establish
 // uniqueness. Fail closed on a limit or an incomplete/repeating page stream.
-func resolveDiffName(ctx context.Context, client *n8n.Client, name, projectID string) (string, error) {
+func resolveWorkflowName(ctx context.Context, client *n8n.Client, name, projectID string) (string, error) {
 	opts := n8n.ListWorkflowsOptions{Name: name, ProjectID: projectID, ExcludePinnedData: true}
 	seen := map[string]bool{}
 	matches := map[string]string{}
@@ -236,7 +241,7 @@ func resolveDiffName(ctx context.Context, client *n8n.Client, name, projectID st
 	}
 	switch len(matches) {
 	case 0:
-		return "", fmt.Errorf("no exact match; check the name, project filter and credential visibility")
+		return "", fmt.Errorf("%w; check the name, project filter and credential visibility", errWorkflowNameNotFound)
 	case 1:
 		for id := range matches {
 			return id, nil
@@ -281,7 +286,7 @@ func writeWorkflowDiff(out io.Writer, result workflowDiffResult) error {
 	fmt.Fprintln(&text, "Comparing saved definitions (source -> target)")
 	for _, side := range []struct {
 		label string
-		value workflowDiffEndpoint
+		value workflowEndpoint
 	}{{"From", result.From}, {"To", result.To}} {
 		v := side.value
 		fmt.Fprintf(&text, "%s: context %q, %s, workflow %q (%q)\n", side.label, v.Context, v.URL, v.WorkflowID, v.Name)
