@@ -34,20 +34,24 @@ CI (`.github/workflows/ci.yml`) runs same targets on ubuntu/macos/windows plus `
 - Fork branch name: `fix/<short>` or `feat/<short>`.
 - Must pass CI. Must update `docs/README.md` via `make docs` if CLI help changed.
 - Maintainer squashes/merges. Branches from forks do not need to be up to date — maintainer handles conflicts.
-- No release commits in PRs, except the maintainer's `.github/release-notes/vX.Y.Z.md` notes file. No `v*` tags in PRs. Maintainer tags separately, after merge.
+- No `v*` tags in PRs. Maintainer tags `main` separately after PR merges.
 - Be civil. No secrets/keys/tokens in issues/PRs/logs.
 
 ## Releases (maintainer only)
 
-Standard flow is PR-first, tag-after-merge:
-1. Land `.github/release-notes/vX.Y.Z.md` on `main` via PR.
-2. Checkout `main`, pull, verify `HEAD` is the merge commit.
-3. Tag and push:
+Default flow: tag `main` HEAD directly, then curate the release notes on GitHub:
 
 ```sh
+git checkout main && git pull
+make check
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 Tag triggers `release.yml`: full CI matrix → `make dist` → GitHub Release → install-script self-test.
 
-See `.github/release-notes/README.md` or `AGENTS.md` for full step-by-step runbook and post-publish curation commands.
+After publish, curate release notes to drop internal chore PRs and keep only user-facing changes:
+```sh
+gh release edit vX.Y.Z --notes-file /tmp/notes.md
+```
+
+See `AGENTS.md` or `.github/release-notes/README.md` for full runbook.
