@@ -284,6 +284,16 @@ func checkRegular(root *os.Root, name, path string, secret bool) error {
 	return nil
 }
 
+// lockHeld reports whether an exclusive-create failure means the lock is held
+// by another writer. Windows reports that race as Access Denied
+// (ErrPermission), not Exists, so both must retry instead of failing. Without
+// this, concurrent writers flake on windows-latest with
+// `openat .lock: Access is denied` (seen in
+// TestStoreUpdateSerializesConcurrentWriters).
+func lockHeld(err error) bool {
+	return errors.Is(err, fs.ErrExist) || errors.Is(err, fs.ErrPermission)
+}
+
 // lock takes the directory lock and returns its release function.
 func (s *Store) lock(root *os.Root) (func(), error) {
 	deadline := time.Now().Add(lockTimeout)
@@ -302,7 +312,7 @@ func (s *Store) lock(root *os.Root) (func(), error) {
 			}
 			return func() { _ = root.Remove(lockFileName) }, nil
 		}
-		if !errors.Is(err, fs.ErrExist) {
+		if !lockHeld(err) {
 			return nil, fmt.Errorf("lock %s: %w", s.Path(lockFileName), err)
 		}
 		if s.breakStaleLock(root) {
