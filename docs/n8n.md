@@ -73,6 +73,7 @@ n8n [flags]
 * [n8n security-policy](n8n_security-policy.md)	 - Manage instance security policy
 * [n8n source-control](n8n_source-control.md)	 - Preview, push, and pull source-controlled instance changes
 * [n8n tag](n8n_tag.md)	 - Manage workflow tags
+* [n8n update](n8n_update.md)	 - Update this CLI to the latest release
 * [n8n user](n8n_user.md)	 - Manage instance users and global roles
 * [n8n variable](n8n_variable.md)	 - Manage instance and project variables
 * [n8n version](n8n_version.md)	 - Print build information

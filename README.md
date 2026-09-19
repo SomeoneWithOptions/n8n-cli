@@ -56,6 +56,21 @@ chmod +x n8n-linux-amd64 && mv n8n-linux-amd64 ~/.local/bin/n8n
 Verify the install with `n8n version`, which reports the release tag, commit and
 build date.
 
+## Update
+
+```sh
+n8n update --check   # report the installed and latest versions, write nothing
+n8n update           # download, verify and replace this binary, after asking
+```
+
+`n8n update` installs the release asset for the current platform, checks it
+against the release `checksums.txt`, and runs it once to confirm it reports the
+expected version before replacing the binary in place. Contexts and credentials
+are untouched. A development build, or a binary owned by Homebrew, Nix, Snap,
+`go install` or a system package, is refused unless `--force` is passed: update
+those where they were installed from. `n8n update --version vX.Y.Z` installs an
+exact tag. See [`docs/n8n_update.md`](docs/n8n_update.md).
+
 ## Shell completion
 
 ```sh

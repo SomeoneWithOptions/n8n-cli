@@ -265,6 +265,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"config", "context", "use"},
 		{"config", "context", "delete"},
 		{"version"},
+		{"update"},
 		{"completion"},
 	}
 	for _, p := range paths {

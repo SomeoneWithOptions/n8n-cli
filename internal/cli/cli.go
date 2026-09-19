@@ -16,6 +16,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/config"
 	"github.com/SomeoneWithOptions/n8n-cli/internal/confirm"
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
+	"github.com/SomeoneWithOptions/n8n-cli/internal/selfupdate"
 	"github.com/SomeoneWithOptions/n8n-cli/internal/version"
 )
 
@@ -53,8 +54,18 @@ type Options struct {
 	Prompt SecretPrompter
 	// Interactive overrides terminal detection on Streams.In.
 	Interactive *bool
-	// HTTPClient overrides the transport used for API calls.
+	// HTTPClient overrides the transport used for API calls and for release
+	// downloads.
 	HTTPClient n8n.Doer
+	// ExecutablePath overrides the binary `n8n update` replaces. Empty
+	// resolves through [os.Executable].
+	ExecutablePath string
+	// ReleaseAPIURL overrides the GitHub API root release lookups use. Empty
+	// uses [selfupdate.DefaultAPIBaseURL].
+	ReleaseAPIURL string
+	// ReleaseDownloadURL overrides the host release assets are downloaded
+	// from. Empty uses [selfupdate.DefaultDownloadBaseURL].
+	ReleaseDownloadURL string
 }
 
 // interactive reports whether the CLI may ask the user something.
@@ -117,6 +128,18 @@ func (o Options) clientOptions() []n8n.Option {
 		opts = append(opts, n8n.WithHTTPClient(o.HTTPClient))
 	}
 	return opts
+}
+
+// updater builds the self-update client for this run. It shares HTTPClient
+// with the API transport: both are "the network" this process is allowed.
+func (o Options) updater() *selfupdate.Updater {
+	return selfupdate.New(selfupdate.Config{
+		HTTP:            o.HTTPClient,
+		APIBaseURL:      o.ReleaseAPIURL,
+		DownloadBaseURL: o.ReleaseDownloadURL,
+		UserAgent:       o.Version.UserAgent(),
+		ExecPath:        o.ExecutablePath,
+	})
 }
 
 // Run builds the command tree, executes args against it, and returns the
@@ -243,6 +266,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newPromotionCommand(opts),
 		newConfigCommand(opts),
 		newVersionCommand(opts),
+		newUpdateCommand(opts),
 		newCompletionCommand(),
 	)
 	return root
