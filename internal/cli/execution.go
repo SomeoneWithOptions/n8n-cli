@@ -379,6 +379,7 @@ type executionStopManyFlags struct {
 	instance      instanceFlags
 	statuses      []string
 	workflowID    string
+	all           bool
 	startedAfter  string
 	startedBefore string
 	yes           bool
@@ -391,14 +392,16 @@ func newExecutionStopManyCommand(opts Options) *cobra.Command {
 		Use:   "stop-many",
 		Short: "Stop active executions matching filters",
 		Long: "Cancel queued, running, or waiting executions matching the supplied statuses and\n" +
-			"optional workflow and RFC3339 time range. At least one --status is required.\n\n" +
-			"Without --workflow-id the operation spans every accessible workflow; the literal\n" +
-			"workflow ID 'all' has the same effect. Stopping is irreversible for each matched\n" +
-			"run, though a failed or canceled run may later be retried. Interactive runs ask\n" +
-			"for confirmation and non-interactive runs require --yes. Requires execution:stop.",
+			"RFC3339 time range within one workflow scope. At least one --status is required.\n\n" +
+			"Scope is explicit: pass --workflow-id for one workflow or --all for every\n" +
+			"accessible workflow. Omitting both is rejected so an empty filter can never stop\n" +
+			"workflows globally by accident; the literal workflow ID 'all' is rejected, use\n" +
+			"--all instead. Stopping is irreversible for each matched run, though a failed\n" +
+			"or canceled run may later be retried. Interactive runs ask for confirmation and\n" +
+			"non-interactive runs require --yes. Requires execution:stop.",
 		Example: "  n8n execution stop-many --status running --workflow-id WORKFLOW_ID\n" +
-			"  n8n execution stop-many --status queued --status waiting --yes\n" +
-			"  n8n execution stop-many --status running --started-after 2026-09-17T00:00:00Z --yes --output json",
+			"  n8n execution stop-many --status queued --status waiting --all --yes\n" +
+			"  n8n execution stop-many --status running --workflow-id WORKFLOW_ID --started-after 2026-09-17T00:00:00Z --yes --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runExecutionStopMany(cmd.Context(), opts, f)
@@ -406,7 +409,8 @@ func newExecutionStopManyCommand(opts Options) *cobra.Command {
 	}
 	f.instance.register(cmd)
 	cmd.Flags().StringArrayVar(&f.statuses, "status", nil, "status to stop: queued, running, or waiting; repeatable (at least one required)")
-	cmd.Flags().StringVar(&f.workflowID, "workflow-id", "", "only executions of this workflow; omit or pass all for every accessible workflow (default: all workflows)")
+	cmd.Flags().StringVar(&f.workflowID, "workflow-id", "", "only executions of this workflow, from 'n8n workflow list' (required unless --all)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "stop matching executions across every accessible workflow (cannot combine with --workflow-id)")
 	cmd.Flags().StringVar(&f.startedAfter, "started-after", "", "only executions started after this RFC3339 timestamp, e.g. 2026-09-17T00:00:00Z (default: no lower bound)")
 	cmd.Flags().StringVar(&f.startedBefore, "started-before", "", "only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm stopping every match without prompting (required when stdin is not interactive)")
@@ -427,12 +431,24 @@ func runExecutionStopMany(ctx context.Context, opts Options, f executionStopMany
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if f.all && f.workflowID != "" {
+		return fmt.Errorf("--all cannot be combined with --workflow-id: --all spans every accessible workflow, --workflow-id scopes to one workflow")
+	}
+	if f.workflowID == "all" {
+		return fmt.Errorf("--workflow-id \"all\" is not accepted: use --all to stop executions across every accessible workflow")
+	}
+	if !f.all && strings.TrimSpace(f.workflowID) == "" {
+		return fmt.Errorf("--workflow-id or --all is required: pass the workflow ID to scope the stop, or --all to stop across every accessible workflow")
+	}
+	if f.all {
+		request.WorkflowID = ""
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
 	}
 	scope := "every accessible workflow"
-	if f.workflowID != "" && f.workflowID != "all" {
+	if !f.all {
 		scope = fmt.Sprintf("workflow %q", f.workflowID)
 	}
 	question := fmt.Sprintf("Stop all %s executions in %s on %s? Every matched run is canceled and cannot resume.", strings.Join(f.statuses, ", "), scope, resolution.URL)

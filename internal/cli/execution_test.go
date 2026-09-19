@@ -193,8 +193,35 @@ func TestExecutionStopManyValidationConfirmationAndBody(t *testing.T) {
 	t.Run("status required", func(t *testing.T) {
 		f := executionFixture(t, `{"stopped":0}`)
 		before := f.requestCount()
-		got := f.run("execution", "stop-many", "--yes")
+		got := f.run("execution", "stop-many", "--workflow-id", "wf-1", "--yes")
 		if got.code != ExitError || !strings.Contains(got.stderr, "status") || f.requestCount() != before {
+			t.Errorf("result = %+v", got)
+		}
+	})
+
+	t.Run("scope required", func(t *testing.T) {
+		f := executionFixture(t, `{"stopped":0}`)
+		before := f.requestCount()
+		got := f.run("execution", "stop-many", "--status", "running", "--yes")
+		if got.code != ExitError || !strings.Contains(got.stderr, "--workflow-id or --all is required") || f.requestCount() != before {
+			t.Errorf("result = %+v", got)
+		}
+	})
+
+	t.Run("scope conflict", func(t *testing.T) {
+		f := executionFixture(t, `{"stopped":0}`)
+		before := f.requestCount()
+		got := f.run("execution", "stop-many", "--status", "running", "--workflow-id", "wf-1", "--all", "--yes")
+		if got.code != ExitError || !strings.Contains(got.stderr, "--all cannot be combined with --workflow-id") || f.requestCount() != before {
+			t.Errorf("result = %+v", got)
+		}
+	})
+
+	t.Run("literal all rejected", func(t *testing.T) {
+		f := executionFixture(t, `{"stopped":0}`)
+		before := f.requestCount()
+		got := f.run("execution", "stop-many", "--status", "running", "--workflow-id", "all", "--yes")
+		if got.code != ExitError || !strings.Contains(got.stderr, "use --all") || f.requestCount() != before {
 			t.Errorf("result = %+v", got)
 		}
 	})
@@ -203,7 +230,7 @@ func TestExecutionStopManyValidationConfirmationAndBody(t *testing.T) {
 		f := executionFixture(t, `{"stopped":0}`)
 		before := f.requestCount()
 		f.stdin = "no\n"
-		got := f.run("execution", "stop-many", "--status", "running")
+		got := f.run("execution", "stop-many", "--status", "running", "--all")
 		if got.code != ExitError || !strings.Contains(got.stderr, "every accessible workflow") || f.requestCount() != before {
 			t.Errorf("result = %+v", got)
 		}
@@ -226,6 +253,16 @@ func TestExecutionStopManyValidationConfirmationAndBody(t *testing.T) {
 		if err := json.Unmarshal([]byte(got.stdout), &result); err != nil || result.Stopped != 2 {
 			t.Errorf("stdout = %q (error: %v)", got.stdout, err)
 		}
+	})
+
+	t.Run("stopped all omits workflow", func(t *testing.T) {
+		f := executionFixture(t, `{"stopped":2}`)
+		f.interactive = false
+		got := f.run("execution", "stop-many", "--status", "running", "--all", "--yes", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		assertCLIJSON(t, `{"status":["running"]}`, f.lastBody())
 	})
 }
 
