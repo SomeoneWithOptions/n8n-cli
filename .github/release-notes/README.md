@@ -1,79 +1,36 @@
-# Release notes
+# Release runbook
 
-Every release lands a notes file (`.github/release-notes/vX.Y.Z.md`) on `main` via PR before tagging. Filename matches the tag exactly:
-
-```sh
-.github/release-notes/v0.3.0.md   # ships on tag v0.3.0
-```
-
-This PR-first flow is the single standard release path for both feature and patch releases.
+Default and standard flow: tag `main` HEAD directly, let CI publish the release, then curate the release notes via `gh release edit`. No extra PR or commit needed.
 
 Flow (maintainer only):
 
 ```sh
-# 1. Pre-flight
+# 1. Pre-flight (ensure main is up to date and all checks pass)
 git checkout main && git pull
 make check
 
-# 2. Add notes file on branch
-git checkout -b chore/release-notes-vX.Y.Z
-cat > .github/release-notes/vX.Y.Z.md <<'EOF'
-## Highlights # or ## Bug Fixes
+# 2. Verify HEAD is the commit to release
+git log --oneline --decorate -3
 
-- One line per change.
-EOF
-make release-notes VERSION=vX.Y.Z && cat dist/release-notes.md  # preview
-git add .github/release-notes/vX.Y.Z.md && git commit -m "chore(release): notes for vX.Y.Z"
-git push -u origin chore/release-notes-vX.Y.Z
-
-# 3. Open PR, gate with CI, squash-merge
-gh pr create --fill
-gh pr checks --watch
-gh pr merge --squash --delete-branch
-
-# 4. Pull main & verify HEAD is the merge commit
-git checkout main && git pull
-git log --oneline --decorate -5
-
-# 5. Tag main HEAD and push
+# 3. Tag main HEAD and push (triggers release.yml)
 git tag vX.Y.Z && git push origin vX.Y.Z
 
-# 6. Monitor release run
+# 4. Monitor release run
 gh run list --workflow=Release --limit 1
+# check status:
+gh run view <run-id> --json status,conclusion
 
-# 7. Curate release notes on GitHub (drop chore PRs from What's Changed)
+# 5. Curate release notes on GitHub
 gh release view vX.Y.Z --json body --jq .body
+# Edit /tmp/notes.md: keep user-facing feats/fixes and compare link, strip chore PRs
 gh release edit vX.Y.Z --notes-file /tmp/notes.md
+gh release view vX.Y.Z --json body --jq .body  # verify
 ```
 
 Rules:
 
-- Tag after merge, never before. The tag must point at a commit on `main`.
-  Tagging a pre-merge commit runs the full CI matrix twice on the same tree
-  (once for the PR, once for the release) and leaves the tag off-branch.
-- Verify before tagging:
-  `git checkout main && git pull && git log --oneline --decorate -5`
-  must show the target SHA as `main` HEAD. Never tag a PR branch head.
-  Precedent: v0.2.0 tagged its branch head, not the `main` squash-merge,
-  so v0.3.0 auto notes fell back to v0.1.0 and listed #1-11.
-- Auto list (`generate_release_notes`) uses nearest ancestor tag as previous.
-  Off-branch tag -> fallback to older tag -> full list instead of last-version
-  delta. Release workflow fails off-branch tags fast; keep that guard.
-- Auto list includes every merged PR, including `chore(release)` notes/docs.
-  Highlights file stays curated; `What's Changed` stays auto. To ship a
-  feat-only body (e.g. v0.3.0 = only #10), curate after publish and keep the
-  compare link to the last version:
+- Tag `main` HEAD directly, never an unmerged branch head. Release workflow fails off-branch tags fast.
+- Tags cannot be deleted or updated (enforced by `release-tags` ruleset).
+- Curate notes post-publish: GitHub auto-generates notes from all merged PRs (including chore PRs). Curate the release body with `gh release edit` so it highlights only user-facing features/fixes and keeps the compare link.
+- Optional legacy path: If a `.github/release-notes/vX.Y.Z.md` file exists on the tagged commit, its text ships above the auto-generated notes. If absent, release ships with auto-generated notes only (which you curate post-publish).
 
-```sh
-gh release view vX.Y.Z --json body --jq .body  # inspect
-# trim What's Changed to feat PRs only, drop New Contributors when none,
-# set Full Changelog to .../compare/vPrev...vX.Y.Z
-gh release edit vX.Y.Z --notes-file /tmp/notes.md
-gh release view vX.Y.Z --json body --jq .body  # verify
-```
-- Never push `main` directly (branch rules reject it). Push the notes branch
-  and the tag only.
-- File must exist on the tagged commit. Tag first, add file later -> too late.
-- Contents ship verbatim above the GitHub auto-generated PR list (`generate_release_notes` stays on).
-- No file for a tag -> release ships with generated notes only, no failure.
-- Resolved locally via `make release-notes VERSION=vX.Y.Z` into `dist/release-notes.md`.

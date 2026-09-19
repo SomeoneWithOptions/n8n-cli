@@ -15,49 +15,35 @@ go test -race -shuffle=on -count=1 ./...  # order-independence check
 
 ## Release runbook (maintainer only)
 
-Single standard flow: PR-first, tag-after-merge. Every release lands `.github/release-notes/vX.Y.Z.md` on `main` via PR before tagging:
+Default flow: tag `main` HEAD directly, wait for release run to finish, curate body via `gh release edit`. No extra PR or commit needed.
 
 ```sh
-# 1. Pre-flight
+# 1. Pre-flight (must be on up-to-date main and green)
 git checkout main && git pull
 make check
 
-# 2. Add release notes on branch
-git checkout -b chore/release-notes-vX.Y.Z
-cat > .github/release-notes/vX.Y.Z.md <<'EOF'
-## Highlights # or ## Bug Fixes
-
-- One line per change.
-EOF
-make release-notes VERSION=vX.Y.Z && cat dist/release-notes.md  # preview
-git add .github/release-notes/vX.Y.Z.md && git commit -m "chore(release): notes for vX.Y.Z"
-git push -u origin chore/release-notes-vX.Y.Z
-
-# 3. Open PR, gate with CI, squash-merge
-gh pr create --fill
-gh pr checks --watch
-gh pr merge --squash --delete-branch
-
-# 4. Pull main & verify HEAD is the merge commit (never tag branch head)
-git checkout main && git pull
+# 2. Verify HEAD is the commit to release
 git log --oneline --decorate -3
 
-# 5. Tag and push (triggers release.yml: checks -> dist -> publish -> install smoke)
+# 3. Tag main HEAD and push (triggers release.yml: checks -> dist -> publish -> install smoke)
 git tag vX.Y.Z && git push origin vX.Y.Z
 
-# 6. Monitor release run
+# 4. Monitor release run
 gh run list --workflow=Release --limit 1
+# poll status:
 gh run view <run-id> --json status,conclusion
 
-# 7. Curate release notes on GitHub (drop chore PRs from What's Changed)
+# 5. Curate release notes on GitHub (drop chore PRs, keep only user-facing feats/fixes)
 gh release view vX.Y.Z --json body --jq .body
+# edit notes file and apply:
 gh release edit vX.Y.Z --notes-file /tmp/notes.md
+gh release view vX.Y.Z --json body --jq .body
 ```
 
 Rules:
-- Never push `main` directly (branch rules reject it).
-- Never tag before PR merges (off-branch tag fails release check and breaks auto notes).
-- Tags cannot be deleted/updated (tag ruleset enforces immutability).
+- Tag target must be `main` HEAD (never an unmerged branch head). Release workflow fails off-branch tags fast.
+- Tags cannot be deleted or updated (tag ruleset enforces immutability).
+- Release notes body: keep only user-facing feats/fixes and the compare link. Strip chore PRs.
 
 
 CI (`.github/workflows/ci.yml`) runs the same `make` targets on ubuntu/macos/windows. No logic lives in YAML that `make` cannot run locally. Integration tests stay off in CI (no secrets).
