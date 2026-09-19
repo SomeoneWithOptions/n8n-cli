@@ -39,14 +39,15 @@ CI (`.github/workflows/ci.yml`) runs same targets on ubuntu/macos/windows plus `
 
 ## Releases (maintainer only)
 
+Standard flow is PR-first, tag-after-merge:
+1. Land `.github/release-notes/vX.Y.Z.md` on `main` via PR.
+2. Checkout `main`, pull, verify `HEAD` is the merge commit.
+3. Tag and push:
+
 ```sh
-git checkout main && git pull
-make check
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 Tag triggers `release.yml`: full CI matrix → `make dist` → GitHub Release → install-script self-test.
 
-Custom body (optional): land `.github/release-notes/vX.Y.Z.md` (name matches tag) via PR before tagging, then tag `main` HEAD after merge. It ships above auto-generated notes; missing file means generated notes only. See `.github/release-notes/README.md`. Preview with `make release-notes VERSION=vX.Y.Z`.
-
-Verify tag target is `main` HEAD before pushing (`git log --oneline --decorate -5`); release fails off-branch tags because auto notes would fall back to a full list. Auto list includes `chore(release)` PRs — to ship feat-only body, curate after publish via `gh release edit` (see release-notes README).
+See `.github/release-notes/README.md` or `AGENTS.md` for full step-by-step runbook and post-publish curation commands.
