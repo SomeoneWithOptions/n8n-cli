@@ -2,6 +2,9 @@
 # It builds the same artifacts `make dist` builds locally, publishes them
 # under the exact names install.sh and install.ps1 fetch, then proves both
 # install paths work by running them against the release it just created.
+# Custom body text is optional: commit `.github/release-notes/vX.Y.Z.md`
+# (filename must match the tag) before tagging and it ships above the
+# GitHub auto-generated PR list. No file -> generated notes only.
 name: Release
 
 on:
@@ -46,6 +49,9 @@ jobs:
       - name: Build release artifacts
         run: make dist VERSION="${GITHUB_REF_NAME}"
 
+      - name: Resolve custom release notes
+        run: make release-notes VERSION="${GITHUB_REF_NAME}"
+
       - name: Verify the stamped version matches the tag
         run: |
           set -e
@@ -59,6 +65,7 @@ jobs:
         uses: softprops/action-gh-release@v3.0.3
         with:
           generate_release_notes: true
+          body_path: dist/release-notes.md
           fail_on_unmatched_files: true
           files: |
             dist/n8n-linux-amd64

@@ -43,7 +43,7 @@ LDFLAGS := -s -w \
 	-X $(VERSION_PKG).commit=$(COMMIT) \
 	-X $(VERSION_PKG).date=$(DATE)
 
-.PHONY: all check fmt fmt-check test test-race test-shuffle vet lint vuln analyze cross tidy-check deps-check deadcode build dist smoke clean tidy docs spec spec-upstream integration
+.PHONY: all check fmt fmt-check test test-race test-shuffle vet lint vuln analyze cross tidy-check deps-check deadcode build dist release-notes smoke clean tidy docs spec spec-upstream integration
 
 all: check build
 
@@ -172,6 +172,17 @@ dist:
 	done
 	cp install.sh install.ps1 $(DIST_DIR)/
 	cd $(DIST_DIR) && { sha256sum * > checksums.txt 2>/dev/null || shasum -a 256 * > checksums.txt; }
+
+## release-notes: resolve custom release body for VERSION into dist/release-notes.md.
+## Reads .github/release-notes/$(VERSION).md when present, else writes empty body.
+## The release workflow passes that file as body_path alongside generated notes,
+## so custom text appears above the GitHub auto-generated PR list. Local preview:
+##   make release-notes VERSION=v0.2.0 && cat dist/release-notes.md
+release-notes:
+	mkdir -p $(DIST_DIR)
+	@src=".github/release-notes/$(VERSION).md"; \
+	if [ -f "$$src" ]; then cp "$$src" $(DIST_DIR)/release-notes.md; echo "using $$src"; \
+	else printf '' > $(DIST_DIR)/release-notes.md; echo "no custom notes at $$src, using empty body"; fi
 
 ## clean: remove build output.
 clean:
