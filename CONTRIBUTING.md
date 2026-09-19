@@ -46,3 +46,5 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
 Tag triggers `release.yml`: full CI matrix → `make dist` → GitHub Release → install-script self-test.
+
+Custom body (optional): commit `.github/release-notes/vX.Y.Z.md` (name matches tag) before tagging. It ships above auto-generated notes; missing file means generated notes only. See `.github/release-notes/README.md`. Preview with `make release-notes VERSION=vX.Y.Z`.
