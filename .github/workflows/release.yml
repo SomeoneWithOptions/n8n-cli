@@ -6,6 +6,11 @@
 # on main via PR first (filename must match the tag), then tag main HEAD.
 # It ships above the GitHub auto-generated PR list. No file -> generated notes
 # only. Tagging before merge double-runs CI and leaves the tag off main.
+# Off-branch tags also break auto notes: GitHub picks previous tag by ancestry,
+# so a tag not on main falls back to an older tag and ships a full list
+# (v0.3.0 listed #1-11 because v0.2.0 was off-branch). The verify-tag step
+# below fails such tags fast. Auto list always includes chore(release) PRs;
+# to ship feat-only body, curate after publish with `gh release edit`.
 name: Release
 
 on:
@@ -40,6 +45,15 @@ jobs:
           persist-credentials: false
           # git describe needs history and tags for the version stamp fallback.
           fetch-depth: 0
+
+      - name: Verify tag points at main
+        run: |
+          set -e
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "tag ${GITHUB_REF_NAME} is not on main (off-branch). Tag main HEAD after merge, see .github/release-notes/README.md"
+            exit 1
+          fi
 
       - uses: actions/setup-go@v7.0.0
         with:
