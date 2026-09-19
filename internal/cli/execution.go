@@ -26,10 +26,14 @@ func newExecutionCommand(opts Options) *cobra.Command {
 			"'stop' cancels one active execution, 'stop-many' cancels a filtered set, and\n" +
 			"'retry' creates a new run from a failed one. 'delete' permanently removes the\n" +
 			"stored run. Stop and delete actions ask for confirmation. Execution annotation\n" +
-			"tags are read and replaced under the 'tag' subgroup.",
+			"tags are read and replaced under the 'tag' subgroup.\n\n" +
+			"'watch' polls the list and shows runs live; 'trace' prints one run node by node\n" +
+			"and can follow it as it happens. Both are read-only and exit 0 on Ctrl+C.",
 		Example: "  n8n execution list --status error\n" +
 			"  n8n execution get EXECUTION_ID --include-data --output json\n" +
 			"  n8n execution retry EXECUTION_ID\n" +
+			"  n8n execution watch --workflow-id WORKFLOW_ID\n" +
+			"  n8n execution trace EXECUTION_ID\n" +
 			"  n8n execution stop EXECUTION_ID\n" +
 			"  n8n execution tag list EXECUTION_ID\n" +
 			"  n8n execution delete EXECUTION_ID --yes",
@@ -43,6 +47,8 @@ func newExecutionCommand(opts Options) *cobra.Command {
 		newExecutionStopManyCommand(opts),
 		newExecutionStopCommand(opts),
 		newExecutionRetryCommand(opts),
+		newExecutionWatchCommand(opts),
+		newExecutionTraceCommand(opts),
 		newExecutionTagCommand(opts),
 	)
 	return cmd
@@ -56,6 +62,12 @@ type executionDataFlags struct {
 
 func (f *executionDataFlags) register(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.includeData, "include-data", false, "include detailed node input/output and saved workflow data (default: metadata only)")
+	f.registerDetail(cmd)
+}
+
+// registerDetail adds only the flags that shape detailed data, for commands
+// that always request it and therefore have no --include-data to offer.
+func (f *executionDataFlags) registerDetail(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.ignoreDataSize, "ignore-data-size-limit", false, "return detailed data even when it exceeds the instance display-size limit (default: omit oversized data)")
 	cmd.Flags().StringVar(&f.redactData, "redact-execution-data", "", "detailed-data redaction: true always redacts, false reveals and needs execution:reveal (default: workflow policy)")
 }

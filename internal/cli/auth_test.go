@@ -75,7 +75,12 @@ type fixture struct {
 	// bodies holds the request body of each recorded request, read inside the
 	// handler because a cloned request's body is no longer readable afterwards.
 	bodies []string
-	// pages counts the requests bodyFunc has answered.
+	// route, when set, answers each request from its method and path with a
+	// status and body, for commands that mix several endpoints in one run. It
+	// takes precedence over body and bodyFunc, and its body is written for
+	// every status.
+	route func(r *http.Request, page int) (int, string)
+	// pages counts the requests bodyFunc or route has answered.
 	pages  int
 	server *httptest.Server
 }
@@ -101,19 +106,22 @@ func newFixture(t *testing.T) *fixture {
 		f.requests = append(f.requests, r.Clone(r.Context()))
 		f.bodies = append(f.bodies, string(sent))
 		status, body := f.status, f.body
-		if f.bodyFunc != nil {
+		switch {
+		case f.route != nil:
+			status, body = f.route(r, f.pages)
+			f.pages++
+		case f.bodyFunc != nil:
 			body = f.bodyFunc(f.pages)
 			f.pages++
+		}
+		if status != http.StatusOK && f.route == nil {
+			body = `{"message":"unauthorized"}`
 		}
 		f.mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
-		if status == http.StatusOK {
-			_, _ = w.Write([]byte(body))
-			return
-		}
-		_, _ = w.Write([]byte(`{"message":"unauthorized"}`))
+		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(f.server.Close)
 	return f
@@ -121,9 +129,16 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) run(args ...string) result {
 	f.t.Helper()
+	return f.runContext(context.Background(), args...)
+}
+
+// runContext is run with a caller-owned context, so a test can cancel a
+// command that would otherwise poll forever.
+func (f *fixture) runContext(ctx context.Context, args ...string) result {
+	f.t.Helper()
 	var out, errOut strings.Builder
 	interactive := f.interactive
-	code := Run(context.Background(), args, Options{
+	code := Run(ctx, args, Options{
 		Streams:     Streams{In: strings.NewReader(f.stdin), Out: &out, Err: &errOut},
 		Version:     testVersion,
 		ConfigDir:   f.dir,

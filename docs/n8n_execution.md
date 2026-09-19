@@ -15,6 +15,9 @@ overridden.
 stored run. Stop and delete actions ask for confirmation. Execution annotation
 tags are read and replaced under the 'tag' subgroup.
 
+'watch' polls the list and shows runs live; 'trace' prints one run node by node
+and can follow it as it happens. Both are read-only and exit 0 on Ctrl+C.
+
 ```
 n8n execution [flags]
 ```
@@ -25,6 +28,8 @@ n8n execution [flags]
   n8n execution list --status error
   n8n execution get EXECUTION_ID --include-data --output json
   n8n execution retry EXECUTION_ID
+  n8n execution watch --workflow-id WORKFLOW_ID
+  n8n execution trace EXECUTION_ID
   n8n execution stop EXECUTION_ID
   n8n execution tag list EXECUTION_ID
   n8n execution delete EXECUTION_ID --yes
@@ -46,4 +51,6 @@ n8n execution [flags]
 * [n8n execution stop](n8n_execution_stop.md)	 - Stop one queued, running, or waiting execution
 * [n8n execution stop-many](n8n_execution_stop-many.md)	 - Stop active executions matching filters
 * [n8n execution tag](n8n_execution_tag.md)	 - Read and replace annotation tags on an execution
+* [n8n execution trace](n8n_execution_trace.md)	 - Show one execution node by node, optionally as it runs
+* [n8n execution watch](n8n_execution_watch.md)	 - Show executions live as they start and finish
 
