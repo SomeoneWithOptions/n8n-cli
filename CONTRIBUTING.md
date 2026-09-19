@@ -34,7 +34,7 @@ CI (`.github/workflows/ci.yml`) runs same targets on ubuntu/macos/windows plus `
 - Fork branch name: `fix/<short>` or `feat/<short>`.
 - Must pass CI. Must update `docs/README.md` via `make docs` if CLI help changed.
 - Maintainer squashes/merges. Branches from forks do not need to be up to date — maintainer handles conflicts.
-- No release commits in PRs. No `v*` tags in PRs. Maintainer tags separately.
+- No release commits in PRs, except the maintainer's `.github/release-notes/vX.Y.Z.md` notes file. No `v*` tags in PRs. Maintainer tags separately, after merge.
 - Be civil. No secrets/keys/tokens in issues/PRs/logs.
 
 ## Releases (maintainer only)
@@ -47,4 +47,4 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 
 Tag triggers `release.yml`: full CI matrix → `make dist` → GitHub Release → install-script self-test.
 
-Custom body (optional): commit `.github/release-notes/vX.Y.Z.md` (name matches tag) before tagging. It ships above auto-generated notes; missing file means generated notes only. See `.github/release-notes/README.md`. Preview with `make release-notes VERSION=vX.Y.Z`.
+Custom body (optional): land `.github/release-notes/vX.Y.Z.md` (name matches tag) via PR before tagging, then tag `main` HEAD after merge. It ships above auto-generated notes; missing file means generated notes only. See `.github/release-notes/README.md`. Preview with `make release-notes VERSION=vX.Y.Z`.
