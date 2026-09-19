@@ -227,6 +227,8 @@ CLI setup and beyond-spec helpers, maintained here. No equivalent n8n endpoint.
 | [`n8n config context use`](n8n_config_context_use.md) | Select the context used by subsequent commands |
 | [`n8n config context`](n8n_config_context.md) | Manage saved instance contexts |
 | [`n8n config`](n8n_config.md) | Inspect and edit stored CLI configuration |
+| [`n8n execution trace`](n8n_execution_trace.md) | Show one execution node by node, optionally as it runs |
+| [`n8n execution watch`](n8n_execution_watch.md) | Show executions live as they start and finish |
 | [`n8n update`](n8n_update.md) | Update this CLI to the latest release |
 | [`n8n version`](n8n_version.md) | Print build information |
 | [`n8n workflow diff`](n8n_workflow_diff.md) | Compare saved workflows across two contexts |

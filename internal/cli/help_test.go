@@ -167,6 +167,8 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"execution", "stop-many"},
 		{"execution", "stop"},
 		{"execution", "retry"},
+		{"execution", "watch"},
+		{"execution", "trace"},
 		{"execution", "tag"},
 		{"execution", "tag", "list"},
 		{"execution", "tag", "set"},

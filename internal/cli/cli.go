@@ -152,6 +152,13 @@ func Run(ctx context.Context, args []string, opts Options) int {
 	if errors.Is(err, errWorkflowDifferent) {
 		return ExitError // A successful comparison with differences; no diagnostic.
 	}
+	var failedRun *executionFailedError
+	if errors.As(err, &failedRun) {
+		// The trace was printed; --fail-on-error only asks for the exit code,
+		// so say why without the usage hint a real error gets.
+		fmt.Fprintf(opts.Streams.Err, "n8n: %v\n", err)
+		return ExitError
+	}
 	code := report(opts.Streams.Err, err)
 	if code == ExitError && cmd != nil && cmd.Annotations["diffExitCodes"] == "true" {
 		return ExitDiffError
