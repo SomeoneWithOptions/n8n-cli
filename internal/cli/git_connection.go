@@ -1003,7 +1003,7 @@ func gitConnectionAPIError(err error, resolution config.Resolution, action strin
 	case n8n.IsStatus(err, http.StatusUnprocessableEntity):
 		return fmt.Errorf("%s rejected the git-connection %s (422): the remote content cannot be imported as-is (missing references or unresolvable content); resolve the references and retry: %w", resolution.URL, action, err)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied the git-connection %s (403): the credential needs %s; run %s", resolution.URL, action, gitConnectionScope(action), discoverHint(gitConnectionResource))
+		return forbiddenScopeError(err, resolution, "git-connection "+action, allOf(gitConnectionScope(action)), "", gitConnectionResource)
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		return fmt.Errorf("%s does not serve git connections (%d): it needs the GitConnections module (a Promotions-generation instance answers here instead); run %s to see what this instance offers: %w",
 			resolution.URL, n8n.StatusCodeOf(err), discoverHint(gitConnectionResource), err)

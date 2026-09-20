@@ -554,9 +554,11 @@ func packageAPIError(err error, resolution config.Resolution, action string) err
 		return fmt.Errorf("%s rejected the package import (400): the archive is malformed, the manifest is missing, or a routing or policy field is invalid (bindings JSON, --variable-parent-policy on a project package): %w", resolution.URL, err)
 	case n8n.IsForbidden(err):
 		if action == "export" {
-			return fmt.Errorf("%s denied the package export (403): the credential needs workflow:export, project:export for projects, and variable:list when values are included, and the instance needs the licensed Packages feature; run %s", resolution.URL, discoverHint(packageResource))
+			return forbiddenScopeError(err, resolution, "package export", allOf("workflow:export", "project:export"),
+				"project:export applies to project packages, variable:list is needed when values are included, and the instance needs the licensed Packages feature.", packageResource)
 		}
-		return fmt.Errorf("%s denied the package import (403): the credential needs workflow:import plus the variable, tag, data-table, folder, and delete scopes the package and policies require, and the instance needs the licensed Packages feature (Variables and Folders where the contents require them); run %s", resolution.URL, discoverHint(packageResource))
+		return forbiddenScopeError(err, resolution, "package import", allOf("workflow:import"),
+			"the import also needs the variable, tag, data-table, folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
 	case n8n.IsNotFound(err):
 		return fmt.Errorf("%s does not serve n8n packages (404): it needs the licensed Packages feature; run %s to see what this instance offers: %w",
 			resolution.URL, discoverHint(packageResource), err)

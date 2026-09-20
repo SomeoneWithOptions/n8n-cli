@@ -330,7 +330,7 @@ func TestProjectLicenseScopeAndNotFoundErrors(t *testing.T) {
 		{name: "list unauthorized", status: http.StatusUnauthorized, args: []string{"project", "list"}, want: []string{"401", "auth login"}},
 		{name: "list unlicensed", status: http.StatusForbidden, args: []string{"project", "list"}, want: []string{"403", "not licensed for projects", "discover --resource projects"}},
 		{name: "member list forbidden", status: http.StatusForbidden, args: []string{"project", "user", "list", "pr-1"}, want: []string{"403", "user:list"}},
-		{name: "member add forbidden", status: http.StatusForbidden, args: []string{"project", "user", "add", "pr-1", "--user", "us-1=project:viewer"}, want: []string{"403", "project scope"}},
+		{name: "member add forbidden", status: http.StatusForbidden, args: []string{"project", "user", "add", "pr-1", "--user", "us-1=project:viewer"}, want: []string{"403", "project:manageMembers"}},
 		{name: "update not found", status: http.StatusNotFound, args: []string{"project", "update", "pr-1", "--name", "Billing"}, want: []string{"404"}},
 	}
 	for _, tt := range tests {

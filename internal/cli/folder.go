@@ -532,8 +532,8 @@ func validateFolderArgument(field, value string) error {
 // the project or the folder.
 func folderAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
-		return fmt.Errorf("%s denied folder %s (403): the credential lacks the folder:%s scope or access to the project; run %s to inspect access",
-			resolution.URL, action, folderScope(action), discoverHint(folderResource))
+		return forbiddenScopeError(err, resolution, "folder "+action, allOf("folder:"+folderScope(action)),
+			"a 403 can also mean no access to the project.", folderResource)
 	}
 	if n8n.IsNotFound(err) {
 		return fmt.Errorf("%s has no such folder or project (404): check the project ID with 'n8n project list' and the folder ID with 'n8n folder list PROJECT_ID'; note that only 'n8n folder create' accepts the literal project ID 'personal'", resolution.URL)

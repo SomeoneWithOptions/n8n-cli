@@ -12,7 +12,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-const insightResource = "insight"
+const insightResource = "insights"
 
 func newInsightCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
@@ -134,7 +134,8 @@ func insightAPIError(err error, resolution config.Resolution) error {
 	case n8n.IsStatus(err, http.StatusBadRequest):
 		return fmt.Errorf("%s rejected the insight filters (400): check the RFC3339 date range and project ID", resolution.URL)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied insight summary access (403): the credential needs insights:read and access to the selected project; run %s", resolution.URL, discoverHint(insightResource))
+		return forbiddenScopeError(err, resolution, "insight summary", allOf("insights:read"),
+			"a 403 can also mean no access to the selected project.", insightResource)
 	default:
 		return apiError(err, resolution, insightResource)
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-const communityPackageResource = "community-package"
+const communityPackageResource = "communitypackage"
 
 func newCommunityPackageCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
@@ -57,7 +57,7 @@ func newCommunityPackageListCommand(opts Options) *cobra.Command {
 			"count. --output json emits the API array with package authors, nodes and\n" +
 			"timestamps for scripts. This command changes nothing and needs no confirmation.\n\n" +
 			"Requires API-key authentication and the communityPackage:list scope; check\n" +
-			"availability with 'n8n discover --resource community-package'.",
+			"availability with 'n8n discover --resource communitypackage'.",
 		Example: "  n8n community-package list\n" +
 			"  n8n community-package list --output json\n" +
 			"  n8n community-package list --context production",
@@ -84,7 +84,7 @@ func runCommunityPackageList(ctx context.Context, opts Options, f communityPacka
 	}
 	packages, err := client.ListCommunityPackages(ctx)
 	if err != nil {
-		return apiError(err, resolution, communityPackageResource)
+		return communityPackageAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, packages)
@@ -177,7 +177,7 @@ func runCommunityPackageInstall(ctx context.Context, opts Options, name string, 
 	}
 	installed, err := client.InstallCommunityPackage(ctx, request)
 	if err != nil {
-		return apiError(err, resolution, communityPackageResource)
+		return communityPackageAPIError(err, resolution, "install")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, installed)
@@ -238,7 +238,7 @@ func runCommunityPackageUpdate(ctx context.Context, opts Options, name string, f
 	}
 	updated, err := client.UpdateCommunityPackage(ctx, name, request)
 	if err != nil {
-		return apiError(err, resolution, communityPackageResource)
+		return communityPackageAPIError(err, resolution, "update")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, updated)
@@ -289,7 +289,7 @@ func runCommunityPackageUninstall(ctx context.Context, opts Options, name string
 		return err
 	}
 	if err := client.UninstallCommunityPackage(ctx, name); err != nil {
-		return apiError(err, resolution, communityPackageResource)
+		return communityPackageAPIError(err, resolution, "uninstall")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, struct {
@@ -351,4 +351,31 @@ func requireAPIKey(resolution config.Resolution, command string) error {
 		hint = fmt.Sprintf("'n8n auth login --context %s --type api-key'", resolution.ContextName)
 	}
 	return fmt.Errorf("%s commands require API-key authentication, but context %q uses %s: run %s", command, resolution.ContextName, resolution.AuthType, hint)
+}
+
+// communityPackageAPIError names the scope the denied action needs. Community
+// nodes are an instance-level feature, so a 403 can also mean the instance has
+// them switched off.
+func communityPackageAPIError(err error, resolution config.Resolution, action string) error {
+	if n8n.IsForbidden(err) {
+		need := communityPackageScope(action)
+		return forbiddenScopeError(err, resolution, "community-package "+action, need,
+			"a 403 can also mean the instance does not allow community packages.", communityPackageResource)
+	}
+	return apiError(err, resolution, communityPackageResource)
+}
+
+// communityPackageScope maps a command action to the scope the API requires.
+func communityPackageScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("communityPackage:list")
+	case "install":
+		return allOf("communityPackage:install")
+	case "update":
+		return allOf("communityPackage:update")
+	case "uninstall":
+		return allOf("communityPackage:uninstall")
+	}
+	return scopeNeed{}
 }

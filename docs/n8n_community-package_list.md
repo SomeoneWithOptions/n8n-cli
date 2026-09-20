@@ -11,7 +11,7 @@ count. --output json emits the API array with package authors, nodes and
 timestamps for scripts. This command changes nothing and needs no confirmation.
 
 Requires API-key authentication and the communityPackage:list scope; check
-availability with 'n8n discover --resource community-package'.
+availability with 'n8n discover --resource communitypackage'.
 
 ```
 n8n community-package list [flags]

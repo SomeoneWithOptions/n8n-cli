@@ -12,7 +12,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-const executionResource = "execution"
+const executionResource = "executions"
 
 func newExecutionCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
@@ -192,7 +192,7 @@ func runExecutionList(ctx context.Context, opts Options, f executionListFlags) e
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
 	if err != nil {
-		return apiError(err, resolution, executionResource)
+		return executionAPIError(err, resolution, "", "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
@@ -457,7 +457,7 @@ func runExecutionStopMany(ctx context.Context, opts Options, f executionStopMany
 	}
 	result, err := client.StopManyExecutions(ctx, request)
 	if err != nil {
-		return apiError(err, resolution, executionResource)
+		return executionAPIError(err, resolution, "", "stop")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, result)
@@ -735,12 +735,40 @@ func validateExecutionArgument(id string) error {
 	return nil
 }
 
+// executionAPIError names the scope the denied action needs, and explains the
+// two denials a bare status code does not: an unknown ID, and a run whose state
+// changed between reading it and acting on it.
 func executionAPIError(err error, resolution config.Resolution, id, action string) error {
-	if n8n.IsNotFound(err) {
+	if n8n.IsForbidden(err) {
+		need := executionScope(action)
+		return forbiddenScopeError(err, resolution, "execution "+action, need, "", executionResource)
+	}
+	if n8n.IsNotFound(err) && id != "" {
 		return fmt.Errorf("%s has no execution %q (404): find an ID with 'n8n execution list'", resolution.URL, id)
 	}
 	if n8n.IsConflict(err) {
 		return fmt.Errorf("%s could not %s execution %q because its state changed (409): read it again with 'n8n execution get %s'", resolution.URL, action, id, id)
 	}
 	return apiError(err, resolution, executionResource)
+}
+
+// executionScope maps a command action to the scope the API requires for it.
+func executionScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("execution:list")
+	case "read":
+		return allOf("execution:read")
+	case "delete":
+		return allOf("execution:delete")
+	case "retry":
+		return allOf("execution:retry")
+	case "stop":
+		return allOf("execution:stop")
+	case "tag read":
+		return allOf("executionTags:list")
+	case "tag update":
+		return allOf("executionTags:update")
+	}
+	return scopeNeed{}
 }

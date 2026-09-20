@@ -270,7 +270,7 @@ func TestVariableScopeAndNotFoundErrors(t *testing.T) {
 		want   []string
 	}{
 		{name: "list unauthorized", status: http.StatusUnauthorized, args: []string{"variable", "list"}, want: []string{"401", "auth login"}},
-		{name: "list forbidden", status: http.StatusForbidden, args: []string{"variable", "list"}, want: []string{"403", "discover --resource variable"}},
+		{name: "list forbidden", status: http.StatusForbidden, args: []string{"variable", "list"}, want: []string{"403", "variable:list", "discover --resource variables"}},
 		{name: "update not found", status: http.StatusNotFound, args: []string{"variable", "update", "missing", "--key", "KEY", "--value", "private-value"}, want: []string{"404", "details redacted"}},
 		{name: "delete not found", status: http.StatusNotFound, args: []string{"variable", "delete", "missing", "--yes"}, want: []string{"404"}},
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-const variableResource = "variable"
+const variableResource = "variables"
 
 func newVariableCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
@@ -109,7 +109,7 @@ func runVariableList(ctx context.Context, opts Options, f variableListFlags) err
 		page, err = client.ListVariables(ctx, listOpts)
 	}
 	if err != nil {
-		return apiError(err, resolution, variableResource)
+		return variableAPIError(err, resolution, "", "", "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
@@ -200,7 +200,7 @@ func runVariableCreate(ctx context.Context, opts Options, key string, f variable
 	}
 	request := n8n.VariableRequest{Key: key, Value: f.value, ProjectID: f.projectID}
 	if err := client.CreateVariable(ctx, request); err != nil {
-		return variableAPIError(err, resolution, key, f.projectID)
+		return variableAPIError(err, resolution, key, f.projectID, "create")
 	}
 	return writeVariableMutation(opts, resolution, variableMutation{Action: "created", Key: key, ProjectID: f.projectID}, f.output)
 }
@@ -251,7 +251,7 @@ func runVariableUpdate(ctx context.Context, opts Options, id string, f variableU
 	}
 	request := n8n.VariableRequest{Key: f.key, Value: f.write.value, ProjectID: f.write.projectID}
 	if err := client.UpdateVariable(ctx, id, request); err != nil {
-		return variableAPIError(err, resolution, f.key, f.write.projectID)
+		return variableAPIError(err, resolution, f.key, f.write.projectID, "update")
 	}
 	return writeVariableMutation(opts, resolution, variableMutation{
 		Action: "updated", ID: id, Key: f.key, ProjectID: f.write.projectID,
@@ -303,7 +303,7 @@ func runVariableDelete(ctx context.Context, opts Options, id string, f variableD
 		return err
 	}
 	if err := client.DeleteVariable(ctx, id); err != nil {
-		return apiError(err, resolution, variableResource)
+		return variableAPIError(err, resolution, id, "", "delete")
 	}
 	return writeVariableMutation(opts, resolution, variableMutation{Action: "deleted", ID: id}, f.output)
 }
@@ -393,7 +393,7 @@ func validateVariableArgument(field, value string, required bool) error {
 // variableAPIError adds duplicate-key remediation without ever including the
 // submitted value. Other API errors were already stripped of server-controlled
 // details by the client write methods.
-func variableAPIError(err error, resolution config.Resolution, key, projectID string) error {
+func variableAPIError(err error, resolution config.Resolution, key, projectID, action string) error {
 	if n8n.IsConflict(err) {
 		scope := "global scope"
 		if projectID != "" {
@@ -401,5 +401,25 @@ func variableAPIError(err error, resolution config.Resolution, key, projectID st
 		}
 		return fmt.Errorf("%s rejected variable key %q in %s (409): keys must be unique within their scope; choose another key or run 'n8n variable list' to find the existing variable", resolution.URL, key, scope)
 	}
+	if n8n.IsForbidden(err) {
+		need := variableActionScope(action)
+		return forbiddenScopeError(err, resolution, "variable "+action, need,
+			"a 403 can also mean the instance is not licensed for variables.", variableResource)
+	}
 	return apiError(err, resolution, variableResource)
+}
+
+// variableActionScope maps a command action to the scope the API requires for it.
+func variableActionScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("variable:list")
+	case "create":
+		return allOf("variable:create")
+	case "update":
+		return allOf("variable:update")
+	case "delete":
+		return allOf("variable:delete")
+	}
+	return scopeNeed{}
 }

@@ -1508,8 +1508,9 @@ func validateDataTableArgument(field, value string) error {
 // which scope is missing, and a 400 is usually a filter or column problem.
 func dataTableAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
-		return fmt.Errorf("%s denied data table %s (403): the credential lacks the scope for it, or the instance is not licensed for data tables; run %s to inspect access",
-			resolution.URL, action, discoverHint(dataTableResource))
+		need := dataTableScope(action)
+		return forbiddenScopeError(err, resolution, "data table "+action, need,
+			"a 403 can also mean the instance is not licensed for data tables.", dataTableResource)
 	}
 	if n8n.IsNotFound(err) {
 		return fmt.Errorf("%s has no such data table, row or column (404): check the table ID with 'n8n data-table list' and the column ID with 'n8n data-table column list TABLE_ID'", resolution.URL)
@@ -1518,4 +1519,40 @@ func dataTableAPIError(err error, resolution config.Resolution, action string) e
 		return fmt.Errorf("%s refused data table %s (409): a table or column with that name already exists; list them first or pick another name", resolution.URL, action)
 	}
 	return apiError(err, resolution, dataTableResource)
+}
+
+// dataTableScope maps a command action to the scope the API requires for it.
+// Tables, columns and rows are separate sub-resources with separate scopes.
+func dataTableScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("dataTable:list")
+	case "read":
+		return allOf("dataTable:read")
+	case "create":
+		return allOf("dataTable:create")
+	case "update":
+		return allOf("dataTable:update")
+	case "delete":
+		return allOf("dataTable:delete")
+	case "column list":
+		return allOf("dataTableColumn:read")
+	case "column create":
+		return allOf("dataTableColumn:create")
+	case "column update":
+		return allOf("dataTableColumn:update")
+	case "column delete":
+		return allOf("dataTableColumn:delete")
+	case "row list":
+		return allOf("dataTableRow:read")
+	case "row insert":
+		return allOf("dataTableRow:create")
+	case "row update":
+		return allOf("dataTableRow:update")
+	case "row upsert":
+		return allOf("dataTableRow:upsert")
+	case "row delete", "row clear":
+		return allOf("dataTableRow:delete")
+	}
+	return scopeNeed{}
 }

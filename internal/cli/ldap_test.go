@@ -378,12 +378,12 @@ func TestLDAPAPIErrorsExplainLicenseScopesAndAvailability(t *testing.T) {
 		input  string
 		want   []string
 	}{
-		{name: "manage forbidden", status: http.StatusForbidden, args: []string{"ldap", "get"}, want: []string{"ldap:manage", "LDAP license", "discover --resource ldap"}},
-		{name: "sync forbidden", status: http.StatusForbidden, args: []string{"ldap", "sync", "history"}, want: []string{"ldap:sync", "LDAP license", "discover --resource ldap"}},
+		{name: "manage forbidden", status: http.StatusForbidden, args: []string{"ldap", "get"}, want: []string{"ldap:manage", "LDAP license", "discover --resource settingsldap"}},
+		{name: "sync forbidden", status: http.StatusForbidden, args: []string{"ldap", "sync", "history"}, want: []string{"ldap:sync", "LDAP license", "discover --resource settingsldap"}},
 		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"ldap", "set", "--input", "-", "--yes"}, input: cliLDAPDisabledInput, want: []string{"full LDAP replacement", "all 20 fields", "response details redacted"}},
 		{name: "invalid sync", status: http.StatusBadRequest, args: []string{"ldap", "sync", "run", "--type", "dry"}, want: []string{"rejected the LDAP synchronization", "configuration"}},
-		{name: "not found", status: http.StatusNotFound, args: []string{"ldap", "get"}, want: []string{"LDAP endpoint", "discover --resource ldap"}},
-		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"ldap", "sync", "history"}, want: []string{"LDAP service", "discover --resource ldap"}},
+		{name: "not found", status: http.StatusNotFound, args: []string{"ldap", "get"}, want: []string{"LDAP endpoint", "discover --resource settingsldap"}},
+		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"ldap", "sync", "history"}, want: []string{"LDAP service", "discover --resource settingsldap"}},
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"ldap", "get"}, want: []string{"rejected the credential", "auth login"}},
 	}
 	for _, tt := range tests {

@@ -229,11 +229,11 @@ func TestOIDCAPIErrorsExplainLicenseConflictAndAvailability(t *testing.T) {
 		input  string
 		want   []string
 	}{
-		{name: "forbidden", status: http.StatusForbidden, args: []string{"oidc", "get"}, want: []string{"oidc:manage", "OIDC license", "discover --resource oidc"}},
+		{name: "forbidden", status: http.StatusForbidden, args: []string{"oidc", "get"}, want: []string{"oidc:manage", "OIDC license", "discover --resource settingsssooidc"}},
 		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"oidc", "set", "--input", "-", "--yes"}, input: cliOIDCDisabledInput, want: []string{"full OIDC replacement", "all nine fields", "response details redacted"}},
 		{name: "environment managed", status: http.StatusConflict, args: []string{"oidc", "set", "--input", "-", "--yes"}, input: cliOIDCDisabledInput, want: []string{"managed by environment variables", "no changes were made", "oidc get"}},
-		{name: "not found", status: http.StatusNotFound, args: []string{"oidc", "get"}, want: []string{"OIDC endpoint", "discover --resource oidc"}},
-		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"oidc", "get"}, want: []string{"OIDC service", "discover --resource oidc"}},
+		{name: "not found", status: http.StatusNotFound, args: []string{"oidc", "get"}, want: []string{"OIDC endpoint", "discover --resource settingsssooidc"}},
+		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"oidc", "get"}, want: []string{"OIDC service", "discover --resource settingsssooidc"}},
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"oidc", "get"}, want: []string{"rejected the credential", "auth login"}},
 	}
 	for _, tt := range tests {

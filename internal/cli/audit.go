@@ -107,6 +107,10 @@ func runAuditGenerate(ctx context.Context, opts Options, f auditFlags) error {
 
 	audit, err := client.GenerateAudit(ctx, auditOpts)
 	if err != nil {
+		if n8n.IsForbidden(err) {
+			return forbiddenScopeError(err, resolution, "audit generate", allOf("securityAudit:generate"),
+				"a 403 can also mean the credential is not an instance owner or admin.", auditResource)
+		}
 		return apiError(err, resolution, auditResource)
 	}
 

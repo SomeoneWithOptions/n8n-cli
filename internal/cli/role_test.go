@@ -201,7 +201,7 @@ func TestRoleImmutableAndScopeErrors(t *testing.T) {
 		want   []string
 	}{
 		{name: "list unauthorized", status: http.StatusUnauthorized, args: []string{"role", "list"}, want: []string{"401", "auth login"}},
-		{name: "list forbidden", status: http.StatusForbidden, args: []string{"role", "list"}, want: []string{"403", "discover --resource role"}},
+		{name: "list forbidden", status: http.StatusForbidden, args: []string{"role", "list"}, want: []string{"403", "role:list", "discover --resource role"}},
 		{name: "get not found", status: http.StatusNotFound, args: []string{"role", "get", "missing"}, want: []string{"404"}},
 		{name: "update built-in", status: http.StatusBadRequest, args: []string{"role", "update", "global:owner", "--input", "-"}, stdin: update, want: []string{"400", "built-in/system roles", "immutable", "role get"}},
 		{name: "delete built-in", status: http.StatusBadRequest, args: []string{"role", "delete", "global:owner", "--yes"}, want: []string{"400", "built-in/system roles", "immutable", "role get"}},

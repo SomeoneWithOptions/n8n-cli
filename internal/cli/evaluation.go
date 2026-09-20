@@ -458,9 +458,11 @@ func evaluationAPIError(err error, resolution config.Resolution, workflowID, run
 		return fmt.Errorf("%s cannot use evaluations (402): this instance does not license the feature; check the instance license and run %s", resolution.URL, discoverHint(evaluationResource))
 	case n8n.IsForbidden(err):
 		if action == "create" || action == "cancel" {
-			return fmt.Errorf("%s denied evaluation %s (403): the credential needs the test-run scope and workflow:execute permission in workflow %q's project; run %s", resolution.URL, action, workflowID, discoverHint(evaluationResource))
+			return forbiddenScopeError(err, resolution, "evaluation "+action, evaluationScope(action),
+				fmt.Sprintf("it also needs workflow:execute permission in workflow %q's project.", workflowID), evaluationResource)
 		}
-		return fmt.Errorf("%s denied evaluation %s (403): the credential lacks the test-run scope or access to workflow %q's project; run %s", resolution.URL, action, workflowID, discoverHint(evaluationResource))
+		return forbiddenScopeError(err, resolution, "evaluation "+action, evaluationScope(action),
+			fmt.Sprintf("a 403 can also mean no access to workflow %q's project.", workflowID), evaluationResource)
 	case n8n.IsNotFound(err):
 		if runID == "" {
 			return fmt.Errorf("%s has no accessible workflow %q (404): check it with 'n8n workflow list'", resolution.URL, workflowID)
@@ -474,4 +476,18 @@ func evaluationAPIError(err error, resolution config.Resolution, workflowID, run
 	default:
 		return apiError(err, resolution, evaluationResource)
 	}
+}
+
+// evaluationScope maps a command action to the scope the API requires for it.
+// Evaluation runs are the testRun resource in the instance's scope list.
+func evaluationScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("testRun:list")
+	case "create":
+		return allOf("testRun:create")
+	case "cancel":
+		return allOf("testRun:cancel")
+	}
+	return allOf("testRun:read")
 }

@@ -283,7 +283,7 @@ func TestAuditGenerateAPIErrors(t *testing.T) {
 		wantErr []string
 	}{
 		{name: "unauthorized", status: http.StatusUnauthorized, wantErr: []string{"401", "auth login"}},
-		{name: "forbidden", status: http.StatusForbidden, wantErr: []string{"403", "scope", "n8n discover --resource audit"}},
+		{name: "forbidden", status: http.StatusForbidden, wantErr: []string{"403", "securityAudit:generate", "n8n discover --resource audit"}},
 		{name: "server error", status: http.StatusInternalServerError, wantErr: []string{"500"}},
 	}
 	for _, tt := range tests {

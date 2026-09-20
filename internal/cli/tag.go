@@ -12,7 +12,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-const tagResource = "tag"
+const tagResource = "tags"
 
 func newTagCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
@@ -97,7 +97,7 @@ func runTagList(ctx context.Context, opts Options, f tagListFlags) error {
 		page, err = client.ListTags(ctx, listOpts)
 	}
 	if err != nil {
-		return apiError(err, resolution, tagResource)
+		return tagAPIError(err, resolution, "", "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
@@ -172,7 +172,7 @@ func runTagCreate(ctx context.Context, opts Options, name string, f tagWriteFlag
 	}
 	tag, err := client.CreateTag(ctx, name)
 	if err != nil {
-		return tagAPIError(err, resolution, name)
+		return tagAPIError(err, resolution, name, "create")
 	}
 	return writeTagResult(opts, resolution, "Created", tag, f.output)
 }
@@ -208,7 +208,7 @@ func runTagGet(ctx context.Context, opts Options, id string, f tagWriteFlags) er
 	}
 	tag, err := client.GetTag(ctx, id)
 	if err != nil {
-		return apiError(err, resolution, tagResource)
+		return tagAPIError(err, resolution, id, "read")
 	}
 	return writeTagResult(opts, resolution, "Tag", tag, f.output)
 }
@@ -260,7 +260,7 @@ func runTagUpdate(ctx context.Context, opts Options, id string, f tagUpdateFlags
 	}
 	tag, err := client.UpdateTag(ctx, id, f.name)
 	if err != nil {
-		return tagAPIError(err, resolution, f.name)
+		return tagAPIError(err, resolution, f.name, "update")
 	}
 	return writeTagResult(opts, resolution, "Updated", tag, f.write.output)
 }
@@ -309,7 +309,7 @@ func runTagDelete(ctx context.Context, opts Options, id string, f tagDeleteFlags
 	}
 	tag, err := client.DeleteTag(ctx, id)
 	if err != nil {
-		return apiError(err, resolution, tagResource)
+		return tagAPIError(err, resolution, id, "delete")
 	}
 	return writeTagResult(opts, resolution, "Deleted", tag, f.write.output)
 }
@@ -332,12 +332,34 @@ func writeTagResult(opts Options, resolution config.Resolution, action string, t
 }
 
 // tagAPIError adds the duplicate-name remediation the two write operations
-// share, and otherwise defers to the shared credential and scope guidance.
-func tagAPIError(err error, resolution config.Resolution, name string) error {
+// share, names the scope the denied action needs, and otherwise defers to the
+// shared credential and scope guidance.
+func tagAPIError(err error, resolution config.Resolution, name, action string) error {
 	if n8n.IsConflict(err) {
 		return fmt.Errorf("%s rejected the tag name %q (409): names are unique per instance, and n8n reports a name longer than its limit (24 characters on current versions) the same way; shorten the name or run 'n8n tag list' to find the existing tag", resolution.URL, name)
 	}
+	if n8n.IsForbidden(err) {
+		need := tagScope(action)
+		return forbiddenScopeError(err, resolution, "tag "+action, need, "", tagResource)
+	}
 	return apiError(err, resolution, tagResource)
+}
+
+// tagScope maps a command action to the scope the API requires for it.
+func tagScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("tag:list")
+	case "read":
+		return allOf("tag:read")
+	case "create":
+		return allOf("tag:create")
+	case "update":
+		return allOf("tag:update")
+	case "delete":
+		return allOf("tag:delete")
+	}
+	return scopeNeed{}
 }
 
 func validateTagID(id string) error { return validateTagArgument("ID", id) }

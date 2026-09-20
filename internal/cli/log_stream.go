@@ -282,7 +282,8 @@ func logStreamAPIError(err error, resolution config.Resolution, action string) e
 	}
 	switch {
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied log streaming %s (403): requires the Log Streaming license and eventBusDestination:%s; run 'n8n discover' to check available capabilities", resolution.URL, action, scope)
+		return forbiddenScopeError(err, resolution, "log streaming "+action, allOf("eventBusDestination:"+scope),
+			"the instance also needs the Log Streaming license.", "")
 	case n8n.IsConflict(err):
 		return fmt.Errorf("%s refused log streaming %s (409): destinations are managed by environment variables; nothing changed. Read with 'n8n log-stream destination list'; change the environment configuration and restart n8n instead", resolution.URL, action)
 	case n8n.IsStatus(err, http.StatusBadRequest):

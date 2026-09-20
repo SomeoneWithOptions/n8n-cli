@@ -181,7 +181,7 @@ func (t *executionTracer) newestExecutions(ctx context.Context) ([]n8n.Execution
 		ListOptions: n8n.ListOptions{Limit: awaitPageSize}, WorkflowID: t.f.workflowID,
 	})
 	if err != nil {
-		return nil, apiError(err, t.resolution, executionResource)
+		return nil, executionAPIError(err, t.resolution, "", "list")
 	}
 	return executions, nil
 }

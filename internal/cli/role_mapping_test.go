@@ -334,7 +334,7 @@ func TestRoleMappingDenialsAreReported(t *testing.T) {
 
 	f.status = http.StatusForbidden
 	got = f.run("role-mapping", "list")
-	if got.code != ExitError || !strings.Contains(got.stderr, "n8n discover --resource rolemappingrule") {
+	if got.code != ExitError || !strings.Contains(got.stderr, "n8n discover --resource rolemappingrule") || !strings.Contains(got.stderr, "roleMappingRule:list") {
 		t.Errorf("403 result = %+v, want the discover hint for this resource", got)
 	}
 }

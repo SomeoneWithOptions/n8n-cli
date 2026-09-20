@@ -130,7 +130,7 @@ func TestInsightSummaryAPIErrorsExplainFix(t *testing.T) {
 		want   []string
 	}{
 		{name: "bad filters", status: http.StatusBadRequest, want: []string{"rejected the insight filters", "RFC3339 date range", "project ID"}},
-		{name: "forbidden", status: http.StatusForbidden, want: []string{"insights:read", "selected project", "discover --resource insight"}},
+		{name: "forbidden", status: http.StatusForbidden, want: []string{"insights:read", "selected project", "discover --resource insights"}},
 		{name: "unauthorized", status: http.StatusUnauthorized, want: []string{"rejected the credential", "auth login"}},
 	}
 	for _, tt := range tests {

@@ -306,9 +306,9 @@ func TestOtelAPIErrorsExplainScopeReplacementAndEnvironmentOwnership(t *testing.
 		input  string
 		want   []string
 	}{
-		{name: "get scope failure", status: http.StatusForbidden, args: []string{"otel", "get"}, want: []string{"otel:manage", "discover --resource otel"}},
-		{name: "set scope failure", status: http.StatusForbidden, args: []string{"otel", "set", "--input", "-", "--yes"}, input: cliOtelDefaultInput, want: []string{"otel:manage", "discover --resource otel"}},
-		{name: "test scope failure", status: http.StatusForbidden, args: []string{"otel", "test-trace", "--input", "-"}, input: cliOtelTraceInput, want: []string{"otel:manage", "discover --resource otel"}},
+		{name: "get scope failure", status: http.StatusForbidden, args: []string{"otel", "get"}, want: []string{"otel:manage", "discover --resource settingsotel"}},
+		{name: "set scope failure", status: http.StatusForbidden, args: []string{"otel", "set", "--input", "-", "--yes"}, input: cliOtelDefaultInput, want: []string{"otel:manage", "discover --resource settingsotel"}},
+		{name: "test scope failure", status: http.StatusForbidden, args: []string{"otel", "test-trace", "--input", "-"}, input: cliOtelTraceInput, want: []string{"otel:manage", "discover --resource settingsotel"}},
 		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"otel", "set", "--input", "-", "--yes"}, input: cliOtelDefaultInput, want: []string{"full OpenTelemetry replacement", "every field", "http/protobuf", "redacted"}},
 		{name: "invalid test", status: http.StatusBadRequest, args: []string{"otel", "test-trace", "--input", "-"}, input: cliOtelTraceInput, want: []string{"test connection details", "endpoint", "redacted"}},
 		{name: "environment conflict", status: http.StatusConflict, args: []string{"otel", "set", "--input", "-", "--yes"}, input: cliOtelDefaultInput, want: []string{"409", "managed by environment variables", "no changes were made", "otel get", "restart n8n"}},

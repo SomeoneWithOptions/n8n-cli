@@ -1719,7 +1719,7 @@ func promotionAPIError(err error, resolution config.Resolution, action string) e
 	case n8n.IsStatus(err, http.StatusUnprocessableEntity):
 		return fmt.Errorf("%s rejected the promotion %s (422): the remote content cannot be imported as-is (missing references or unresolvable content); resolve the references and retry: %w", resolution.URL, action, err)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied the promotion %s (403): the credential needs %s; run %s", resolution.URL, action, promotionScope(action), discoverHint(promotionResource))
+		return forbiddenScopeError(err, resolution, "promotion "+action, allOf(promotionScope(action)), "", promotionResource)
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		return fmt.Errorf("%s does not serve promotions (%d): it needs the Promotions module (a GitConnections-generation instance answers here instead); run %s to see what this instance offers: %w",
 			resolution.URL, n8n.StatusCodeOf(err), discoverHint(promotionResource), err)

@@ -162,7 +162,7 @@ func runExecutionWatch(ctx context.Context, opts Options, f executionWatchFlags)
 func (w *executionWatcher) tick(ctx context.Context) (bool, error) {
 	executions, err := listExecutionsWithRunning(ctx, w.client, w.listOpts)
 	if err != nil {
-		return false, apiError(err, w.resolution, executionResource)
+		return false, executionAPIError(err, w.resolution, "", "list")
 	}
 	if w.stream {
 		err = w.emitChanges(ctx, executions)

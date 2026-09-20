@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ldapResource    = "ldap"
+	ldapResource    = "settingsldap"
 	maxLDAPDocument = 1 << 20
 )
 
@@ -414,7 +414,8 @@ func ldapAPIError(err error, resolution config.Resolution, action string) error 
 	}
 	switch {
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied LDAP %s (403): the credential needs %s and the instance needs the LDAP license; run %s", resolution.URL, action, scope, discoverHint(ldapResource))
+		return forbiddenScopeError(err, resolution, "LDAP "+action, allOf(scope),
+			"the instance also needs the LDAP license.", ldapResource)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update configuration":
 		return fmt.Errorf("%s rejected the full LDAP replacement (400): include all 20 fields and use connectionSecurity none, tls, or startTls; response details redacted", resolution.URL)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "run sync":

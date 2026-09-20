@@ -116,7 +116,7 @@ func runRoleMappingList(ctx context.Context, opts Options, f roleMappingListFlag
 		page, err = client.ListRoleMappingRules(ctx, listOpts)
 	}
 	if err != nil {
-		return apiError(err, resolution, roleMappingResource)
+		return roleMappingAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
@@ -202,7 +202,7 @@ func runRoleMappingCreate(ctx context.Context, opts Options, f roleMappingInputF
 	}
 	rule, err := client.CreateRoleMappingRule(ctx, request)
 	if err != nil {
-		return roleMappingAPIError(err, resolution)
+		return roleMappingAPIError(err, resolution, "create")
 	}
 	return writeRoleMappingResult(opts, resolution, "Created", rule, f.output)
 }
@@ -252,7 +252,7 @@ func runRoleMappingUpdate(ctx context.Context, opts Options, id string, f roleMa
 	}
 	rule, err := client.UpdateRoleMappingRule(ctx, id, request)
 	if err != nil {
-		return roleMappingAPIError(err, resolution)
+		return roleMappingAPIError(err, resolution, "update")
 	}
 	return writeRoleMappingResult(opts, resolution, "Updated", rule, f.output)
 }
@@ -309,7 +309,7 @@ func runRoleMappingMove(ctx context.Context, opts Options, id string, f roleMapp
 	}
 	rule, err := client.MoveRoleMappingRule(ctx, id, request)
 	if err != nil {
-		return roleMappingAPIError(err, resolution)
+		return roleMappingAPIError(err, resolution, "move")
 	}
 	return writeRoleMappingResult(opts, resolution, "Moved", rule, f.output)
 }
@@ -362,7 +362,7 @@ func runRoleMappingDelete(ctx context.Context, opts Options, id string, f roleMa
 	}
 	rule, err := client.DeleteRoleMappingRule(ctx, id)
 	if err != nil {
-		return roleMappingAPIError(err, resolution)
+		return roleMappingAPIError(err, resolution, "delete")
 	}
 	return writeRoleMappingResult(opts, resolution, "Deleted", rule, f.output)
 }
@@ -443,9 +443,29 @@ func validateRoleMappingRuleID(id string) error {
 // roleMappingAPIError adds the remediation the API's own message cannot give:
 // a 400 on these endpoints is usually an unknown role slug, an unknown project,
 // or an expression the server refuses to parse.
-func roleMappingAPIError(err error, resolution config.Resolution) error {
+func roleMappingAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.StatusCodeOf(err) == 400 {
 		return fmt.Errorf("%w; check the role slug with 'n8n role list', the project IDs with 'n8n project list', and the claim expression syntax", err)
 	}
+	if n8n.IsForbidden(err) {
+		need := roleMappingScope(action)
+		return forbiddenScopeError(err, resolution, "role-mapping "+action, need,
+			"a 403 can also mean the instance is not licensed for role mapping.", roleMappingResource)
+	}
 	return apiError(err, resolution, roleMappingResource)
+}
+
+// roleMappingScope maps a command action to the scope the API requires for it.
+func roleMappingScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("roleMappingRule:list")
+	case "create":
+		return allOf("roleMappingRule:create")
+	case "update", "move":
+		return allOf("roleMappingRule:update")
+	case "delete":
+		return allOf("roleMappingRule:delete")
+	}
+	return scopeNeed{}
 }
