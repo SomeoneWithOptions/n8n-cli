@@ -360,7 +360,7 @@ func TestExecutionAPIErrors(t *testing.T) {
 
 	f.status = http.StatusForbidden
 	got = f.run("execution", "list")
-	if got.code != ExitError || !strings.Contains(got.stderr, "discover --resource execution") {
+	if got.code != ExitError || !strings.Contains(got.stderr, "discover --resource executions") || !strings.Contains(got.stderr, "execution:list") {
 		t.Errorf("result = %+v", got)
 	}
 }

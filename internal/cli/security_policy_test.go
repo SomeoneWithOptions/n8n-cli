@@ -198,12 +198,12 @@ func TestSecurityPolicyAPIErrorsExplainLicenseAndEnvironmentOwnership(t *testing
 		{
 			name: "get license or scope failure", status: http.StatusForbidden,
 			args: []string{"security-policy", "get"},
-			want: []string{"securitySettings:manage", "Personal Space Policy", "discover --resource security-policy"},
+			want: []string{"securitySettings:manage", "Personal Space Policy", "discover --resource securitypolicy"},
 		},
 		{
 			name: "set license or scope failure", status: http.StatusForbidden,
 			args: []string{"security-policy", "set", "--input", "-"}, input: `{"personalSpacePublishing":true,"personalSpaceSharing":true,"redactionEnforcement":{"floor":"production"}}`,
-			want: []string{"securitySettings:manage", "Personal Space Policy", "discover --resource security-policy"},
+			want: []string{"securitySettings:manage", "Personal Space Policy", "discover --resource securitypolicy"},
 		},
 		{
 			name: "environment managed conflict", status: http.StatusConflict,

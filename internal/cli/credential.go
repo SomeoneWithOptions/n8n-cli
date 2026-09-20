@@ -105,10 +105,7 @@ func runCredentialList(ctx context.Context, opts Options, f credentialListFlags)
 		page, err = client.ListCredentials(ctx, listOpts)
 	}
 	if err != nil {
-		if n8n.IsForbidden(err) {
-			return fmt.Errorf("%s denied credential listing (403): this endpoint requires credential:list and an instance owner or admin role; run %s to inspect scopes", resolution.URL, discoverHint(credentialResource))
-		}
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
@@ -237,7 +234,7 @@ func runCredentialCreate(ctx context.Context, opts Options, f credentialWriteFla
 	}
 	credential, err := client.CreateCredential(ctx, request)
 	if err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "create")
 	}
 	return writeCredentialResult(opts, resolution, "Created", credential, f.output)
 }
@@ -284,7 +281,7 @@ func runCredentialUpdate(ctx context.Context, opts Options, id string, f credent
 	}
 	credential, err := client.UpdateCredential(ctx, id, request)
 	if err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "update")
 	}
 	return writeCredentialResult(opts, resolution, "Updated", credential, f.output)
 }
@@ -332,7 +329,7 @@ func runCredentialGet(ctx context.Context, opts Options, id string, f credential
 	}
 	credential, err := client.GetCredential(ctx, id)
 	if err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "get")
 	}
 	return writeCredentialResult(opts, resolution, "Credential", credential, f.output)
 }
@@ -405,7 +402,7 @@ func runCredentialDelete(ctx context.Context, opts Options, id string, f credent
 	}
 	credential, err := client.DeleteCredential(ctx, id)
 	if err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "delete")
 	}
 	return writeCredentialResult(opts, resolution, "Deleted", credential, f.output)
 }
@@ -442,7 +439,7 @@ func runCredentialTest(ctx context.Context, opts Options, id string, f credentia
 	}
 	result, err := client.TestCredential(ctx, id)
 	if err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "test")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, result)
@@ -549,7 +546,7 @@ func runCredentialTransfer(ctx context.Context, opts Options, id string, f crede
 		return err
 	}
 	if err := client.TransferCredential(ctx, id, f.destinationProject); err != nil {
-		return apiError(err, resolution, credentialResource)
+		return credentialAPIError(err, resolution, "transfer")
 	}
 	result := struct {
 		ID                   string `json:"id"`
@@ -571,4 +568,35 @@ func validateCredentialArgument(id string) error {
 		return fmt.Errorf("credential ID must not start or end with whitespace")
 	}
 	return nil
+}
+
+// credentialAPIError names the scope the denied action needs. Credential
+// endpoints also check the instance role, so a 403 is not always about scopes.
+func credentialAPIError(err error, resolution config.Resolution, action string) error {
+	if n8n.IsForbidden(err) {
+		need := credentialScope(action)
+		return forbiddenScopeError(err, resolution, "credential "+action, need,
+			"a 403 can also mean the credential is not an instance owner or admin.", credentialResource)
+	}
+	return apiError(err, resolution, credentialResource)
+}
+
+// credentialScope maps a command action to the scope the API requires for it.
+// 'n8n credential schema' needs no scope, so it has no entry.
+func credentialScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("credential:list")
+	case "get", "test":
+		return allOf("credential:read")
+	case "create":
+		return allOf("credential:create")
+	case "update":
+		return allOf("credential:update")
+	case "delete":
+		return allOf("credential:delete")
+	case "transfer":
+		return allOf("credential:move")
+	}
+	return scopeNeed{}
 }

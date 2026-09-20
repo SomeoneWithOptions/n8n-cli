@@ -308,7 +308,7 @@ func TestWorkflowUpdateExplainsPublishDenial(t *testing.T) {
 	if got.code != ExitError {
 		t.Fatalf("exit = %d, want an error", got.code)
 	}
-	for _, want := range []string{"403", "draft", "still live", "--no-publish", "workflow:activate"} {
+	for _, want := range []string{"403", "draft", "stays live", "--no-publish", "workflow:activate"} {
 		if !strings.Contains(got.stderr, want) {
 			t.Errorf("stderr missing %q:\n%s", want, got.stderr)
 		}
@@ -667,7 +667,7 @@ func TestWorkflowAPIErrorsExplainTheFix(t *testing.T) {
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"workflow", "list"},
 			want: []string{"401", "n8n auth login"}},
 		{name: "forbidden", status: http.StatusForbidden, args: []string{"workflow", "publish", "wf-1"},
-			want: []string{"403", "n8n discover --resource workflow"}},
+			want: []string{"403", "workflow:activate", "n8n discover --resource workflow"}},
 		{name: "not found", status: http.StatusNotFound, args: []string{"workflow", "get", "wf-9"},
 			want: []string{"404", "n8n workflow list"}},
 	}

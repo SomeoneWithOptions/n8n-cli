@@ -89,7 +89,7 @@ func runRoleList(ctx context.Context, opts Options, f roleListFlags) error {
 	}
 	roles, err := client.ListRoles(ctx, f.withUsageCount)
 	if err != nil {
-		return apiError(err, resolution, roleResource)
+		return roleAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, roles)
@@ -167,7 +167,7 @@ func runRoleGet(ctx context.Context, opts Options, slug string, f roleReadFlags)
 	}
 	role, err := client.GetRole(ctx, slug, f.withUsageCount)
 	if err != nil {
-		return apiError(err, resolution, roleResource)
+		return roleAPIError(err, resolution, "read")
 	}
 	return writeRoleResult(opts, resolution, "Role", role, f.output)
 }
@@ -444,9 +444,31 @@ func validateRoleSlug(slug string) error {
 	return nil
 }
 
+// roleAPIError names the scope the denied action needs and explains the 400 the
+// API answers when a built-in role is edited.
 func roleAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.StatusCodeOf(err) == 400 && (action == "update" || action == "delete") {
 		return fmt.Errorf("%w; only custom roles can be %sd: built-in/system roles are immutable; run 'n8n role get SLUG' to inspect the role", err, action)
 	}
+	if n8n.IsForbidden(err) {
+		need := roleScope(action)
+		return forbiddenScopeError(err, resolution, "role "+action, need,
+			"a 403 can also mean the instance is not licensed for custom roles.", roleResource)
+	}
 	return apiError(err, resolution, roleResource)
+}
+
+// roleScope maps a command action to the scope the API requires for it. Writing
+// a role takes either scope: role:manage covers instance roles, and
+// role:manageProject covers project roles.
+func roleScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("role:list")
+	case "read":
+		return allOf("role:read")
+	case "create", "update", "delete":
+		return anyOf("role:manage", "role:manageProject")
+	}
+	return scopeNeed{}
 }

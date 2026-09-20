@@ -207,7 +207,7 @@ func TestEvaluationAPIErrorsExplainFix(t *testing.T) {
 		want   []string
 	}{
 		{name: "license", status: http.StatusPaymentRequired, args: []string{"evaluation", "create", "wf-1"}, want: []string{"does not license", "discover --resource evaluation"}},
-		{name: "execute permission", status: http.StatusForbidden, args: []string{"evaluation", "create", "wf-1"}, want: []string{"workflow:execute", "test-run scope"}},
+		{name: "execute permission", status: http.StatusForbidden, args: []string{"evaluation", "create", "wf-1"}, want: []string{"workflow:execute", "testRun:create"}},
 		{name: "missing workflow", status: http.StatusNotFound, args: []string{"evaluation", "list", "missing"}, want: []string{"no accessible workflow", "workflow list"}},
 		{name: "missing run", status: http.StatusNotFound, args: []string{"evaluation", "get", "wf-1", "missing"}, want: []string{"no evaluation run", "evaluation list wf-1"}},
 		{name: "create conflict", status: http.StatusConflict, args: []string{"evaluation", "create", "wf-1"}, want: []string{"current run state conflicts", "evaluation list wf-1"}},

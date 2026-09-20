@@ -385,8 +385,7 @@ func nodePolicyAPIError(err error, resolution config.Resolution, action string, 
 		return fmt.Errorf("%s does not serve node type policies (%d): %s; run %s to see what this instance offers",
 			resolution.URL, n8n.StatusCodeOf(err), nodePolicyUnavailable, discoverHint(nodePolicyResource))
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied node type policy %s (403): the credential needs nodeTypePolicy:manage; run %s",
-			resolution.URL, action, discoverHint(nodePolicyResource))
+		return forbiddenScopeError(err, resolution, "node type policy "+action, allOf("nodeTypePolicy:manage"), "", nodePolicyResource)
 	case n8n.IsConflict(err) && scope == n8n.NodeTypePolicyScopeProject:
 		return fmt.Errorf("%s refused the node type policy replacement (409): the version was changed by someone else since it was read, or the policy document is shared with another scope, so nothing changed; run 'n8n node-policy project get' again and re-apply the edit",
 			resolution.URL)

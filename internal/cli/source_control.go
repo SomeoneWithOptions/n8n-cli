@@ -406,7 +406,8 @@ func sourceControlAPIError(err error, resolution config.Resolution, action strin
 	case n8n.IsStatus(err, http.StatusBadRequest):
 		return fmt.Errorf("%s rejected the source-control %s (400): check the direction, the commit message, the selected file IDs and types, and the auto-publish value: %w", resolution.URL, action, err)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied the source-control %s (403): the credential needs %s and the instance needs the licensed Source Control feature connected to Git; run %s", resolution.URL, action, sourceControlScope(action), discoverHint(sourceControlResource))
+		return forbiddenScopeError(err, resolution, "source-control "+action, allOf(sourceControlScope(action)),
+			"the instance also needs the licensed Source Control feature connected to Git.", sourceControlResource)
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		return fmt.Errorf("%s does not serve source control (%d): it needs the licensed Source Control feature connected to a Git repository; run %s to see what this instance offers: %w",
 			resolution.URL, n8n.StatusCodeOf(err), discoverHint(sourceControlResource), err)

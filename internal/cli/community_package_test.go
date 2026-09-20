@@ -272,7 +272,7 @@ func TestCommunityPackageAPIErrors(t *testing.T) {
 		want   []string
 	}{
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"community-package", "list"}, want: []string{"401", "auth login"}},
-		{name: "forbidden", status: http.StatusForbidden, args: []string{"community-package", "list"}, want: []string{"403", "scope", "discover --resource community-package"}},
+		{name: "forbidden", status: http.StatusForbidden, args: []string{"community-package", "list"}, want: []string{"403", "communityPackage:list", "discover --resource communitypackage"}},
 		{name: "install bad request", status: http.StatusBadRequest, args: []string{"community-package", "install", "n8n-nodes-example", "--yes"}, want: []string{"400"}},
 		{name: "update missing", status: http.StatusNotFound, args: []string{"community-package", "update", "n8n-nodes-missing", "--yes"}, want: []string{"404"}},
 		{name: "uninstall missing", status: http.StatusNotFound, args: []string{"community-package", "uninstall", "n8n-nodes-missing", "--yes"}, want: []string{"404"}},

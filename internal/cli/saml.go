@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	samlResource    = "saml"
+	samlResource    = "settingsssosaml"
 	maxSAMLDocument = 1 << 20
 )
 
@@ -230,7 +230,8 @@ func samlSecretStatus(value string) string {
 func samlAPIError(err error, resolution config.Resolution, action string) error {
 	switch {
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied SAML configuration %s (403): the credential needs saml:manage and the instance needs the SAML license; run %s", resolution.URL, action, discoverHint(samlResource))
+		return forbiddenScopeError(err, resolution, "SAML configuration "+action, allOf("saml:manage"),
+			"the instance also needs the SAML license.", samlResource)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update":
 		return fmt.Errorf("%s rejected the full SAML replacement (400): include all 15 writable fields and every mapping and signature field, valid redirect/post bindings, and a supported signature action; response details redacted", resolution.URL)
 	case n8n.IsConflict(err) && action == "update":

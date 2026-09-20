@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	otelResource    = "otel"
+	otelResource    = "settingsotel"
 	maxOtelDocument = 1 << 20
 )
 
@@ -298,7 +298,7 @@ func otelAPIError(err error, resolution config.Resolution, action string) error 
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "test":
 		return fmt.Errorf("%s rejected the OpenTelemetry test connection details (400): check the endpoint, protocol, service name, headers, and timeout; collector response details were redacted", resolution.URL)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied OpenTelemetry settings %s (403): the credential needs otel:manage; run %s", resolution.URL, action, discoverHint(otelResource))
+		return forbiddenScopeError(err, resolution, "OpenTelemetry settings "+action, allOf("otel:manage"), "", otelResource)
 	case n8n.IsConflict(err) && action == "update":
 		return fmt.Errorf("%s refused the OpenTelemetry replacement (409): one or more changed fields are managed by environment variables, so no changes were made; run 'n8n otel get', re-submit environment-managed values unchanged, or change the environment configuration and restart n8n", resolution.URL)
 	default:

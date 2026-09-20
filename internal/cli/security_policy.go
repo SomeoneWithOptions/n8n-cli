@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	securityPolicyResource    = "security-policy"
+	securityPolicyResource    = "securitypolicy"
 	maxSecurityPolicyDocument = 1 << 20
 )
 
@@ -202,7 +202,8 @@ func securityPolicyAPIError(err error, resolution config.Resolution, action stri
 	case n8n.StatusCodeOf(err) == http.StatusBadRequest && action == "update":
 		return fmt.Errorf("%s rejected the full security policy replacement (400): include personalSpacePublishing, personalSpaceSharing, and redactionEnforcement.floor set to off, production, or all", resolution.URL)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied security policy %s (403): the credential needs securitySettings:manage and the instance needs the Personal Space Policy license; run %s", resolution.URL, action, discoverHint(securityPolicyResource))
+		return forbiddenScopeError(err, resolution, "security policy "+action, allOf("securitySettings:manage"),
+			"the instance also needs the Personal Space Policy license.", securityPolicyResource)
 	case n8n.IsConflict(err) && action == "update":
 		return fmt.Errorf("%s refused the security policy update (409): policy is managed by environment variables, so no changes were made; change the environment configuration and restart n8n, then run 'n8n security-policy get'", resolution.URL)
 	default:

@@ -585,7 +585,7 @@ func TestDataTableAPIErrors(t *testing.T) {
 		want   []string
 	}{
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"data-table", "list"}, want: []string{"401", "auth login"}},
-		{name: "forbidden", status: http.StatusForbidden, args: []string{"data-table", "list"}, want: []string{"403", "discover --resource datatable"}},
+		{name: "forbidden", status: http.StatusForbidden, args: []string{"data-table", "list"}, want: []string{"403", "dataTable:list", "discover --resource datatable"}},
 		{name: "not found", status: http.StatusNotFound, args: []string{"data-table", "get", "dt-1"}, want: []string{"404", "n8n data-table list"}},
 		{name: "conflict", status: http.StatusConflict, args: []string{"data-table", "update", "dt-1", "--name", "taken"}, want: []string{"409", "already exists"}},
 		{name: "bad request", status: http.StatusBadRequest, args: []string{"data-table", "row", "list", "dt-1"}, want: []string{"400"}},

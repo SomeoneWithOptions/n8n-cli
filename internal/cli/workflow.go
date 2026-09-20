@@ -482,10 +482,11 @@ func runWorkflowUpdate(ctx context.Context, opts Options, id string, f workflowU
 	updated, err := client.UpdateWorkflow(ctx, id, doc, updateOpts)
 	if err != nil {
 		if n8n.IsForbidden(err) && !f.noPublish {
-			return fmt.Errorf("%s denied publishing the update to workflow %q (403): republishing needs the workflow:activate scope and the project's workflow:publish permission. "+
-				"If the credential may update but not publish, the new version was saved as a draft and the previously published version is still live: check with 'n8n workflow get %s'. "+
-				"Re-run with --no-publish to save a draft without this error",
-				resolution.URL, id, id)
+			return forbiddenScopeError(err, resolution, fmt.Sprintf("publishing the update to workflow %q", id), allOf("workflow:activate"),
+				fmt.Sprintf("republishing also needs the project's workflow:publish permission.\n"+
+					"  the new version may have been saved as a draft while the published version stays live: check with 'n8n workflow get %s'.\n"+
+					"  re-run with --no-publish to save a draft without this error.", id),
+				workflowResource)
 		}
 		return workflowAPIError(err, resolution, "update")
 	}
@@ -1327,11 +1328,39 @@ func validateWorkflowArgument(field, value string) error {
 // see.
 func workflowAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
-		return fmt.Errorf("%s denied workflow %s (403): the credential lacks the scope for it, or it has no access to the workflow's project; run %s to inspect access",
-			resolution.URL, action, discoverHint(workflowResource))
+		need := workflowScope(action)
+		return forbiddenScopeError(err, resolution, "workflow "+action, need,
+			"a 403 can also mean no access to the workflow's project.", workflowResource)
 	}
 	if n8n.IsNotFound(err) {
 		return fmt.Errorf("%s has no such workflow (404): check the ID with 'n8n workflow list'; an archived workflow is still listed, one in another project may not be visible to this credential", resolution.URL)
 	}
 	return apiError(err, resolution, workflowResource)
+}
+
+// workflowScope maps a command action to the scope the API requires for it.
+func workflowScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("workflow:list")
+	case "read", "get":
+		return allOf("workflow:read")
+	case "create":
+		return allOf("workflow:create")
+	case "update":
+		return allOf("workflow:update")
+	case "delete", "archive", "unarchive":
+		return allOf("workflow:delete")
+	case "publish":
+		return allOf("workflow:activate")
+	case "unpublish":
+		return allOf("workflow:deactivate")
+	case "transfer":
+		return allOf("workflow:move")
+	case "tag read":
+		return allOf("workflowTags:list")
+	case "tag update":
+		return allOf("workflowTags:update")
+	}
+	return scopeNeed{}
 }

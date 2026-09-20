@@ -257,11 +257,11 @@ func TestSAMLAPIErrorsExplainLicenseConflictAndAvailability(t *testing.T) {
 		input  string
 		want   []string
 	}{
-		{name: "forbidden", status: http.StatusForbidden, args: []string{"saml", "get"}, want: []string{"saml:manage", "SAML license", "discover --resource saml"}},
+		{name: "forbidden", status: http.StatusForbidden, args: []string{"saml", "get"}, want: []string{"saml:manage", "SAML license", "discover --resource settingsssosaml"}},
 		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"saml", "set", "--input", "-", "--yes"}, input: cliSAMLDisabledInput, want: []string{"full SAML replacement", "15 writable fields", "response details redacted"}},
 		{name: "environment managed", status: http.StatusConflict, args: []string{"saml", "set", "--input", "-", "--yes"}, input: cliSAMLDisabledInput, want: []string{"managed by environment variables", "no changes were made", "saml get"}},
-		{name: "not found", status: http.StatusNotFound, args: []string{"saml", "get"}, want: []string{"SAML endpoint", "discover --resource saml"}},
-		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"saml", "get"}, want: []string{"SAML service", "discover --resource saml"}},
+		{name: "not found", status: http.StatusNotFound, args: []string{"saml", "get"}, want: []string{"SAML endpoint", "discover --resource settingsssosaml"}},
+		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"saml", "get"}, want: []string{"SAML service", "discover --resource settingsssosaml"}},
 		{name: "unauthorized", status: http.StatusUnauthorized, args: []string{"saml", "get"}, want: []string{"rejected the credential", "auth login"}},
 	}
 	for _, tt := range tests {

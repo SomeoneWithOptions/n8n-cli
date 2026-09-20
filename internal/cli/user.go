@@ -510,10 +510,26 @@ func validateUserRole(role string) error {
 
 func userAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
-		if action == "list" || action == "get" {
-			return fmt.Errorf("%s denied user %s (403): this endpoint may require the instance owner and the required user scope; run %s to inspect access", resolution.URL, action, discoverHint(userResource))
-		}
-		return fmt.Errorf("%s denied user %s (403): owner access, the required user scope, or a licensed role may be required; run %s to inspect access", resolution.URL, action, discoverHint(userResource))
+		need := userScope(action)
+		return forbiddenScopeError(err, resolution, "user "+action, need,
+			"this endpoint can also require the instance owner or admin role.", userResource)
 	}
 	return apiError(err, resolution, userResource)
+}
+
+// userScope maps a command action to the scope the API requires for it.
+func userScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("user:list")
+	case "get":
+		return allOf("user:read")
+	case "create":
+		return allOf("user:create")
+	case "delete":
+		return allOf("user:delete")
+	case "change role":
+		return allOf("user:changeRole")
+	}
+	return scopeNeed{}
 }

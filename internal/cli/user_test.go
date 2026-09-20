@@ -229,7 +229,7 @@ func TestUserOwnerScopeAndNotFoundErrors(t *testing.T) {
 		{name: "list unauthorized", status: http.StatusUnauthorized, args: []string{"user", "list"}, want: []string{"401", "auth login"}},
 		{name: "list owner only", status: http.StatusForbidden, args: []string{"user", "list"}, want: []string{"403", "instance owner", "discover --resource user"}},
 		{name: "get owner only", status: http.StatusForbidden, args: []string{"user", "get", "one@example.com"}, want: []string{"403", "instance owner"}},
-		{name: "create forbidden", status: http.StatusForbidden, args: []string{"user", "create", "--input", "-"}, stdin: `[{"email":"one@example.com"}]`, want: []string{"403", "owner access", "user scope"}},
+		{name: "create forbidden", status: http.StatusForbidden, args: []string{"user", "create", "--input", "-"}, stdin: `[{"email":"one@example.com"}]`, want: []string{"403", "owner", "user:create"}},
 		{name: "get not found", status: http.StatusNotFound, args: []string{"user", "get", "missing@example.com"}, want: []string{"404"}},
 	}
 	for _, tt := range tests {

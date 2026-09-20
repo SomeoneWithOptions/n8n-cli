@@ -737,9 +737,30 @@ func validateProjectArgument(field, value string) error {
 func projectAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
 		if action == "member list" {
-			return fmt.Errorf("%s denied project %s (403): this endpoint needs the user:list scope on top of project access, and projects require a licensed instance; run %s to inspect access", resolution.URL, action, discoverHint(projectResource))
+			return forbiddenScopeError(err, resolution, "project "+action, allOf("user:list"),
+				"this endpoint needs project access on top of the scope, and projects require a licensed instance.", projectResource)
 		}
-		return fmt.Errorf("%s denied project %s (403): the credential lacks the project scope, or the instance is not licensed for projects; run %s to inspect access", resolution.URL, action, discoverHint(projectResource))
+		need := projectScope(action)
+		return forbiddenScopeError(err, resolution, "project "+action, need,
+			"a 403 can also mean the instance is not licensed for projects.", projectResource)
 	}
 	return apiError(err, resolution, projectResource)
+}
+
+// projectScope maps a command action to the scope the API requires for it.
+// Member listing is handled separately: it needs user:list, not a project scope.
+func projectScope(action string) scopeNeed {
+	switch action {
+	case "list":
+		return allOf("project:list")
+	case "create":
+		return allOf("project:create")
+	case "update":
+		return allOf("project:update")
+	case "delete":
+		return allOf("project:delete")
+	case "member add", "member removal", "member role change":
+		return allOf("project:manageMembers")
+	}
+	return scopeNeed{}
 }

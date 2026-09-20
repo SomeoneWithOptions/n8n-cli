@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -55,10 +56,78 @@ func apiError(err error, resolution config.Resolution, resource string) error {
 	case n8n.IsUnauthorized(err):
 		return fmt.Errorf("%s rejected the credential (401): it is missing, expired or revoked; run %s", resolution.URL, loginHint(resolution))
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied the request (403): the credential lacks the scope, or the instance is not licensed for it; run %s to see what this credential can do", resolution.URL, discoverHint(resource))
+		return forbiddenScopeError(err, resolution, "the request", scopeNeed{},
+			"a 403 can also mean the instance is not licensed for the feature.", resource)
 	default:
 		return err
 	}
+}
+
+// scopeNeed is what one denied action requires: the scopes the API checks for
+// it, and whether any single one of them is enough. The zero value means the
+// requirement is unknown, so no scope is claimed.
+type scopeNeed struct {
+	scopes []string
+	// any reports that one of the scopes is enough; otherwise all are needed.
+	any bool
+}
+
+// allOf is a requirement every listed scope has to satisfy.
+func allOf(scopes ...string) scopeNeed { return scopeNeed{scopes: scopes} }
+
+// anyOf is a requirement one of the listed scopes satisfies, e.g. a role write
+// that global role:manage and project role:manageProject both allow.
+func anyOf(scopes ...string) scopeNeed { return scopeNeed{scopes: scopes, any: true} }
+
+// known reports whether a scope requirement was mapped for the action.
+func (n scopeNeed) known() bool { return len(n.scopes) > 0 }
+
+// block renders the scope section of a 403: one scope per line, under a heading
+// that says whether all of them are needed or only one.
+func (n scopeNeed) block() string {
+	if !n.known() {
+		return "  missing scope: the CLI has no scope recorded for this call"
+	}
+	head := "  missing scope:"
+	switch {
+	case len(n.scopes) > 1 && n.any:
+		head = "  missing scope (either one):"
+	case len(n.scopes) > 1:
+		head = "  missing scopes (all required):"
+	}
+	var b strings.Builder
+	b.WriteString(head)
+	for _, scope := range n.scopes {
+		b.WriteString("\n    ")
+		b.WriteString(scope)
+	}
+	return b.String()
+}
+
+// forbiddenScopeError is the shared 403 report: what was denied, the exact
+// scopes the API requires for it on their own lines, what the server itself
+// said, the other causes a status code cannot rule out, and where to inspect
+// the credential. subject names the denied action, e.g. "tag list". extra is
+// one sentence about those other causes (license, project access, role), empty
+// when the scope is the only one.
+//
+// The server error is wrapped, not copied, so its status, code, hint and
+// request ID stay reachable through [errors.As] for anything that inspects the
+// failure instead of printing it.
+func forbiddenScopeError(err error, resolution config.Resolution, subject string, need scopeNeed, extra, resource string) error {
+	format := "%s denied %s (403)\n\n%s\n\n"
+	args := []any{resolution.URL, subject, need.block()}
+	if err != nil {
+		format += "  server said: %w\n"
+		args = append(args, err)
+	}
+	if extra != "" {
+		format += "  %s\n"
+		args = append(args, extra)
+	}
+	format += "  run %s to inspect access"
+	args = append(args, discoverHint(resource))
+	return fmt.Errorf(format, args...)
 }
 
 // loginHint names the command that repairs the credential in use. A credential

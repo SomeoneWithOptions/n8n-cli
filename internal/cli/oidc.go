@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	oidcResource    = "oidc"
+	oidcResource    = "settingsssooidc"
 	maxOIDCDocument = 1 << 20
 )
 
@@ -213,7 +213,8 @@ func oidcClientSecretStatus(secret string) string {
 func oidcAPIError(err error, resolution config.Resolution, action string) error {
 	switch {
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s denied OIDC configuration %s (403): the credential needs oidc:manage and the instance needs the OIDC license; run %s", resolution.URL, action, discoverHint(oidcResource))
+		return forbiddenScopeError(err, resolution, "OIDC configuration "+action, allOf("oidc:manage"),
+			"the instance also needs the OIDC license.", oidcResource)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update":
 		return fmt.Errorf("%s rejected the full OIDC replacement (400): include all nine fields, a non-empty clientId and clientSecret (or redacted sentinel), a valid discoveryEndpoint, and a supported prompt; response details redacted", resolution.URL)
 	case n8n.IsConflict(err) && action == "update":

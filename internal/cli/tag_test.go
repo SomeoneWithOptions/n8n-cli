@@ -235,7 +235,7 @@ func TestTagWriteConflictAndScopeErrors(t *testing.T) {
 		{name: "list unauthorized", status: http.StatusUnauthorized, args: []string{"tag", "list"},
 			want: []string{"401", "auth login"}},
 		{name: "list forbidden", status: http.StatusForbidden, args: []string{"tag", "list"},
-			want: []string{"403", "discover --resource tag"}},
+			want: []string{"403", "tag:list", "discover --resource tags"}},
 		{name: "get not found", status: http.StatusNotFound, args: []string{"tag", "get", "missing"},
 			want: []string{"404"}},
 	}
