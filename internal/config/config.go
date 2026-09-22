@@ -117,6 +117,32 @@ func (c *Config) Use(name string) error {
 	return nil
 }
 
+// Rename moves a context without changing its credential identity. It reports
+// whether the name changed; an existing same-name source is a successful no-op.
+func (c *Config) Rename(oldName, newName string) (bool, error) {
+	for _, name := range []string{oldName, newName} {
+		if err := ValidateContextName(name); err != nil {
+			return false, err
+		}
+	}
+	saved, ok := c.Contexts[oldName]
+	if !ok {
+		return false, fmt.Errorf("%w: run 'n8n config context list'", &NotFoundError{Name: oldName})
+	}
+	if oldName == newName {
+		return false, nil
+	}
+	if _, exists := c.Contexts[newName]; exists {
+		return false, fmt.Errorf("context %q already exists: choose an unused name; run 'n8n config context list'", newName)
+	}
+	c.Contexts[newName] = saved
+	delete(c.Contexts, oldName)
+	if c.CurrentContext == oldName {
+		c.CurrentContext = newName
+	}
+	return true, nil
+}
+
 // Remove deletes a context and clears the selection when it pointed there.
 // Removing a context does not remove its credential; that is [CredentialStore].
 func (c *Config) Remove(name string) error {

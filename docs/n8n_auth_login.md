@@ -28,6 +28,11 @@ only by file permissions, not by encryption. Environment credentials
 (N8N_API_KEY and friends) override the saved one for a single run and are
 never persisted by this command.
 
+Each login saves a fresh credential reference, independent of context names.
+A crash during saving or cleanup can leave an unused credential in storage.
+Older CLI versions can reuse name-based references: avoid writing this shared
+configuration with older binaries after renaming contexts.
+
 Next step: 'n8n auth status --check'. After --skip-verify, inspect saved state
 with 'n8n auth status', then run a resource command your key permits, such as
 'n8n user list --limit 1' for user:list. Discovery and auth status --check

@@ -222,6 +222,40 @@ func TestEnvContextLogout(t *testing.T) {
 	}
 }
 
+func TestEnvContextRenameAndExplicitManagement(t *testing.T) {
+	f, work := envContexts(t, config.StorageKeyring)
+	// Management uses positional names, even with a malformed env selection.
+	f.env[config.EnvContext] = ".invalid"
+	requireSuccess(t, f.run("config", "context", "rename", "work", "personal"))
+	requireSuccess(t, f.run("config", "context", "use", "personal"))
+	requireSuccess(t, f.run("config", "context", "list", "--output", "json"))
+	f.env[config.EnvContext] = "work"
+	for _, args := range [][]string{{"user", "list"}, {"auth", "status"}, {"auth", "logout", "--yes"}} {
+		got := f.run(args...)
+		if got.code != ExitError || !strings.Contains(got.stderr, `context "work" not found`) || !strings.Contains(got.stderr, config.EnvContext) {
+			t.Fatalf("stale env selection = %+v", got)
+		}
+	}
+	f.env[config.EnvContext] = "personal"
+	requireSuccess(t, f.run("auth", "status", "--check"))
+	if work.lastRequest().Header.Get(n8n.HeaderAPIKey) != "work-secret" {
+		t.Fatal("renamed credential changed")
+	}
+	delete(f.env, config.EnvContext)
+	requireSuccess(t, f.run("auth", "status", "--check"))
+	// Login may explicitly recreate the old env-selected name, with fresh identity.
+	f.env[config.EnvContext] = "work"
+	f.prompt.secret = "recreated-secret"
+	f.login()
+	if f.config().Contexts["work"].CredentialRef == f.config().Contexts["personal"].CredentialRef {
+		t.Fatal("recreated name shares credential")
+	}
+	assertContextAuth(t, f, work, "personal", n8n.AuthAPIKey, "work-secret")
+	f.env[config.EnvContext] = ".invalid"
+	requireSuccess(t, f.run("config", "context", "delete", "work", "--yes"))
+	assertContextAuth(t, f, work, "personal", n8n.AuthAPIKey, "work-secret")
+}
+
 func TestEnvContextRepairHintsRespectExplicitDefault(t *testing.T) {
 	f, _ := envContexts(t, config.StorageKeyring)
 	f.mu.Lock()
@@ -236,45 +270,5 @@ func TestEnvContextRepairHintsRespectExplicitDefault(t *testing.T) {
 	requireSuccess(t, got)
 	if !strings.Contains(got.stdout, "auth login --context default") {
 		t.Fatalf("status repair hint = %+v", got)
-	}
-}
-
-func requireSuccess(t *testing.T, got result) {
-	t.Helper()
-	if got.code != ExitSuccess {
-		t.Fatalf("command failed: %+v", got)
-	}
-}
-
-func assertContextAuth(t *testing.T, owner, server *fixture, name string, typ n8n.AuthType, secret string) {
-	t.Helper()
-	before := server.requestCount()
-	got := owner.run("auth", "status", "--context", name, "--check")
-	requireSuccess(t, got)
-	if server.requestCount() != before+1 {
-		t.Fatal("request sent to wrong instance")
-	}
-	req := server.lastRequest()
-	header, want := n8n.HeaderAPIKey, secret
-	switch typ {
-	case n8n.AuthBearer:
-		header, want = "Authorization", "Bearer "+secret
-	case n8n.AuthCookie:
-		header, want = "Cookie", n8n.CookieName+"="+secret
-	}
-	if req.Header.Get(header) != want {
-		t.Fatal("wrong context credential sent")
-	}
-	for _, other := range []string{n8n.HeaderAPIKey, "Authorization", "Cookie"} {
-		if other != header && req.Header.Get(other) != "" {
-			t.Fatal("extra authentication header")
-		}
-	}
-	if strings.Contains(got.stdout+got.stderr, secret) {
-		t.Fatal("credential leaked in output")
-	}
-	data, err := os.ReadFile(filepath.Join(owner.dir, config.ConfigFileName))
-	if err != nil || strings.Contains(string(data), secret) {
-		t.Fatal("credential leaked in metadata")
 	}
 }

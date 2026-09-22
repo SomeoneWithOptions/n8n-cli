@@ -224,6 +224,7 @@ CLI setup and beyond-spec helpers, maintained here. No equivalent n8n endpoint.
 | [`n8n completion`](n8n_completion.md) | Generate a shell completion script |
 | [`n8n config context delete`](n8n_config_context_delete.md) | Delete a context and its stored credential |
 | [`n8n config context list`](n8n_config_context_list.md) | List saved contexts |
+| [`n8n config context rename`](n8n_config_context_rename.md) | Rename a saved context without changing its credentials |
 | [`n8n config context use`](n8n_config_context_use.md) | Select the context used by subsequent commands |
 | [`n8n config context`](n8n_config_context.md) | Manage saved instance contexts |
 | [`n8n config`](n8n_config.md) | Inspect and edit stored CLI configuration |

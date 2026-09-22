@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SomeoneWithOptions/n8n-cli/internal/config"
+	"github.com/SomeoneWithOptions/n8n-cli/internal/contextops"
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
@@ -77,6 +78,10 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			"only by file permissions, not by encryption. Environment credentials\n" +
 			"(N8N_API_KEY and friends) override the saved one for a single run and are\n" +
 			"never persisted by this command.\n\n" +
+			"Each login saves a fresh credential reference, independent of context names.\n" +
+			"A crash during saving or cleanup can leave an unused credential in storage.\n" +
+			"Older CLI versions can reuse name-based references: avoid writing this shared\n" +
+			"configuration with older binaries after renaming contexts.\n\n" +
 			"Next step: 'n8n auth status --check'. After --skip-verify, inspect saved state\n" +
 			"with 'n8n auth status', then run a resource command your key permits, such as\n" +
 			"'n8n user list --limit 1' for user:list. Discovery and auth status --check\n" +
@@ -175,35 +180,14 @@ func runAuthLogin(ctx context.Context, opts Options, f loginFlags) error {
 		}
 	}
 
-	ref := name
-	if replacing && existing.CredentialRef != "" {
-		ref = existing.CredentialRef
-	}
-	if err := backend.Set(ref, cred); err != nil {
+	warning, err := contextops.New(resolver.Store, resolver.CredentialStore).Login(
+		contextops.Capture(cfg, name),
+		config.Context{URL: instanceURL, AuthType: authType, Storage: backend.Kind()}, cred)
+	if err != nil {
 		return err
 	}
-	updated := config.Context{
-		URL:           instanceURL,
-		AuthType:      authType,
-		CredentialRef: ref,
-		Storage:       backend.Kind(),
-	}
-	if err := resolver.Store.Update(func(cfg *config.Config) error {
-		if err := cfg.Put(name, updated); err != nil {
-			return err
-		}
-		return cfg.Use(name)
-	}); err != nil {
-		// Never leave a secret nothing points at.
-		_ = backend.Delete(ref)
-		return err
-	}
-
-	// A backend switch leaves the old copy behind otherwise.
-	if replacing && existing.Storage != backend.Kind() {
-		if old, err := resolver.CredentialStore(existing.Storage); err == nil {
-			_ = old.Delete(existing.CredentialRef)
-		}
+	if warning != nil {
+		fmt.Fprintf(opts.Streams.Err, "Warning: %v.\n", warning)
 	}
 
 	if f.skipVerify {
@@ -539,24 +523,9 @@ func runAuthLogout(opts Options, f logoutFlags) error {
 		return err
 	}
 
-	backend, err := resolver.CredentialStore(saved.Storage)
+	hadCredential, err := contextops.New(resolver.Store, resolver.CredentialStore).Logout(contextops.Capture(cfg, name), f.purge)
 	if err != nil {
 		return err
-	}
-	// Delete is idempotent by contract, so it cannot say whether anything was
-	// there. Look first, so a repeated logout does not claim a deletion it did
-	// not make. Only a definite miss counts as nothing stored: an entry that is
-	// unreadable or corrupt is still an entry and must be removed.
-	_, getErr := backend.Get(saved.CredentialRef)
-	hadCredential := !errors.Is(getErr, config.ErrCredentialNotFound)
-	if err := backend.Delete(saved.CredentialRef); err != nil {
-		return err
-	}
-
-	if f.purge {
-		if err := resolver.Store.Update(func(cfg *config.Config) error { return cfg.Remove(name) }); err != nil {
-			return err
-		}
 	}
 
 	switch {

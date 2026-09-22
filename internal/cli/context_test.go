@@ -121,6 +121,7 @@ func TestContextDelete(t *testing.T) {
 	t.Run("confirmed", func(t *testing.T) {
 		f := newFixture(t)
 		f.login("--context", "production")
+		ref := f.config().Contexts["production"].CredentialRef
 		f.stdin = "y\n"
 
 		got := f.run("config", "context", "delete", "production")
@@ -134,7 +135,7 @@ func TestContextDelete(t *testing.T) {
 		if cfg.CurrentContext != "" {
 			t.Errorf("CurrentContext = %q, want it cleared", cfg.CurrentContext)
 		}
-		if _, err := f.keyring.Get("production"); !errors.Is(err, config.ErrCredentialNotFound) {
+		if _, err := f.keyring.Get(ref); !errors.Is(err, config.ErrCredentialNotFound) {
 			t.Errorf("credential store = %v, want the credential deleted with the context", err)
 		}
 	})
@@ -151,7 +152,7 @@ func TestContextDelete(t *testing.T) {
 		if _, ok := f.config().Contexts["production"]; !ok {
 			t.Error("a declined delete removed the context")
 		}
-		if _, err := f.keyring.Get("production"); err != nil {
+		if _, err := f.keyring.Get(f.config().Contexts["production"].CredentialRef); err != nil {
 			t.Error("a declined delete removed the credential")
 		}
 	})

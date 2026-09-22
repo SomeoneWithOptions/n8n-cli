@@ -296,30 +296,52 @@ func lockHeld(err error) bool {
 
 // lock takes the directory lock and returns its release function.
 func (s *Store) lock(root *os.Root) (func(), error) {
+	return s.lockNamed(root, lockFileName, true)
+}
+
+// WithLifecycle serializes context and credential mutations. Acquire this
+// before any metadata/auth-file lock, never inside Update. Unlike the short
+// file lock, this lock is never evicted by age: a keyring call may take minutes.
+// After a crash, manual recovery is required once all writers have stopped.
+func (s *Store) WithLifecycle(fn func() error) error {
+	root, err := s.openRoot(true)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	unlock, err := s.lockNamed(root, ".lifecycle.lock", false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return fn()
+}
+
+func (s *Store) lockNamed(root *os.Root, name string, breakStale bool) (func(), error) {
 	deadline := time.Now().Add(lockTimeout)
 	for {
-		f, err := root.OpenFile(lockFileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
+		f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 		if err == nil {
 			_, werr := fmt.Fprintf(f, "{\"pid\":%d,\"time\":%q}\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339Nano))
 			cerr := f.Close()
 			if werr != nil {
-				_ = root.Remove(lockFileName)
-				return nil, fmt.Errorf("write %s: %w", s.Path(lockFileName), werr)
+				_ = root.Remove(name)
+				return nil, fmt.Errorf("write %s: %w", s.Path(name), werr)
 			}
 			if cerr != nil {
-				_ = root.Remove(lockFileName)
-				return nil, fmt.Errorf("close %s: %w", s.Path(lockFileName), cerr)
+				_ = root.Remove(name)
+				return nil, fmt.Errorf("close %s: %w", s.Path(name), cerr)
 			}
-			return func() { _ = root.Remove(lockFileName) }, nil
+			return func() { _ = root.Remove(name) }, nil
 		}
 		if !lockHeld(err) {
-			return nil, fmt.Errorf("lock %s: %w", s.Path(lockFileName), err)
+			return nil, fmt.Errorf("lock %s: %w", s.Path(name), err)
 		}
-		if s.breakStaleLock(root) {
+		if breakStale && s.breakStaleLock(root) {
 			continue
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timed out waiting for %s: another n8n process is writing configuration", s.Path(lockFileName))
+			return nil, fmt.Errorf("timed out waiting for %s: another n8n process may be writing configuration; retry after it finishes; if it crashed, remove this lock only after confirming no writer is running", s.Path(name))
 		}
 		time.Sleep(lockRetryDelay)
 	}
