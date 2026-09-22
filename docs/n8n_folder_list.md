@@ -37,7 +37,7 @@ n8n folder list <project-id> [flags]
 
 ```
       --all                        follow every page instead of one (maximum 10,000 folders)
-      --context string             saved context to use (default: the current context; see 'n8n config context list')
+      --context string             saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --exclude-folder-id string   drop this folder and everything under it (cannot combine with --filter)
       --filter string              whole filter object as JSON, e.g. '{"name":"Invoices"}' (cannot combine with the single-filter flags)
   -h, --help                       help for list
@@ -49,7 +49,7 @@ n8n folder list <project-id> [flags]
       --sort-by string             sort order: one of name:asc, name:desc, createdAt:asc, createdAt:desc, updatedAt:asc, updatedAt:desc (default: the server's order)
       --tag stringArray            only folders carrying this tag name, repeatable (cannot combine with --filter)
       --take int                   folders per API page (default: server default of 10; 100 with --all)
-      --url string                 instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                 instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

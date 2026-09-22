@@ -25,11 +25,11 @@ n8n user get <user-id-or-email> [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for get
       --include-role     include user's global role (default: role is omitted by API)
       --output string    output format: text or json (JSON is complete returned user object) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

@@ -28,7 +28,7 @@ n8n auth logout [flags]
 ### Options
 
 ```
-      --context string   context to log out of (default: the current context)
+      --context string   saved context name to log out of (falls back to N8N_CONTEXT, then the saved current context)
   -h, --help             help for logout
       --purge            also remove the context itself from config.json
       --yes              delete without asking (required in non-interactive use)

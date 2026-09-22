@@ -34,14 +34,14 @@ n8n workflow create [flags]
 ### Options
 
 ```
-      --context string            saved context to use (default: the current context; see 'n8n config context list')
+      --context string            saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                      help for create
       --input string              workflow definition as JSON: a file path, or - for stdin (default: an empty workflow built from --name)
       --name string               workflow name; overrides the name in --input (required when --input is absent)
       --output string             output format: text or json (JSON is the created workflow) (default "text")
       --parent-folder-id string   folder to create the workflow in, from 'n8n folder list PROJECT_ID' (default: the project root)
       --project-id string         project to create the workflow in, from 'n8n project list' (default: the caller's personal project)
-      --url string                instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

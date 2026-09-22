@@ -13,6 +13,7 @@ import (
 // three credential variables exist so CI can authenticate without writing
 // anything to disk.
 const (
+	EnvContext     = "N8N_CONTEXT"
 	EnvURL         = "N8N_URL"
 	EnvAPIKey      = "N8N_API_KEY"
 	EnvBearerToken = "N8N_BEARER_TOKEN"
@@ -42,7 +43,7 @@ const (
 
 // Selection is what the command line asked for.
 type Selection struct {
-	// Context names a saved context. Empty uses the current one.
+	// Context names a saved context. Empty uses N8N_CONTEXT, then the current one.
 	Context string
 	// URL overrides the context's instance URL. Empty uses the context or
 	// the environment.
@@ -92,6 +93,42 @@ func (r *Resolver) env(name string) string {
 		return OSEnv(name)
 	}
 	return r.Env(name)
+}
+
+// ContextName selects a nonempty flag before N8N_CONTEXT and validates the
+// selected name. Empty means neither selected a name; the caller supplies its
+// fallback (saved current context, or "default" for login).
+func (r *Resolver) ContextName(explicit string) (string, error) {
+	name, source := explicit, "--context"
+	if name == "" {
+		name, source = r.env(EnvContext), EnvContext
+	}
+	if name != "" {
+		if err := ValidateContextName(name); err != nil {
+			if source == EnvContext {
+				return "", fmt.Errorf("%s: %w; pass a valid --context or unset %s", source, err, EnvContext)
+			}
+			return "", fmt.Errorf("%w; pass a valid --context", err)
+		}
+	}
+	return name, nil
+}
+
+// LookupContext resolves a flag/environment selection against a loaded config
+// without changing its saved current context. A named miss never falls back.
+func (r *Resolver) LookupContext(cfg *Config, explicit string) (string, Context, error) {
+	name, err := r.ContextName(explicit)
+	if err != nil {
+		return "", Context{}, err
+	}
+	resolved, saved, err := cfg.Lookup(name)
+	if IsNotFound(err) {
+		if explicit == "" {
+			return "", Context{}, fmt.Errorf("%s: %w; run 'n8n config context list' and select an existing --context or unset %s", EnvContext, err, EnvContext)
+		}
+		return "", Context{}, fmt.Errorf("%w; run 'n8n config context list' and select an existing --context", err)
+	}
+	return resolved, saved, err
 }
 
 // CredentialStore returns the backend for a storage kind.
@@ -145,7 +182,12 @@ func (r *Resolver) Resolve(sel Selection) (Resolution, error) {
 		return Resolution{}, err
 	}
 
-	name, saved, lookupErr := cfg.Lookup(sel.Context)
+	name, saved, lookupErr := r.LookupContext(cfg, sel.Context)
+	// Environment-only authentication is valid without a selected context, but
+	// an explicitly selected missing/invalid context must never be ignored.
+	if lookupErr != nil && !errors.Is(lookupErr, ErrNoCurrentContext) {
+		return Resolution{}, lookupErr
+	}
 
 	envCred, hasEnvCred, err := r.EnvCredential()
 	if err != nil {

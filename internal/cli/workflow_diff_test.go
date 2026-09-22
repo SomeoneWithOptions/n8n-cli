@@ -36,7 +36,7 @@ func TestWorkflowDiffUsesIndependentSavedContexts(t *testing.T) {
 	from, to := diffFixtures(t)
 	before, _ := json.Marshal(from.config())
 	from.env = map[string]string{
-		config.EnvURL: "https://wrong.invalid", config.EnvAPIKey: "wrong-key",
+		config.EnvURL: "https://wrong.invalid", config.EnvAPIKey: "wrong-key", config.EnvContext: ".invalid",
 		config.EnvBearerToken: "wrong-token", config.EnvAuthCookie: "wrong-cookie",
 	}
 	to.body = strings.Replace(to.body, `"active":true`, `"active":false`, 1)

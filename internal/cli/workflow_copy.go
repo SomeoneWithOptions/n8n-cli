@@ -42,8 +42,8 @@ func newWorkflowCopyCommand(opts Options) *cobra.Command {
 			"promote' and 'n8n promotion apply' are a different machine: Git-remote batch\n" +
 			"sync of whole projects through a source-control connection, not this.\n\n" +
 			"Both contexts must be saved ('n8n auth login --context NAME'); this command uses\n" +
-			"each context's saved URL and credential and ignores N8N_URL and environment\n" +
-			"credentials on both sides. Needs workflow:read on the source, plus workflow:list\n" +
+			"each context's saved URL and credential and ignores N8N_CONTEXT, N8N_URL and\n" +
+			"environment credentials on both sides. Needs workflow:read on the source, plus workflow:list\n" +
 			"when resolving --name, and workflow:read plus workflow:create and/or\n" +
 			"workflow:update on the target. --publish additionally needs workflow:activate\n" +
 			"and the project's workflow:publish permission on the target.\n\n" +

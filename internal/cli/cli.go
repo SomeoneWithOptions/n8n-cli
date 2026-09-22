@@ -197,10 +197,13 @@ func NewRootCommand(opts Options) *cobra.Command {
 			"  n8n auth login --url https://n8n.example.com\n" +
 			"  n8n auth status --check\n" +
 			"  n8n discover\n\n" +
-			"Configuration precedence for non-secrets is: flag, environment variable\n" +
-			"(N8N_URL and friends), selected context, default. Secrets are never flags:\n" +
-			"they come from a no-echo prompt, --stdin, the environment, or the OS\n" +
-			"credential store.\n\n" +
+			"Context selection is --context, then N8N_CONTEXT, then the saved current context.\n" +
+			"An empty N8N_CONTEXT is unset. Resource commands, auth status and auth logout\n" +
+			"reject unknown names. Environment selection does not change the saved selection.\n" +
+			"Auth login can create a context, falls back to default, and selects its context\n" +
+			"when saving. URL precedence is --url, then N8N_URL, then the selected context URL.\n" +
+			"Secrets are never flags: they come from a no-echo prompt, --stdin, the environment,\n" +
+			"or the OS credential store.\n\n" +
 			"Commands write machine-readable results to stdout and diagnostics, prompts,\n" +
 			"and confirmations to stderr. Use --output json for scripting; use --help on\n" +
 			"any group or action (for example 'n8n auth --help') for its workflow and flags.",

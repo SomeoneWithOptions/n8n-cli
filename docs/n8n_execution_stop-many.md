@@ -30,13 +30,13 @@ n8n execution stop-many [flags]
 
 ```
       --all                     stop matching executions across every accessible workflow (cannot combine with --workflow-id)
-      --context string          saved context to use (default: the current context; see 'n8n config context list')
+      --context string          saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                    help for stop-many
       --output string           output format: text or json (JSON contains the number stopped) (default "text")
       --started-after string    only executions started after this RFC3339 timestamp, e.g. 2026-09-17T00:00:00Z (default: no lower bound)
       --started-before string   only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)
       --status stringArray      status to stop: queued, running, or waiting; repeatable (at least one required)
-      --url string              instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string              instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --workflow-id string      only executions of this workflow, from 'n8n workflow list' (required unless --all)
       --yes                     confirm stopping every match without prompting (required when stdin is not interactive)
 ```

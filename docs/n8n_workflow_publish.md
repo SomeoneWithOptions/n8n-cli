@@ -33,12 +33,12 @@ n8n workflow publish <workflow-id> [flags]
 ### Options
 
 ```
-      --context string       saved context to use (default: the current context; see 'n8n config context list')
+      --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --description string   description for the published version (default: none)
   -h, --help                 help for publish
       --name string          label for the published version; does not rename the workflow (default: the version's existing name)
       --output string        output format: text or json (JSON is the published workflow) (default "text")
-      --url string           instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string           instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --version-id string    version to publish, from 'n8n workflow history' (default: the latest saved version)
 ```
 

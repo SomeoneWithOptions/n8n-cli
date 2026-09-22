@@ -31,11 +31,11 @@ n8n git-connection push <connection-id> [flags]
 
 ```
       --commit-message string   commit message for the push, 1 to 1000 characters (required)
-      --context string          saved context to use (default: the current context; see 'n8n config context list')
+      --context string          saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --force                   push even when the remote would reject it, rewriting remote history (default: reject a rejected push with 409)
   -h, --help                    help for push
       --output string           output format: text or json (JSON is the push result with counts and commit SHA) (default "text")
-      --url string              instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string              instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes                     confirm pushing every team project to the remote without prompting (required when stdin is not interactive)
 ```
 

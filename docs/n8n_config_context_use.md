@@ -7,7 +7,8 @@ Select the context used by subsequent commands
 Select the context used by subsequent commands.
 
 NAME must already exist (see 'n8n config context list'). The choice takes
-effect immediately for later runs. Create a new context with
+effect for later runs unless --context or N8N_CONTEXT overrides it. Unset
+N8N_CONTEXT to use the saved selection. Create a new context with
 'n8n auth login --context NAME'.
 
 ```

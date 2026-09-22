@@ -28,12 +28,12 @@ n8n folder update <project-id> <folder-id> [flags]
 ### Options
 
 ```
-      --context string            saved context to use (default: the current context; see 'n8n config context list')
+      --context string            saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                      help for update
       --name string               new folder name (required unless --parent-folder-id is given)
       --output string             output format: text or json (JSON is the updated folder) (default "text")
       --parent-folder-id string   move the folder inside this folder (required unless --name is given)
-      --url string                instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

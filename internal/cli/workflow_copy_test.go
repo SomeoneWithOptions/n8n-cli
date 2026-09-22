@@ -471,7 +471,7 @@ func TestWorkflowCopyUsesSavedContextsOnly(t *testing.T) {
 	from, to := copyFixtures(t)
 	stageTarget(to, `{"data":[]}`, to.body, to.body)
 	from.env = map[string]string{
-		config.EnvURL: "https://wrong.invalid", config.EnvAPIKey: "wrong-key",
+		config.EnvURL: "https://wrong.invalid", config.EnvAPIKey: "wrong-key", config.EnvContext: ".invalid",
 		config.EnvBearerToken: "wrong-token", config.EnvAuthCookie: "wrong-cookie",
 	}
 	got := from.run(copyArgs("--from-id", "AAA", "--to-id", "BBB")...)

@@ -43,11 +43,11 @@ n8n audit generate [flags]
 
 ```
       --category strings     risk category to audit, repeatable or comma-separated: credentials, database, nodes, filesystem, instance (default: all categories)
-      --context string       saved context to use (default: the current context; see 'n8n config context list')
+      --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --days-abandoned int   days without an execution before a workflow counts as abandoned, e.g. 90 (default 0: use the instance setting)
   -h, --help                 help for generate
       --output string        output format: text or json (default text; json is the instance report verbatim and is stable for scripting) (default "text")
-      --url string           instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string           instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

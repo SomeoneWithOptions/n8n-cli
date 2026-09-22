@@ -14,7 +14,7 @@ import (
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
-// DefaultContextName is used when --context is omitted, so the common
+// DefaultContextName is used when --context and N8N_CONTEXT are unset, so the common
 // single-instance case needs no naming decision.
 const DefaultContextName = "default"
 
@@ -59,6 +59,9 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 		Use:   "login",
 		Short: "Store a credential for an n8n instance",
 		Long: "Store a credential for an n8n instance and select its context.\n\n" +
+			"The context name comes from --context, then N8N_CONTEXT, then default. Unlike\n" +
+			"resource commands, login does not fall back to the saved current context. A\n" +
+			"successful login selects the saved context, including when named by the environment.\n\n" +
 			"Use this to save a credential; environment credentials also work without login. The\n" +
 			"credential is read from a no-echo prompt, or from stdin with --stdin. It is\n" +
 			"never accepted as a flag or an argument, because process lists and shell history\n" +
@@ -93,7 +96,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&f.url, "url", "", "instance URL, e.g. https://n8n.example.com (falls back to N8N_URL, then saved context URL)")
-	cmd.Flags().StringVar(&f.context, "context", "", "context name to create or replace (default \""+DefaultContextName+"\")")
+	cmd.Flags().StringVar(&f.context, "context", "", "context name to create or replace (falls back to N8N_CONTEXT, then \""+DefaultContextName+"\")")
 	cmd.Flags().StringVar(&f.authType, "type", string(n8n.AuthAPIKey), "authentication type: api-key, bearer or cookie (default api-key)")
 	cmd.Flags().StringVar(&f.storage, "storage", "", "credential storage: keyring or file (default keyring; file is plaintext, permissions-only protection)")
 	cmd.Flags().BoolVar(&f.fromStdin, "stdin", false, "read the credential from stdin instead of prompting (use for scripts and AI agents)")
@@ -104,13 +107,6 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 }
 
 func runAuthLogin(ctx context.Context, opts Options, f loginFlags) error {
-	name := f.context
-	if name == "" {
-		name = DefaultContextName
-	}
-	if err := config.ValidateContextName(name); err != nil {
-		return err
-	}
 	authType, err := parseAuthType(f.authType)
 	if err != nil {
 		return err
@@ -119,6 +115,13 @@ func runAuthLogin(ctx context.Context, opts Options, f loginFlags) error {
 	resolver, err := opts.resolver()
 	if err != nil {
 		return err
+	}
+	name, err := resolver.ContextName(f.context)
+	if err != nil {
+		return err
+	}
+	if name == "" {
+		name = DefaultContextName
 	}
 	cfg, err := resolver.Store.Load()
 	if err != nil {
@@ -330,9 +333,13 @@ func newAuthStatusCommand(opts Options) *cobra.Command {
 			"present. No credential value is ever printed. With --check the credential\n" +
 			"is used once against GET /api/v1/discover to report whether the instance\n" +
 			"still accepts it; --check fails the command when the credential is missing\n" +
-			"or rejected, so scripts and agents can gate on it.",
+			"or rejected, so scripts and agents can gate on it.\n\n" +
+			"Context selection is --context, then N8N_CONTEXT, then the saved current context.\n" +
+			"The current marker reports the saved selection, even when the environment selects\n" +
+			"another context for this run. This command does not change that saved selection.",
 		Example: "  n8n auth status\n" +
 			"  n8n auth status --check\n" +
+			"  N8N_CONTEXT=production n8n auth status --check\n" +
 			"  n8n auth status --context production --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -340,7 +347,7 @@ func newAuthStatusCommand(opts Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&f.context, "context", "", "context to describe (default: the current context)")
+	cmd.Flags().StringVar(&f.context, "context", "", "saved context name to describe (falls back to N8N_CONTEXT, then the saved current context)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (default text; json is stable for scripting)")
 	cmd.Flags().BoolVar(&f.check, "check", false, "validate the credential against the instance; exit non-zero when unusable")
 
@@ -364,8 +371,8 @@ func runAuthStatus(ctx context.Context, opts Options, f statusFlags) error {
 	if err != nil {
 		return err
 	}
-	name, saved, lookupErr := cfg.Lookup(f.context)
-	if lookupErr != nil && (!fromEnv || config.IsNotFound(lookupErr)) {
+	name, saved, lookupErr := resolver.LookupContext(cfg, f.context)
+	if lookupErr != nil && (!fromEnv || !errors.Is(lookupErr, config.ErrNoCurrentContext)) {
 		return lookupErr
 	}
 
@@ -398,7 +405,7 @@ func runAuthStatus(ctx context.Context, opts Options, f statusFlags) error {
 		cred, err = backend.Get(saved.CredentialRef)
 		switch {
 		case errors.Is(err, config.ErrCredentialNotFound):
-			report.Error = "no stored credential: run 'n8n auth login'"
+			report.Error = fmt.Sprintf("no stored credential: run 'n8n auth login --context %s'", name)
 		case err != nil:
 			report.Error = err.Error()
 		default:
@@ -503,7 +510,7 @@ func newAuthLogoutCommand(opts Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&f.context, "context", "", "context to log out of (default: the current context)")
+	cmd.Flags().StringVar(&f.context, "context", "", "saved context name to log out of (falls back to N8N_CONTEXT, then the saved current context)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "delete without asking (required in non-interactive use)")
 	cmd.Flags().BoolVar(&f.purge, "purge", false, "also remove the context itself from config.json")
 
@@ -519,7 +526,7 @@ func runAuthLogout(opts Options, f logoutFlags) error {
 	if err != nil {
 		return err
 	}
-	name, saved, err := cfg.Lookup(f.context)
+	name, saved, err := resolver.LookupContext(cfg, f.context)
 	if err != nil {
 		return err
 	}

@@ -26,10 +26,10 @@ n8n role list [flags]
 ### Options
 
 ```
-      --context string     saved context to use (default: the current context; see 'n8n config context list')
+      --context string     saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help               help for list
       --output string      output format: text or json (JSON has global and project role arrays) (default "text")
-      --url string         instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string         instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --with-usage-count   include user and project assignment counts (default: counts are omitted by the API)
 ```
 

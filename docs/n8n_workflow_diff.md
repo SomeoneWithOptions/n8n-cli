@@ -7,7 +7,7 @@ Compare saved workflows across two contexts
 Compare saved workflow definitions without modifying either instance.
 
 Select both saved contexts explicitly. This command uses each context's saved URL
-and credential, ignoring N8N_URL and environment credentials for both sides.
+and credential, ignoring N8N_CONTEXT, N8N_URL and environment credentials.
 Pass --from-id and --to-id, or --name to resolve one exact name independently
 on each side. Name lookup follows every page (maximum 10,000 results); missing
 or ambiguous matches fail. Project filters apply only to name lookup. Requires

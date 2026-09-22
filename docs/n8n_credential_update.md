@@ -26,12 +26,12 @@ n8n credential update <credential-id> [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --file string      read secret-bearing JSON from file (protect and delete the file after use)
   -h, --help             help for update
       --output string    output format: text or json (output never contains credential data) (default "text")
       --stdin            read secret-bearing JSON from piped stdin (refused for an interactive terminal)
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

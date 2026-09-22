@@ -28,12 +28,12 @@ n8n evaluation case list <workflow-id> <run-id> [flags]
 
 ```
       --all              follow every test-case page instead of one (maximum 10,000 cases)
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string    pagination cursor returned by a previous case list (default: first page)
   -h, --help             help for list
       --limit int        test cases per API page, 1 to 250 (default: server default of 100)
       --output string    output format: text or json (JSON includes case inputs, outputs, metrics and errors) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

@@ -25,10 +25,10 @@ n8n project user remove <project-id> <user-id> [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for remove
       --output string    output format: text or json (acknowledgement contains project and removed user) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes              confirm member removal without prompting (required when stdin is not interactive)
 ```
 

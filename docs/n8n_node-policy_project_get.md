@@ -26,10 +26,10 @@ n8n node-policy project get <project-id> [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for get
       --output string    output format: text or json (JSON is the full document 'set' expects) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

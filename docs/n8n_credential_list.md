@@ -27,12 +27,12 @@ n8n credential list [flags]
 
 ```
       --all              follow all pages (maximum 10,000 credentials)
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string    pagination cursor returned by a previous list
   -h, --help             help for list
       --limit int        credentials per API page (default: server default)
       --output string    output format: text or json (JSON is a page object with data and nextCursor) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

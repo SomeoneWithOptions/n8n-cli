@@ -128,7 +128,8 @@ func newContextUseCommand(opts Options) *cobra.Command {
 		Short: "Select the context used by subsequent commands",
 		Long: "Select the context used by subsequent commands.\n\n" +
 			"NAME must already exist (see 'n8n config context list'). The choice takes\n" +
-			"effect immediately for later runs. Create a new context with\n" +
+			"effect for later runs unless --context or N8N_CONTEXT overrides it. Unset\n" +
+			"N8N_CONTEXT to use the saved selection. Create a new context with\n" +
 			"'n8n auth login --context NAME'.",
 		Example: "  n8n config context use production",
 		Args:    cobra.ExactArgs(1),

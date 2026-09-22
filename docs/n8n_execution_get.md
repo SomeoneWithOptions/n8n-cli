@@ -29,13 +29,13 @@ n8n execution get <execution-id> [flags]
 ### Options
 
 ```
-      --context string                 saved context to use (default: the current context; see 'n8n config context list')
+      --context string                 saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                           help for get
       --ignore-data-size-limit         return detailed data even when it exceeds the instance display-size limit (default: omit oversized data)
       --include-data                   include detailed node input/output and saved workflow data (default: metadata only)
       --output string                  output format: text or json (JSON includes detailed data only with --include-data) (default "text")
       --redact-execution-data string   detailed-data redaction: true always redacts, false reveals and needs execution:reveal (default: workflow policy)
-      --url string                     instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                     instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

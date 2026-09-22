@@ -27,7 +27,7 @@ n8n data-table row upsert <table-id> [flags]
 ### Options
 
 ```
-      --context string      saved context to use (default: the current context; see 'n8n config context list')
+      --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --dry-run             ask the server to report the change without persisting it (implies --return-data)
       --filter string       whole filter object as JSON, e.g. '{"type":"and","filters":[{"columnName":"status","condition":"eq","value":"active"}]}' (cannot combine with --where)
   -h, --help                help for upsert
@@ -36,7 +36,7 @@ n8n data-table row upsert <table-id> [flags]
       --output string       output format: text or json (JSON contains the acknowledgement and any returned rows) (default "text")
       --return-data         ask the API for the affected rows instead of a bare acknowledgement
       --set stringArray     column value to write as COLUMN=VALUE, repeatable (cannot combine with --input)
-      --url string          instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --where stringArray   row condition as COLUMN=VALUE or COLUMN=CONDITION=VALUE, repeatable, conditions: eq, neq, like, ilike, gt, gte, lt, lte (required unless --filter is given)
 ```
 
