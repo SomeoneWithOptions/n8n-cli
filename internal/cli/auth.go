@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"text/tabwriter"
 
@@ -25,7 +26,7 @@ func newAuthCommand(opts Options) *cobra.Command {
 			"Typical workflow: 'n8n auth login' once per instance, 'n8n auth status'\n" +
 			"to inspect what is saved, 'n8n auth status --check' to verify the\n" +
 			"credential still works, 'n8n auth logout' to forget it. Run resource\n" +
-			"commands only after login succeeds.",
+			"commands with a saved credential or an environment credential.",
 		Example: "  n8n auth login --url https://n8n.example.com\n" +
 			"  n8n auth status --check\n" +
 			"  n8n auth logout",
@@ -42,12 +43,13 @@ func newAuthCommand(opts Options) *cobra.Command {
 }
 
 type loginFlags struct {
-	url       string
-	context   string
-	authType  string
-	storage   string
-	fromStdin bool
-	yes       bool
+	url        string
+	context    string
+	authType   string
+	storage    string
+	fromStdin  bool
+	skipVerify bool
+	yes        bool
 }
 
 func newAuthLoginCommand(opts Options) *cobra.Command {
@@ -57,23 +59,33 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 		Use:   "login",
 		Short: "Store a credential for an n8n instance",
 		Long: "Store a credential for an n8n instance and select its context.\n\n" +
-			"Use this first: no resource command works until one login succeeds. The\n" +
+			"Use this to save a credential; environment credentials also work without login. The\n" +
 			"credential is read from a no-echo prompt, or from stdin with --stdin. It is\n" +
 			"never accepted as a flag or an argument, because process lists and shell history\n" +
 			"would expose it. It is validated against GET /api/v1/discover before anything\n" +
-			"is saved, so a typo or revoked key saves nothing.\n\n" +
+			"is saved, so a typo or revoked key saves nothing by default.\n\n" +
+			"Use --skip-verify for offline setup, instances without /discover, or keys that\n" +
+			"lack discovery access. This skips only the remote check: local validation,\n" +
+			"storage consent and replacement confirmation still apply. A wrong URL or invalid\n" +
+			"credential can be saved; access is checked on the first resource request.\n" +
+			"This command saves local configuration and never changes remote resources.\n\n" +
 			"Credentials are stored in the operating system credential store. With\n" +
 			"--storage=file they are stored in auth.json instead, which is plaintext protected\n" +
 			"only by file permissions, not by encryption. Environment credentials\n" +
 			"(N8N_API_KEY and friends) override the saved one for a single run and are\n" +
 			"never persisted by this command.\n\n" +
-			"Next step: 'n8n auth status --check'.",
+			"Next step: 'n8n auth status --check'. After --skip-verify, inspect saved state\n" +
+			"with 'n8n auth status', then run a resource command your key permits, such as\n" +
+			"'n8n user list --limit 1' for user:list. Discovery and auth status --check\n" +
+			"still require access to /discover.",
 		Example: "  # Interactive login (prompts for the API key):\n" +
 			"  n8n auth login --url https://n8n.example.com\n\n" +
 			"  # Non-interactive login from a secret manager or pipe:\n" +
 			"  printf '%s' \"$N8N_API_KEY\" | n8n auth login --url https://n8n.example.com --stdin\n\n" +
 			"  # Named context with an explicit auth type and plaintext fallback:\n" +
-			"  n8n auth login --url https://n8n.example.com --context production --type api-key --storage=file",
+			"  n8n auth login --url https://n8n.example.com --context production --type api-key --storage=file\n\n" +
+			"  # Save a narrowly scoped key without discovery verification:\n" +
+			"  n8n auth login --url https://n8n.example.com --context limited --skip-verify",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runAuthLogin(cmd.Context(), opts, f)
@@ -85,6 +97,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.authType, "type", string(n8n.AuthAPIKey), "authentication type: api-key, bearer or cookie (default api-key)")
 	cmd.Flags().StringVar(&f.storage, "storage", "", "credential storage: keyring or file (default keyring; file is plaintext, permissions-only protection)")
 	cmd.Flags().BoolVar(&f.fromStdin, "stdin", false, "read the credential from stdin instead of prompting (use for scripts and AI agents)")
+	cmd.Flags().BoolVar(&f.skipVerify, "skip-verify", false, "skip the remote /discover credential check (default false; saves without verifying access)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "replace the existing credential without asking")
 
 	return cmd
@@ -152,9 +165,11 @@ func runAuthLogin(ctx context.Context, opts Options, f loginFlags) error {
 	if err != nil {
 		return err
 	}
-	client := n8n.NewWithBaseURL(base, append(opts.clientOptions(), n8n.WithAuth(auth))...)
-	if err := client.Verify(ctx); err != nil {
-		return loginError(instanceURL, err)
+	if !f.skipVerify {
+		client := n8n.NewWithBaseURL(base, append(opts.clientOptions(), n8n.WithAuth(auth))...)
+		if err := client.Verify(ctx); err != nil {
+			return loginError(instanceURL, err)
+		}
 	}
 
 	ref := name
@@ -186,6 +201,12 @@ func runAuthLogin(ctx context.Context, opts Options, f loginFlags) error {
 		if old, err := resolver.CredentialStore(existing.Storage); err == nil {
 			_ = old.Delete(existing.CredentialRef)
 		}
+	}
+
+	if f.skipVerify {
+		fmt.Fprintf(opts.Streams.Err, "Credential saved for %s as context %q using %s authentication (%s storage); verification skipped.\n",
+			instanceURL, name, authType, backend.Kind())
+		return nil
 	}
 
 	fmt.Fprintf(opts.Streams.Err, "Logged in to %s as context %q using %s authentication (%s storage).\n",
@@ -268,7 +289,9 @@ func loginError(instanceURL string, err error) error {
 	case n8n.IsUnauthorized(err):
 		return fmt.Errorf("%s rejected the credential (401): check that it is correct and has not expired or been revoked; nothing was saved", instanceURL)
 	case n8n.IsForbidden(err):
-		return fmt.Errorf("%s accepted the credential but denied access (403): it lacks the scope for %s; nothing was saved", instanceURL, n8n.DiscoverPath)
+		return fmt.Errorf("%s accepted the credential but denied access (403): it lacks the scope for %s; use --skip-verify to save without checking discovery access, then run a resource command your key permits; nothing was saved", instanceURL, n8n.DiscoverPath)
+	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
+		return fmt.Errorf("credential verification at %s%s is unavailable: %w; use --skip-verify to save without the remote check; nothing was saved", instanceURL, n8n.BasePath+n8n.DiscoverPath, err)
 	default:
 		return fmt.Errorf("could not reach %s: %w; nothing was saved", instanceURL, err)
 	}
