@@ -6,11 +6,17 @@ Store a credential for an n8n instance
 
 Store a credential for an n8n instance and select its context.
 
-Use this first: no resource command works until one login succeeds. The
+Use this to save a credential; environment credentials also work without login. The
 credential is read from a no-echo prompt, or from stdin with --stdin. It is
 never accepted as a flag or an argument, because process lists and shell history
 would expose it. It is validated against GET /api/v1/discover before anything
-is saved, so a typo or revoked key saves nothing.
+is saved, so a typo or revoked key saves nothing by default.
+
+Use --skip-verify for offline setup, instances without /discover, or keys that
+lack discovery access. This skips only the remote check: local validation,
+storage consent and replacement confirmation still apply. A wrong URL or invalid
+credential can be saved; access is checked on the first resource request.
+This command saves local configuration and never changes remote resources.
 
 Credentials are stored in the operating system credential store. With
 --storage=file they are stored in auth.json instead, which is plaintext protected
@@ -18,7 +24,10 @@ only by file permissions, not by encryption. Environment credentials
 (N8N_API_KEY and friends) override the saved one for a single run and are
 never persisted by this command.
 
-Next step: 'n8n auth status --check'.
+Next step: 'n8n auth status --check'. After --skip-verify, inspect saved state
+with 'n8n auth status', then run a resource command your key permits, such as
+'n8n user list --limit 1' for user:list. Discovery and auth status --check
+still require access to /discover.
 
 ```
 n8n auth login [flags]
@@ -35,6 +44,9 @@ n8n auth login [flags]
 
   # Named context with an explicit auth type and plaintext fallback:
   n8n auth login --url https://n8n.example.com --context production --type api-key --storage=file
+
+  # Save a narrowly scoped key without discovery verification:
+  n8n auth login --url https://n8n.example.com --context limited --skip-verify
 ```
 
 ### Options
@@ -42,6 +54,7 @@ n8n auth login [flags]
 ```
       --context string   context name to create or replace (default "default")
   -h, --help             help for login
+      --skip-verify      skip the remote /discover credential check (default false; saves without verifying access)
       --stdin            read the credential from stdin instead of prompting (use for scripts and AI agents)
       --storage string   credential storage: keyring or file (default keyring; file is plaintext, permissions-only protection)
       --type string      authentication type: api-key, bearer or cookie (default api-key) (default "api-key")

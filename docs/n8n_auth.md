@@ -9,7 +9,7 @@ Log in to an n8n instance and inspect stored credentials.
 Typical workflow: 'n8n auth login' once per instance, 'n8n auth status'
 to inspect what is saved, 'n8n auth status --check' to verify the
 credential still works, 'n8n auth logout' to forget it. Run resource
-commands only after login succeeds.
+commands with a saved credential or an environment credential.
 
 ```
 n8n auth [flags]
