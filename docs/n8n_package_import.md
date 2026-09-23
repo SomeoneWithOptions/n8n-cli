@@ -42,7 +42,7 @@ n8n package import [flags]
 
 ```
       --bindings string                     explicit credential bindings as JSON, e.g. '{"credentials":{"pkg-id":"target-id"}}' (default: server default {})
-      --context string                      saved context to use (default: the current context; see 'n8n config context list')
+      --context string                      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --credential-matching-mode string     how package credential references match: id-only, name-and-type, or type-only (default: server default id-only)
       --credential-missing-mode string      unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders (default: server default create-stub)
       --data-table-matching-mode string     data-table matching: by-id, the only mode (default: server default by-id)
@@ -59,7 +59,7 @@ n8n package import [flags]
       --project-id string                   target project ID, from 'n8n project list' (default: the caller's personal project)
       --tag-conflict-policy string          conflicted tag handling: skip, fail, or rename (default: server default skip)
       --tag-missing-mode string             missing tag handling: create or do-nothing (default: server default create)
-      --url string                          instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --variable-conflict-policy string     differing variable value handling: keep-existing, overwrite (may rewrite globals), or fail (default: server default keep-existing)
       --variable-missing-mode string        missing variable handling: do-nothing, must-preexist, create-stub, or create-with-value (default: server default create-with-value)
       --variable-parent-policy string       where workflow and folder packages create missing variables: project or global; omit for project packages, which reject it (default: import target project)

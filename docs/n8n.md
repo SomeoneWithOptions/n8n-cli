@@ -12,10 +12,13 @@ that credential can do before running resource commands.
   n8n auth status --check
   n8n discover
 
-Configuration precedence for non-secrets is: flag, environment variable
-(N8N_URL and friends), selected context, default. Secrets are never flags:
-they come from a no-echo prompt, --stdin, the environment, or the OS
-credential store.
+Context selection is --context, then N8N_CONTEXT, then the saved current context.
+An empty N8N_CONTEXT is unset. Resource commands, auth status and auth logout
+reject unknown names. Environment selection does not change the saved selection.
+Auth login can create a context, falls back to default, and selects its context
+when saving. URL precedence is --url, then N8N_URL, then the selected context URL.
+Secrets are never flags: they come from a no-echo prompt, --stdin, the environment,
+or the OS credential store.
 
 Commands write machine-readable results to stdout and diagnostics, prompts,
 and confirmations to stderr. Use --output json for scripting; use --help on

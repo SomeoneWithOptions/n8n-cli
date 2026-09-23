@@ -33,11 +33,11 @@ n8n otel set [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for set
       --input string     full OpenTelemetry settings JSON file path, or - for stdin (required; maximum 1 MiB)
       --output string    output format: text or json (JSON includes possibly sensitive exporter headers) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes              confirm full replacement and immediate runtime application without prompting (required when stdin is not interactive)
 ```
 

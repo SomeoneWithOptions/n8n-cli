@@ -14,6 +14,10 @@ is used once against GET /api/v1/discover to report whether the instance
 still accepts it; --check fails the command when the credential is missing
 or rejected, so scripts and agents can gate on it.
 
+Context selection is --context, then N8N_CONTEXT, then the saved current context.
+The current marker reports the saved selection, even when the environment selects
+another context for this run. This command does not change that saved selection.
+
 ```
 n8n auth status [flags]
 ```
@@ -23,6 +27,7 @@ n8n auth status [flags]
 ```
   n8n auth status
   n8n auth status --check
+  N8N_CONTEXT=production n8n auth status --check
   n8n auth status --context production --output json
 ```
 
@@ -30,7 +35,7 @@ n8n auth status [flags]
 
 ```
       --check            validate the credential against the instance; exit non-zero when unusable
-      --context string   context to describe (default: the current context)
+      --context string   saved context name to describe (falls back to N8N_CONTEXT, then the saved current context)
   -h, --help             help for status
       --output string    output format: text or json (default text; json is stable for scripting) (default "text")
 ```

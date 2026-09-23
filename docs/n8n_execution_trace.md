@@ -53,7 +53,7 @@ n8n execution trace [execution-id] [flags]
 ### Options
 
 ```
-      --context string                 saved context to use (default: the current context; see 'n8n config context list')
+      --context string                 saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --fail-on-error                  exit 1 when the traced run ends error or crashed (default: exit 0 whatever the outcome)
       --follow                         poll until the run reaches a terminal status, printing node runs as they appear (default: print once and exit)
   -h, --help                           help for trace
@@ -62,7 +62,7 @@ n8n execution trace [execution-id] [flags]
       --no-preflight                   skip the advisory check of the workflow's 'Save execution progress' setting before --follow (default: check and warn)
       --output string                  output format: text or json (JSON is one indented object, or NDJSON lines with --follow) (default "text")
       --redact-execution-data string   detailed-data redaction: true always redacts, false reveals and needs execution:reveal (default: workflow policy)
-      --url string                     instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                     instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --verbose                        also print each node run's input/output data as indented JSON (default: status, duration and error only)
       --workflow-id string             trace this workflow's most recent run, or with --follow its active or next run; cannot be combined with an execution ID
 ```

@@ -50,7 +50,7 @@ n8n execution watch [flags]
 ### Options
 
 ```
-      --context string       saved context to use (default: the current context; see 'n8n config context list')
+      --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --follow               append a line per new or changed execution instead of redrawing the table (default: redraw)
   -h, --help                 help for watch
       --interval duration    time between polls, e.g. 2s, 500ms is rejected; 1s to 1h (default 2s) (default 2s)
@@ -59,7 +59,7 @@ n8n execution watch [flags]
       --output string        output format: text or json (JSON is NDJSON, one execution object per line per change) (default "text")
       --project-id string    only executions in this project, from 'n8n project list' (default: every accessible project)
       --status string        execution status: canceled, crashed, error, new, running, success, unknown, or waiting (default: every status)
-      --url string           instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string           instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --workflow-id string   only executions of this workflow, from 'n8n workflow list' (default: every workflow)
 ```
 

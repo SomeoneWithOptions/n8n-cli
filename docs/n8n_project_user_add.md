@@ -31,11 +31,11 @@ n8n project user add <project-id> [flags]
 ### Options
 
 ```
-      --context string     saved context to use (default: the current context; see 'n8n config context list')
+      --context string     saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help               help for add
       --input string       member JSON array file path, or - for stdin (cannot combine with --user; maximum 1 MiB)
       --output string      output format: text or json (acknowledgement lists the members sent) (default "text")
-      --url string         instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string         instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --user stringArray   member to add as USER_ID=ROLE, repeatable (cannot combine with --input)
 ```
 

@@ -26,11 +26,11 @@ n8n ldap sync run [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for run
       --output string    output format: text or json (result is one synchronization history record) (default "text")
       --type string      synchronization mode: dry previews without user changes; live applies user changes (required)
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes              confirm live synchronization without prompting, including possible user disablement (required for non-interactive live runs)
 ```
 

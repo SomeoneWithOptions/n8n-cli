@@ -30,11 +30,11 @@ n8n workflow tag set <workflow-id> [flags]
 
 ```
       --clear                remove every tag from the workflow (cannot combine with --tag-id)
-      --context string       saved context to use (default: the current context; see 'n8n config context list')
+      --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                 help for set
       --output string        output format: text or json (JSON is the resulting array of tags) (default "text")
       --tag-id stringArray   tag ID the workflow should carry, repeatable, from 'n8n tag list' (required unless --clear)
-      --url string           instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string           instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

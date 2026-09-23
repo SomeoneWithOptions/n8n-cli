@@ -28,13 +28,13 @@ n8n evaluation list <workflow-id> [flags]
 
 ```
       --all              follow every run page instead of one (maximum 10,000 runs)
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string    pagination cursor returned by a previous run list (default: first page)
   -h, --help             help for list
       --limit int        evaluation runs per API page, 1 to 250 (default: server default of 100)
       --output string    output format: text or json (JSON is a page object with data and nextCursor) (default "text")
       --status string    run status: new, running, completed, error, or cancelled (default: every status)
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

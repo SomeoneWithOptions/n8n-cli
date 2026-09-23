@@ -36,13 +36,13 @@ n8n source-control push [flags]
 
 ```
       --commit-message string   commit message for the push, 1 to 1000 characters (required unless --input is used)
-      --context string          saved context to use (default: the current context; see 'n8n config context list')
+      --context string          saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --file stringArray        file to push as ID:TYPE, repeatable (cannot combine with --input; types: credential, workflow, tags, variables, file, folders, project, datatable)
       --force                   push despite unresolved conflicts (default: reject a conflicted push with 409)
   -h, --help                    help for push
       --input string            push JSON file path with commitMessage and fileNames, or - for stdin (cannot combine with --commit-message or --file; maximum 1 MiB)
       --output string           output format: text or json (JSON is the pushed files returned by the API) (default "text")
-      --url string              instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string              instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes                     confirm pushing to the remote Git branch without prompting (required when stdin is not interactive)
 ```
 

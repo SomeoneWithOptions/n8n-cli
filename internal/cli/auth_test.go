@@ -448,7 +448,7 @@ func TestAuthLoginReplacesExistingCredentialOnlyWithConsent(t *testing.T) {
 		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") {
 			t.Fatalf("exit code = %d, stderr = %q; want an aborted replacement", got.code, got.stderr)
 		}
-		stored, err := f.keyring.Get(DefaultContextName)
+		stored, err := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 		if err != nil {
 			t.Fatalf("credential store: %v", err)
 		}
@@ -467,7 +467,7 @@ func TestAuthLoginReplacesExistingCredentialOnlyWithConsent(t *testing.T) {
 		f.stdin = "y\n"
 
 		f.login()
-		stored, err := f.keyring.Get(DefaultContextName)
+		stored, err := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 		if err != nil {
 			t.Fatalf("credential store: %v", err)
 		}
@@ -498,7 +498,7 @@ func TestAuthLoginReplacesExistingCredentialOnlyWithConsent(t *testing.T) {
 		if got.code != ExitSuccess {
 			t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
 		}
-		stored, _ := f.keyring.Get(DefaultContextName)
+		stored, _ := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 		if stored.Value.Reveal() != "replacement-key" {
 			t.Error("--yes did not replace the credential")
 		}
@@ -710,7 +710,7 @@ func TestAuthStatusWithoutAnyContext(t *testing.T) {
 func TestAuthStatusReportsAMissingCredential(t *testing.T) {
 	f := newFixture(t)
 	f.login()
-	if err := f.keyring.Delete(DefaultContextName); err != nil {
+	if err := f.keyring.Delete(f.config().Contexts[DefaultContextName].CredentialRef); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
@@ -772,7 +772,7 @@ func TestAuthStatusReportsEnvironmentCredentials(t *testing.T) {
 	if auth := f.lastRequest().Header.Get("Authorization"); auth != "Bearer "+testBearerJWT {
 		t.Errorf("Authorization = %q, want the environment bearer token", auth)
 	}
-	stored, err := f.keyring.Get(DefaultContextName)
+	stored, err := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 	if err != nil || stored.Value.Reveal() != testAPIKey {
 		t.Error("the environment credential replaced the stored one")
 	}
@@ -794,13 +794,14 @@ func TestAuthLogout(t *testing.T) {
 	t.Run("confirmed", func(t *testing.T) {
 		f := newFixture(t)
 		f.login("--context", "production")
+		ref := f.config().Contexts["production"].CredentialRef
 		f.stdin = "y\n"
 
 		got := f.run("auth", "logout")
 		if got.code != ExitSuccess {
 			t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
 		}
-		if _, err := f.keyring.Get("production"); !errors.Is(err, config.ErrCredentialNotFound) {
+		if _, err := f.keyring.Get(ref); !errors.Is(err, config.ErrCredentialNotFound) {
 			t.Errorf("credential store = %v, want the credential gone", err)
 		}
 		if _, ok := f.config().Contexts["production"]; !ok {
@@ -822,12 +823,13 @@ func TestAuthLogout(t *testing.T) {
 	t.Run("purge", func(t *testing.T) {
 		f := newFixture(t)
 		f.login("--context", "production")
+		ref := f.config().Contexts["production"].CredentialRef
 
 		got := f.run("auth", "logout", "--context", "production", "--purge", "--yes")
 		if got.code != ExitSuccess {
 			t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
 		}
-		if _, err := f.keyring.Get("production"); !errors.Is(err, config.ErrCredentialNotFound) {
+		if _, err := f.keyring.Get(ref); !errors.Is(err, config.ErrCredentialNotFound) {
 			t.Errorf("credential store = %v, want the credential gone", err)
 		}
 		cfg := f.config()
@@ -868,7 +870,7 @@ func TestAuthLogout(t *testing.T) {
 		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") {
 			t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
 		}
-		if _, err := f.keyring.Get("production"); err != nil {
+		if _, err := f.keyring.Get(f.config().Contexts["production"].CredentialRef); err != nil {
 			t.Errorf("a declined purge deleted the credential: %v", err)
 		}
 		if _, ok := f.config().Contexts["production"]; !ok {
@@ -885,7 +887,7 @@ func TestAuthLogout(t *testing.T) {
 		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") {
 			t.Fatalf("exit code = %d, stderr = %q", got.code, got.stderr)
 		}
-		if _, err := f.keyring.Get(DefaultContextName); err != nil {
+		if _, err := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef); err != nil {
 			t.Error("a declined logout deleted the credential")
 		}
 	})

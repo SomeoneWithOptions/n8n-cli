@@ -134,3 +134,71 @@ func TestConfigValidate(t *testing.T) {
 		}
 	})
 }
+
+func TestRename(t *testing.T) {
+	for _, current := range []string{"old", "other", ""} {
+		t.Run("current="+current, func(t *testing.T) {
+			cfg := New()
+			saved := testContext("https://n8n.example.com")
+			if err := cfg.Put("old", saved); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.Put("other", saved); err != nil {
+				t.Fatal(err)
+			}
+			cfg.CurrentContext = current
+			changed, err := cfg.Rename("old", "new")
+			if err != nil || !changed {
+				t.Fatalf("rename: %v, %v", changed, err)
+			}
+			if cfg.Contexts["new"] != saved || cfg.Contexts["other"] != saved || len(cfg.Contexts) != 2 {
+				t.Fatal("rename changed context fields")
+			}
+			if _, exists := cfg.Contexts["old"]; exists {
+				t.Fatal("source remains")
+			}
+			want := current
+			if current == "old" {
+				want = "new"
+			}
+			if cfg.CurrentContext != want {
+				t.Fatalf("current = %q, want %q", cfg.CurrentContext, want)
+			}
+		})
+	}
+	for _, tt := range []struct {
+		old, new string
+		wantErr  bool
+	}{
+		{"old", "old", false}, {"missing", "missing", true}, {"missing", "new", true},
+		{"old", "other", true}, {"", "new", true}, {"old", "", true},
+		{".old", "new", true}, {"old", ".new", true}, {"old", "with space", true},
+		{"old", strings.Repeat("x", 65), true}, {"old", "é", true},
+	} {
+		t.Run(tt.old+"/"+tt.new, func(t *testing.T) {
+			cfg := New()
+			if err := cfg.Put("old", testContext("https://n8n.example.com")); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.Put("other", testContext("https://n8n.example.com")); err != nil {
+				t.Fatal(err)
+			}
+			cfg.CurrentContext = "old"
+			before, err := encodeConfig(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed, err := cfg.Rename(tt.old, tt.new)
+			if changed || (err != nil) != tt.wantErr {
+				t.Fatalf("rename = %v, %v", changed, err)
+			}
+			after, err := encodeConfig(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(before) != string(after) {
+				t.Fatal("no-op/error changed metadata")
+			}
+		})
+	}
+}

@@ -30,10 +30,10 @@ n8n community-package install <name> [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for install
       --output string    output format: text or json (default text; json is stable for scripting) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --verify           verify against n8n's vetted package list (default true; --verify=false permits unverified code when allowed) (default true)
       --version string   npm package version, e.g. 1.2.3 (default: let n8n select the version)
       --yes              confirm the instance-changing action without prompting (required when stdin is not interactive)

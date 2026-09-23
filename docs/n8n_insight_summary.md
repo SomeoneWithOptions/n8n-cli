@@ -31,13 +31,13 @@ n8n insight summary [flags]
 ### Options
 
 ```
-      --context string      saved context to use (default: the current context; see 'n8n config context list')
+      --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --end-date string     period end as an RFC3339 timestamp (default: server default of now)
   -h, --help                help for summary
       --output string       output format: text or json (JSON preserves metric values, units, and null deviations) (default "text")
       --project-id string   only include this project, from 'n8n project list' (default: every accessible project)
       --start-date string   period start as an RFC3339 timestamp (default: server default of seven days ago)
-      --url string          instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

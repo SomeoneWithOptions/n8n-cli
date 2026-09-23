@@ -6,6 +6,10 @@ Store a credential for an n8n instance
 
 Store a credential for an n8n instance and select its context.
 
+The context name comes from --context, then N8N_CONTEXT, then default. Unlike
+resource commands, login does not fall back to the saved current context. A
+successful login selects the saved context, including when named by the environment.
+
 Use this to save a credential; environment credentials also work without login. The
 credential is read from a no-echo prompt, or from stdin with --stdin. It is
 never accepted as a flag or an argument, because process lists and shell history
@@ -23,6 +27,11 @@ Credentials are stored in the operating system credential store. With
 only by file permissions, not by encryption. Environment credentials
 (N8N_API_KEY and friends) override the saved one for a single run and are
 never persisted by this command.
+
+Each login saves a fresh credential reference, independent of context names.
+A crash during saving or cleanup can leave an unused credential in storage.
+Older CLI versions can reuse name-based references: avoid writing this shared
+configuration with older binaries after renaming contexts.
 
 Next step: 'n8n auth status --check'. After --skip-verify, inspect saved state
 with 'n8n auth status', then run a resource command your key permits, such as
@@ -52,7 +61,7 @@ n8n auth login [flags]
 ### Options
 
 ```
-      --context string   context name to create or replace (default "default")
+      --context string   context name to create or replace (falls back to N8N_CONTEXT, then "default")
   -h, --help             help for login
       --skip-verify      skip the remote /discover credential check (default false; saves without verifying access)
       --stdin            read the credential from stdin instead of prompting (use for scripts and AI agents)

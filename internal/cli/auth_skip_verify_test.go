@@ -155,7 +155,7 @@ func TestAuthLoginSkipVerifyKeepsReplacementConsent(t *testing.T) {
 	if got.code != ExitError || !strings.Contains(got.stderr, "--yes") {
 		t.Fatalf("replacement should require consent: %+v", got)
 	}
-	stored, err := f.keyring.Get(DefaultContextName)
+	stored, err := f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 	if err != nil || stored.Value.Reveal() != testAPIKey {
 		t.Fatal("refused replacement changed credential")
 	}
@@ -163,7 +163,7 @@ func TestAuthLoginSkipVerifyKeepsReplacementConsent(t *testing.T) {
 	if got.code != ExitSuccess {
 		t.Fatalf("confirmed replacement failed: %+v", got)
 	}
-	stored, err = f.keyring.Get(DefaultContextName)
+	stored, err = f.keyring.Get(f.config().Contexts[DefaultContextName].CredentialRef)
 	if err != nil || stored.Value.Reveal() != "replacement-key" || f.requestCount() != 0 {
 		t.Fatal("confirmed replacement must save locally without HTTP")
 	}

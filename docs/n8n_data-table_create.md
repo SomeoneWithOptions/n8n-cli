@@ -29,11 +29,11 @@ n8n data-table create <name> [flags]
 
 ```
       --column stringArray   column as NAME:TYPE, repeatable and required, e.g. email:string (types: string, number, boolean, date, json)
-      --context string       saved context to use (default: the current context; see 'n8n config context list')
+      --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                 help for create
       --output string        output format: text or json (JSON is the created table) (default "text")
       --project-id string    project to create the table in (default: the caller's personal project)
-      --url string           instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string           instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

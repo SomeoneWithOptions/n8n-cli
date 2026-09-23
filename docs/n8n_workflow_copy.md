@@ -18,8 +18,8 @@ promote' and 'n8n promotion apply' are a different machine: Git-remote batch
 sync of whole projects through a source-control connection, not this.
 
 Both contexts must be saved ('n8n auth login --context NAME'); this command uses
-each context's saved URL and credential and ignores N8N_URL and environment
-credentials on both sides. Needs workflow:read on the source, plus workflow:list
+each context's saved URL and credential and ignores N8N_CONTEXT, N8N_URL and
+environment credentials on both sides. Needs workflow:read on the source, plus workflow:list
 when resolving --name, and workflow:read plus workflow:create and/or
 workflow:update on the target. --publish additionally needs workflow:activate
 and the project's workflow:publish permission on the target.

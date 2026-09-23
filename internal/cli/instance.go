@@ -19,8 +19,8 @@ type instanceFlags struct {
 
 // register adds the shared connection flags to cmd.
 func (f *instanceFlags) register(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.context, "context", "", "saved context to use (default: the current context; see 'n8n config context list')")
-	cmd.Flags().StringVar(&f.url, "url", "", "instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)")
+	cmd.Flags().StringVar(&f.context, "context", "", "saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')")
+	cmd.Flags().StringVar(&f.url, "url", "", "instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)")
 }
 
 // selection turns the flags into a resolver selection.
@@ -136,7 +136,7 @@ func loginHint(resolution config.Resolution) string {
 	if resolution.Source == config.SourceEnv {
 		return "'n8n auth status' (the credential comes from the environment, not from a saved context)"
 	}
-	if resolution.ContextName == "" || resolution.ContextName == DefaultContextName {
+	if resolution.ContextName == "" {
 		return "'n8n auth login'"
 	}
 	return fmt.Sprintf("'n8n auth login --context %s'", resolution.ContextName)

@@ -31,13 +31,13 @@ n8n data-table row insert <table-id> [flags]
 ### Options
 
 ```
-      --context string    saved context to use (default: the current context; see 'n8n config context list')
+      --context string    saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help              help for insert
       --input string      row JSON array or object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)
       --output string     output format: text or json (JSON preserves the count, ids and rows the API sent) (default "text")
       --return string     what the API returns: count, id or all (default: the server default of count)
       --set stringArray   column value as COLUMN=VALUE for one row, repeatable (cannot combine with --input)
-      --url string        instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string        instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

@@ -32,7 +32,7 @@ n8n workflow list [flags]
 ```
       --active string         only published (true) or unpublished (false) workflows (default: both)
       --all                   follow every page instead of one (maximum 10,000 workflows)
-      --context string        saved context to use (default: the current context; see 'n8n config context list')
+      --context string        saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string         pagination cursor returned by a previous list (default: the first page)
       --exclude-pinned-data   leave pinned sample data out of the response (default: include it)
   -h, --help                  help for list
@@ -42,7 +42,7 @@ n8n workflow list [flags]
       --output string         output format: text or json (JSON is a page object with data and nextCursor) (default "text")
       --project-id string     only workflows in this project, from 'n8n project list' (default: every project)
       --tag stringArray       only workflows carrying this tag name, repeatable and combined with AND (default: any tag)
-      --url string            instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string            instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SomeoneWithOptions/n8n-cli/internal/config"
+	"github.com/SomeoneWithOptions/n8n-cli/internal/contextops"
 )
 
 func newConfigCommand(opts Options) *cobra.Command {
@@ -35,9 +36,11 @@ func newContextCommand(opts Options) *cobra.Command {
 			"A context is one instance URL, one authentication type and a reference to the\n" +
 			"credential stored for it. Contexts are kept apart so a credential for one\n" +
 			"instance is never sent to another. List with 'list', switch with 'use NAME',\n" +
-			"remove with 'delete NAME'. Create or repair one with 'n8n auth login'.",
+			"rename with 'rename OLD NEW', remove with 'delete NAME'. Create or repair one\n" +
+			"with 'n8n auth login'.",
 		Example: "  n8n config context list\n" +
 			"  n8n config context use production\n" +
+			"  n8n config context rename default work\n" +
 			"  n8n config context delete old-staging --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
@@ -45,6 +48,7 @@ func newContextCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(
 		newContextListCommand(opts),
 		newContextUseCommand(opts),
+		newContextRenameCommand(opts),
 		newContextDeleteCommand(opts),
 	)
 	return cmd
@@ -128,7 +132,8 @@ func newContextUseCommand(opts Options) *cobra.Command {
 		Short: "Select the context used by subsequent commands",
 		Long: "Select the context used by subsequent commands.\n\n" +
 			"NAME must already exist (see 'n8n config context list'). The choice takes\n" +
-			"effect immediately for later runs. Create a new context with\n" +
+			"effect for later runs unless --context or N8N_CONTEXT overrides it. Unset\n" +
+			"N8N_CONTEXT to use the saved selection. Create a new context with\n" +
 			"'n8n auth login --context NAME'.",
 		Example: "  n8n config context use production",
 		Args:    cobra.ExactArgs(1),
@@ -140,7 +145,7 @@ func newContextUseCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := store.Update(func(cfg *config.Config) error { return cfg.Use(args[0]) }); err != nil {
+			if err := contextops.New(store, nil).Use(args[0]); err != nil {
 				return err
 			}
 			fmt.Fprintf(opts.Streams.Err, "Now using context %q.\n", args[0])
@@ -186,12 +191,8 @@ func newContextDeleteCommand(opts Options) *cobra.Command {
 				return err
 			}
 
-			if backend, err := resolver.CredentialStore(saved.Storage); err == nil {
-				if err := backend.Delete(saved.CredentialRef); err != nil {
-					return err
-				}
-			}
-			if err := resolver.Store.Update(func(cfg *config.Config) error { return cfg.Remove(name) }); err != nil {
+			_, err = contextops.New(resolver.Store, resolver.CredentialStore).Logout(contextops.Capture(cfg, name), true)
+			if err != nil {
 				return err
 			}
 
@@ -219,4 +220,46 @@ func completeContextNames(opts Options, args []string) ([]string, cobra.ShellCom
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return cfg.Names(), cobra.ShellCompDirectiveNoFileComp
+}
+
+func newContextRenameCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rename OLD NEW",
+		Short: "Rename a saved context without changing its credentials",
+		Long: "Rename a saved context locally.\n\n" +
+			"OLD must exist and NEW must be unused; an existing same-name rename is a no-op.\n" +
+			"Names use 1–64 ASCII letters, digits, '-', '_' or '.', with no leading dot.\n" +
+			"URL, authentication, storage and credential identity are preserved. If OLD is\n" +
+			"current, the selection follows NEW. This CLI-side metadata change needs no\n" +
+			"network or credential-store access and never changes remote resources.\n\n" +
+			"No confirmation is needed. Success prints a message to stderr, leaving stdout\n" +
+			"empty. External scripts, --context and N8N_CONTEXT still refer to literal names:\n" +
+			"update N8N_CONTEXT after renaming its selected context, or unset it. Update\n" +
+			"references to OLD yourself; no alias is created. Avoid writing shared config\n" +
+			"with older binaries that reuse names as credential references.\n" +
+			"Next step: 'n8n config context list --output json' to inspect saved state.",
+		Example: "  n8n config context rename default work\n" +
+			"  n8n config context use work",
+		Annotations: map[string]string{"cliOnly": "true"},
+		Args:        cobra.ExactArgs(2),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			return completeContextNames(opts, args)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := opts.store()
+			if err != nil {
+				return err
+			}
+			changed, err := contextops.New(store, nil).Rename(args[0], args[1])
+			if err != nil {
+				return err
+			}
+			if !changed {
+				fmt.Fprintf(opts.Streams.Err, "Context %q already has that name; nothing changed.\n", args[0])
+				return nil
+			}
+			fmt.Fprintf(opts.Streams.Err, "Renamed context %q to %q.\n", args[0], args[1])
+			return nil
+		},
+	}
 }

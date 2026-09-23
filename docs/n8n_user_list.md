@@ -29,7 +29,7 @@ n8n user list [flags]
 
 ```
       --all                 follow every page instead of one (maximum 10,000 users)
-      --context string      saved context to use (default: the current context; see 'n8n config context list')
+      --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string       pagination cursor returned by a previous list (default: first page; cannot combine with --offset)
   -h, --help                help for list
       --include-role        include each user's global role (default: role is omitted by API)
@@ -37,7 +37,7 @@ n8n user list [flags]
       --offset int          users to skip before first page, zero or greater (default: 0; cannot combine with --cursor)
       --output string       output format: text or json (JSON is a paginated user object) (default "text")
       --project-id string   return members of this project ID (default: all visible instance users)
-      --url string          instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

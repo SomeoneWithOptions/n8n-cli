@@ -42,7 +42,7 @@ n8n package export [flags]
 ### Options
 
 ```
-      --context string                              saved context to use (default: the current context; see 'n8n config context list')
+      --context string                              saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --credential-export-policy string             credential data handling: expression-values-only or no-values; literal values never travel (default: server default expression-values-only)
       --folder-id stringArray                       folder to include with nested folders, repeatable up to 300 (cannot combine with --project-id or --input)
   -h, --help                                        help for export
@@ -54,7 +54,7 @@ n8n package export [flags]
       --out string                                  local destination for the .n8np archive: a file path, or - for stdout raw bytes (required)
       --output string                               summary format: text or json (JSON is the counts, filename, byte size, and local file) (default "text")
       --project-id stringArray                      project to include, repeatable (cannot combine with --workflow-id, --folder-id, or --input)
-      --url string                                  instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string                                  instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --workflow-id stringArray                     workflow to include, repeatable up to 300 (cannot combine with --project-id or --input)
       --workflow-version-policy string              which workflow version travels: published-strict, prefer-published, ignore-unpublished, or latest (default: server default latest)
 ```

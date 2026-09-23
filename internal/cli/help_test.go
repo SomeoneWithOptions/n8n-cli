@@ -264,6 +264,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"config", "context"},
 		{"config", "context", "list"},
 		{"config", "context", "use"},
+		{"config", "context", "rename"},
 		{"config", "context", "delete"},
 		{"version"},
 		{"update"},

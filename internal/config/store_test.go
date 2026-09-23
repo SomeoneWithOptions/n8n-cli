@@ -410,3 +410,39 @@ func TestCredentialStoreKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestLifecycleLockNeverEvictedByAge(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	restore := lockTimeout
+	lockTimeout = 30 * time.Millisecond
+	t.Cleanup(func() { lockTimeout = restore })
+	path := store.Path(".lifecycle.lock")
+	if err := os.WriteFile(path, []byte("active writer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stale := time.Now().Add(-2 * lockStaleAfter)
+	if err := os.Chtimes(path, stale, stale); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	err = store.WithLifecycle(func() error { called = true; return nil })
+	if err == nil || !strings.Contains(err.Error(), "timed out") || called {
+		t.Fatalf("active old lock bypassed: called=%v, err=%v", called, err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("lock removed: %v", err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	sentinel := errors.New("callback failed")
+	if err := store.WithLifecycle(func() error { return sentinel }); !errors.Is(err, sentinel) {
+		t.Fatal(err)
+	}
+	if err := store.WithLifecycle(func() error { return store.Update(func(*Config) error { return nil }) }); err != nil {
+		t.Fatalf("lock not released or nested file lock failed: %v", err)
+	}
+}

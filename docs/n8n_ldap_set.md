@@ -31,11 +31,11 @@ n8n ldap set [flags]
 ### Options
 
 ```
-      --context string   saved context to use (default: the current context; see 'n8n config context list')
+      --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help             help for set
       --input string     full LDAP configuration JSON file path, or - for stdin (required; maximum 1 MiB; may contain a bind password)
       --output string    output format: text or json (password is returned only as an n8n placeholder) (default "text")
-      --url string       instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes              confirm full replacement without prompting; also accepts destructive identity deletion when loginEnabled=false (required for non-interactive use)
 ```
 

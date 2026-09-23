@@ -36,11 +36,11 @@ n8n source-control pull [flags]
 
 ```
       --auto-publish string   workflow publishing after import: none, all, or published (default: none) (default "none")
-      --context string        saved context to use (default: the current context; see 'n8n config context list')
+      --context string        saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --force                 discard local changes and force the pull to complete (default: reject a conflicted pull with 409)
   -h, --help                  help for pull
       --output string         output format: text or json (JSON is the array of pulled files) (default "text")
-      --url string            instance URL override, e.g. https://n8n.example.com (default: the context URL, else N8N_URL)
+      --url string            instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --yes                   confirm rewriting local instance content without prompting (required when stdin is not interactive)
 ```
 

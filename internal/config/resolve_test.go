@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -355,5 +356,87 @@ func TestNewResolverUsesTheRealBackends(t *testing.T) {
 	t.Setenv(EnvURL, "https://from-process-env.example.com")
 	if got := r.env(EnvURL); got != "https://from-process-env.example.com" {
 		t.Errorf("env(%s) = %q, want the process environment", EnvURL, got)
+	}
+}
+
+func TestResolveContextPrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name, flag, env, current, want string
+	}{
+		{"flag wins", "flagged", "work", "current", "flagged"},
+		{"flag ignores invalid env", "flagged", ".invalid", "current", "flagged"},
+		{"flag ignores unknown env", "flagged", "gone", "current", "flagged"},
+		{"env wins", "", "work", "current", "work"},
+		{"env without current", "", "work", "", "work"},
+		{"empty env falls back", "", "", "current", "current"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newTestResolver(t, map[string]string{EnvContext: tt.env})
+			for _, name := range []string{"current", "work", "flagged"} {
+				saved := testContext("https://" + name + ".example.com")
+				saved.CredentialRef = name
+				seed(t, r, name, saved, Credential{Type: n8n.AuthAPIKey, Value: n8n.Secret(name + "-secret")})
+			}
+			if err := r.Store.Update(func(cfg *Config) error { cfg.CurrentContext = tt.current; return nil }); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(r.Store.Path(ConfigFileName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := r.Resolve(Selection{Context: tt.flag})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.ContextName != tt.want || got.URL != "https://"+tt.want+".example.com/api/v1" || got.Credential.Value.Reveal() != tt.want+"-secret" {
+				t.Fatal("context, URL or credential did not follow selection precedence")
+			}
+			after, err := os.ReadFile(r.Store.Path(ConfigFileName))
+			if err != nil || string(before) != string(after) {
+				t.Fatal("environment selection changed saved metadata")
+			}
+		})
+	}
+}
+
+func TestResolveRejectsBadSelectedContextWithEnvironmentAuth(t *testing.T) {
+	for _, name := range []string{"gone", ".bad", " ", " work ", strings.Repeat("x", 65), "é"} {
+		for _, flag := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%q/flag=%v", name, flag), func(t *testing.T) {
+				env := map[string]string{EnvURL: "https://env.example.com", EnvAPIKey: "env-secret", EnvContext: name}
+				r := newTestResolver(t, env)
+				seed(t, r, "current", testContext("https://current.example.com"), testCredential())
+				var sel Selection
+				if flag {
+					sel.Context = name
+					env[EnvContext] = "current"
+				}
+				_, err := r.Resolve(sel)
+				source := EnvContext
+				if flag {
+					source = "--context"
+				}
+				if err == nil || !strings.Contains(err.Error(), source) || strings.Contains(err.Error(), "env-secret") {
+					t.Fatalf("bad selection error = %v", err)
+				}
+				if name == "gone" && !IsNotFound(err) {
+					t.Fatalf("missing-context error lost: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestResolveEnvContextWithEnvOverrides(t *testing.T) {
+	r := newTestResolver(t, map[string]string{
+		EnvContext: "work", EnvURL: "https://override.example.com", EnvBearerToken: "env-token",
+	})
+	seed(t, r, "work", testContext("https://saved.example.com"), testCredential())
+	got, err := r.Resolve(Selection{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ContextName != "work" || got.URL != "https://override.example.com/api/v1" || got.Source != SourceEnv || got.AuthType != n8n.AuthBearer || got.Credential.Value.Reveal() != "env-token" {
+		t.Fatal("env context changed URL/credential override semantics")
 	}
 }
