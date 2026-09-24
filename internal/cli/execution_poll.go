@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -201,20 +200,9 @@ func listExecutionsWithRunning(ctx context.Context, client *n8n.Client, opts n8n
 	if len(running.Data) == 0 {
 		return page.Data, nil
 	}
-	seen := map[string]bool{}
-	merged := make([]n8n.Execution, 0, len(page.Data)+len(running.Data))
 	// Active rows first, so a run listed as "new" and "running" at once keeps
 	// the live status.
-	for _, execution := range append(running.Data, page.Data...) {
-		if !seen[execution.ID] {
-			seen[execution.ID] = true
-			merged = append(merged, execution)
-		}
-	}
-	slices.SortFunc(merged, func(a, b n8n.Execution) int { return compareExecutionIDs(b.ID, a.ID) })
-	if opts.Limit > 0 && len(merged) > opts.Limit {
-		merged = merged[:opts.Limit]
-	}
+	merged, _ := mergeExecutionsNewestFirst(opts.Limit, running.Data, page.Data)
 	return merged, nil
 }
 

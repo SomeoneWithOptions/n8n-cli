@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +58,45 @@ func TestExecutionListCommand(t *testing.T) {
 	}
 	if strings.Contains(out.String(), instance.APIKey.Reveal()) {
 		t.Error("credential leaked into stdout")
+	}
+}
+
+// TestExecutionListCommandMultiStatus is read-only: several statuses fan out
+// one request each, and the merge must hold only those statuses, newest first.
+func TestExecutionListCommandMultiStatus(t *testing.T) {
+	instance := integration.Require(t)
+	env := map[string]string{config.EnvURL: instance.URL, config.EnvAPIKey: instance.APIKey.Reveal()}
+	interactive := false
+	var out, errOut strings.Builder
+	code := cli.Run(context.Background(), []string{"execution", "list", "--status", "success,error", "--limit", "5", "--output", "json"}, cli.Options{
+		Streams:     cli.Streams{In: strings.NewReader(""), Out: &out, Err: &errOut},
+		Version:     version.Get(),
+		ConfigDir:   t.TempDir(),
+		Env:         func(name string) string { return env[name] },
+		Keyring:     config.NewMemoryStore(config.StorageKeyring),
+		Interactive: &interactive,
+	})
+	if code != cli.ExitSuccess {
+		t.Fatalf("execution list exit code = %d (stderr: %s)", code, errOut.String())
+	}
+	var page n8n.Page[n8n.Execution]
+	if err := json.Unmarshal([]byte(out.String()), &page); err != nil {
+		t.Fatalf("stdout is not an execution page: %v\n%s", err, out.String())
+	}
+	if len(page.Data) > 5 || page.NextCursor != "" {
+		t.Errorf("page has %d rows and cursor %q, want at most 5 and no cursor", len(page.Data), page.NextCursor)
+	}
+	for i, execution := range page.Data {
+		if execution.Status != "success" && execution.Status != "error" {
+			t.Errorf("execution %s has status %q, want success or error", execution.ID, execution.Status)
+		}
+		if i > 0 {
+			prev, _ := strconv.ParseInt(page.Data[i-1].ID, 10, 64)
+			cur, _ := strconv.ParseInt(execution.ID, 10, 64)
+			if cur >= prev {
+				t.Errorf("execution %s follows %s, want newest first", execution.ID, page.Data[i-1].ID)
+			}
+		}
 	}
 }
 

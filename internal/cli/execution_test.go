@@ -118,11 +118,15 @@ func TestExecutionListAllKeepsFiltersAndRejectsDetailedData(t *testing.T) {
 
 func TestExecutionListValidation(t *testing.T) {
 	for name, args := range map[string][]string{
-		"status":     {"execution", "list", "--status", "queued"},
-		"timestamp":  {"execution", "list", "--started-after", "yesterday"},
-		"range":      {"execution", "list", "--started-after", "2026-09-18T00:00:00Z", "--started-before", "2026-09-17T00:00:00Z"},
-		"redaction":  {"execution", "list", "--redact-execution-data", "maybe"},
-		"size limit": {"execution", "list", "--ignore-data-size-limit"},
+		"status":        {"execution", "list", "--status", "queued"},
+		"status in set": {"execution", "list", "--status", "success,queued"},
+		"status twice":  {"execution", "list", "--status", "success,success"},
+		"status empty":  {"execution", "list", "--status", "success,"},
+		"cursor multi":  {"execution", "list", "--status", "success,error", "--cursor", "abc"},
+		"timestamp":     {"execution", "list", "--started-after", "yesterday"},
+		"range":         {"execution", "list", "--started-after", "2026-09-18T00:00:00Z", "--started-before", "2026-09-17T00:00:00Z"},
+		"redaction":     {"execution", "list", "--redact-execution-data", "maybe"},
+		"size limit":    {"execution", "list", "--ignore-data-size-limit"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := executionFixture(t, `{"data":[],"nextCursor":null}`)
