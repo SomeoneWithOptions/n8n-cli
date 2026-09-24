@@ -144,7 +144,7 @@ func (o ListExecutionsOptions) Validate() error {
 		return fmt.Errorf("limit must not exceed 250, got %d", o.Limit)
 	}
 	if o.Status != "" && !slices.Contains(executionStatuses, o.Status) {
-		return fmt.Errorf("unknown execution status %q: use %s", o.Status, strings.Join(executionStatuses, ", "))
+		return unknownExecutionStatusError(o.Status)
 	}
 	if err := validateOptionalExecutionID("workflow ID", o.WorkflowID); err != nil {
 		return err
@@ -156,6 +156,31 @@ func (o ListExecutionsOptions) Validate() error {
 		return err
 	}
 	return nil
+}
+
+// ValidateExecutionStatuses rejects list statuses the API would refuse, and
+// empty or repeated entries, before any request is sent. GET /executions takes
+// one status per request, so callers listing several statuses send one
+// request each; see [ListExecutionsOptions.Status].
+func ValidateExecutionStatuses(statuses []string) error {
+	seen := map[string]bool{}
+	for i, status := range statuses {
+		if status == "" {
+			return fmt.Errorf("status %d is empty: use %s", i+1, strings.Join(executionStatuses, ", "))
+		}
+		if !slices.Contains(executionStatuses, status) {
+			return unknownExecutionStatusError(status)
+		}
+		if seen[status] {
+			return fmt.Errorf("status %q is listed twice", status)
+		}
+		seen[status] = true
+	}
+	return nil
+}
+
+func unknownExecutionStatusError(status string) error {
+	return fmt.Errorf("unknown execution status %q: use %s", status, strings.Join(executionStatuses, ", "))
 }
 
 func (o ListExecutionsOptions) apply() url.Values {

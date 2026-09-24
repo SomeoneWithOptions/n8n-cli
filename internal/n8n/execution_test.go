@@ -264,3 +264,31 @@ func TestExecutionErrorsPreserveAPIError(t *testing.T) {
 		t.Fatalf("StopExecution error = %v", err)
 	}
 }
+
+func TestValidateExecutionStatuses(t *testing.T) {
+	for name, tt := range map[string]struct {
+		statuses []string
+		want     string
+	}{
+		"none":      {statuses: nil},
+		"single":    {statuses: []string{"error"}},
+		"many":      {statuses: []string{"success", "error", "crashed"}},
+		"empty":     {statuses: []string{"success", ""}, want: "status 2 is empty: use canceled, crashed"},
+		"unknown":   {statuses: []string{"success", "failed"}, want: `unknown execution status "failed": use canceled`},
+		"queued":    {statuses: []string{"queued"}, want: `unknown execution status "queued"`},
+		"duplicate": {statuses: []string{"error", "success", "error"}, want: `status "error" is listed twice`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateExecutionStatuses(tt.statuses)
+			if tt.want == "" {
+				if err != nil {
+					t.Errorf("err = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("err = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
