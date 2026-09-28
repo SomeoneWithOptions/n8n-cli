@@ -119,6 +119,79 @@ func TestWorkflowListAllFollowsCursor(t *testing.T) {
 	}
 }
 
+func TestWorkflowListQuietAndBrief(t *testing.T) {
+	f := workflowFixture(t, "")
+	f.bodyFunc = func(int) string {
+		return `{"data":[` + cliWorkflow + `,{"id":"wf-2","name":"Other"}],"nextCursor":"next"}`
+	}
+	got := f.run("workflow", "list", "--quiet", "--limit", "2")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if got.stdout != "wf-1\nwf-2\n" {
+		t.Errorf("--quiet stdout = %q, want IDs only", got.stdout)
+	}
+	if !strings.Contains(got.stderr, "--cursor next") {
+		t.Errorf("--quiet stderr = %q, want the next cursor", got.stderr)
+	}
+
+	got = f.run("workflow", "list", "--brief")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if got.stdout != "wf-1\tInvoice sync\nwf-2\tOther\n" {
+		t.Errorf("--brief stdout = %q, want tab-separated ID and name", got.stdout)
+	}
+}
+
+func TestWorkflowListBriefFollowsAllPages(t *testing.T) {
+	f := workflowFixture(t, "")
+	f.bodyFunc = func(page int) string {
+		if page == 0 {
+			return `{"data":[` + cliWorkflow + `],"nextCursor":"next"}`
+		}
+		return `{"data":[{"id":"wf-2","name":"Other"}],"nextCursor":null}`
+	}
+	got := f.run("workflow", "list", "--all", "--limit", "1", "--brief")
+	if got.code != ExitSuccess || got.stdout != "wf-1\tInvoice sync\nwf-2\tOther\n" {
+		t.Errorf("result = %+v, want both pages as brief rows", got)
+	}
+	if strings.Contains(got.stderr, "--cursor") {
+		t.Errorf("stderr = %q, want no cursor hint after --all", got.stderr)
+	}
+}
+
+func TestWorkflowListQuietBriefEmptyHint(t *testing.T) {
+	f := workflowFixture(t, `{"data":[],"nextCursor":null}`)
+	for _, flag := range []string{"--quiet", "--brief"} {
+		got := f.run("workflow", "list", flag)
+		if got.code != ExitSuccess || got.stdout != "" || !strings.Contains(got.stderr, "No workflows were returned") {
+			t.Errorf("%s result = %+v, want empty stdout and a stderr hint", flag, got)
+		}
+	}
+}
+
+func TestWorkflowListRejectsConflictingViews(t *testing.T) {
+	f := workflowFixture(t, `{"data":[],"nextCursor":null}`)
+	before := f.requestCount()
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--quiet", "--brief"}, "--quiet cannot be combined with --brief"},
+		{[]string{"--quiet", "--output", "json"}, "cannot be combined with --output json"},
+		{[]string{"--brief", "--output", "json"}, "cannot be combined with --output json"},
+	} {
+		got := f.run(append([]string{"workflow", "list"}, tc.args...)...)
+		if got.code != ExitError || !strings.Contains(got.stderr, tc.want) {
+			t.Errorf("%v result = %+v, want %q", tc.args, got, tc.want)
+		}
+	}
+	if f.requestCount() != before {
+		t.Error("a conflicting view flag reached the instance")
+	}
+}
+
 func TestWorkflowGetTextJSONAndPinnedData(t *testing.T) {
 	f := workflowFixture(t, cliWorkflow)
 	got := f.run("workflow", "get", "wf/one?x=1")
