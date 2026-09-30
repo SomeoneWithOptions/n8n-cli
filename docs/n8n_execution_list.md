@@ -21,6 +21,17 @@ page through such results explicitly. With several statuses it fetches up to
 remains omitted unless --ignore-data-size-limit is given. Requesting unredacted
 data additionally needs execution:reveal. Listing requires execution:list.
 
+Script views print rows only, with no header, count or blank lines, so stdout
+pipes cleanly; the next cursor and any empty-result hint go to stderr, and an
+empty result prints nothing:
+  --quiet  one execution ID per line, printed exactly
+  --brief  ID, workflow ID and status, separated by a literal tab
+--brief escapes backslash, tab, newline, carriage return and other control
+characters in fields as \\, \t, \n, \r and \uXXXX; use --output json for exact
+values. The views combine neither with each other nor with --output json.
+
+With several statuses, both views print the merged newest-first rows.
+
 ```
 n8n execution list [flags]
 ```
@@ -32,6 +43,8 @@ n8n execution list [flags]
   n8n execution list --status error --workflow-id WORKFLOW_ID
   n8n execution list --status error,crashed --workflow-id WORKFLOW_ID
   n8n execution list --status success --status error --all --output json
+  n8n execution list --status error,crashed --limit 20 --brief
+  n8n execution list --status error --all --quiet
   n8n execution list --started-after 2026-09-17T00:00:00Z --limit 50
   n8n execution list --include-data --limit 10 --output json
   n8n execution list --all --output json
@@ -41,6 +54,7 @@ n8n execution list [flags]
 
 ```
       --all                            follow every metadata page instead of one (maximum 10,000 executions; incompatible with --include-data)
+      --brief                          print only ID, workflow ID and status, tab-separated and escaped, with no header (default: full table)
       --context string                 saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string                  pagination cursor returned by a previous list (default: first page)
   -h, --help                           help for list
@@ -49,6 +63,7 @@ n8n execution list [flags]
       --limit int                      executions per API page, 1 to 250 (default: server default of 100 with zero or one --status, 30 with several)
       --output string                  output format: text or json (JSON is a page object with data and nextCursor) (default "text")
       --project-id string              only executions in this project, from 'n8n project list' (default: every accessible project)
+      --quiet                          print only execution IDs, one per line, with no header (default: full table)
       --redact-execution-data string   detailed-data redaction: true always redacts, false reveals and needs execution:reveal (default: workflow policy)
       --started-after string           only executions started after this RFC3339 timestamp, e.g. 2026-09-17T00:00:00Z (default: no lower bound)
       --started-before string          only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)

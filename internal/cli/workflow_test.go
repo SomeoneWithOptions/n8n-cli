@@ -761,3 +761,15 @@ func TestWorkflowAPIErrorsExplainTheFix(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkflowListBriefEscapesUnusualNames(t *testing.T) {
+	f := workflowFixture(t, `{"data":[{"id":"wf-1","name":"Two\nlines\tand \\n literal"},{"id":"wf-2","name":"\u001b[31mred"}],"nextCursor":null}`)
+	got := f.run("workflow", "list", "--brief")
+	if want := "wf-1\tTwo\\nlines\\tand \\\\n literal\nwf-2\t\\u001b[31mred\n"; got.code != ExitSuccess || got.stdout != want {
+		t.Errorf("result = %+v, want stdout %q", got, want)
+	}
+	got = f.run("workflow", "list", "--quiet")
+	if got.code != ExitSuccess || got.stdout != "wf-1\nwf-2\n" {
+		t.Errorf("--quiet result = %+v, want raw IDs", got)
+	}
+}

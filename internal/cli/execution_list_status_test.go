@@ -199,3 +199,103 @@ func TestExecutionListMultiStatusErrorStopsWithoutOutput(t *testing.T) {
 		t.Errorf("last status = %q, want the fan-out to stop at the failing status", status)
 	}
 }
+
+func TestExecutionListMultiStatusScriptViews(t *testing.T) {
+	pages := map[string]map[string]string{
+		"success": {"": `{"data":[` + statusExecution("10", "success") + `,` + statusExecution("7", "success") + `],"nextCursor":"s2"}`},
+		"error":   {"": `{"data":[` + statusExecution("9", "error") + `,` + statusExecution("7", "error") + `],"nextCursor":"e2"}`},
+	}
+	for name, args := range map[string][]string{
+		"comma":    {"--status", "success,error"},
+		"repeated": {"--status", "success", "--status", "error"},
+	} {
+		for flag, want := range map[string]string{
+			"--quiet": "10\n9\n7\n",
+			"--brief": "10\twf-1\tsuccess\n9\twf-1\terror\n7\twf-1\tsuccess\n",
+		} {
+			t.Run(name+flag, func(t *testing.T) {
+				f := executionFixture(t, "")
+				f.route = statusRoute(pages)
+				before := f.requestCount()
+				got := f.run(append([]string{"execution", "list", "--limit", "3", flag}, args...)...)
+				if got.code != ExitSuccess || got.stdout != want {
+					t.Fatalf("result = %+v, want stdout %q", got, want)
+				}
+				for i := before; i < f.requestCount(); i++ {
+					if limit := f.request(i).URL.Query().Get("limit"); limit != "3" {
+						t.Errorf("request %d limit = %q, want the explicit 3", i, limit)
+					}
+				}
+				if !strings.Contains(got.stderr, "More executions match these statuses") {
+					t.Errorf("stderr = %q, want the not-exhaustive hint", got.stderr)
+				}
+				if strings.Contains(got.stderr, "--cursor s2") || strings.Contains(got.stderr, "--cursor e2") || strings.Contains(got.stderr, "for the next page") {
+					t.Errorf("stderr = %q, want no per-status or combined cursor", got.stderr)
+				}
+			})
+		}
+	}
+}
+
+func TestExecutionListMultiStatusScriptViewsDefaultLimitAndAll(t *testing.T) {
+	f := executionFixture(t, "")
+	f.route = statusRoute(map[string]map[string]string{
+		"success": {
+			"":   `{"data":[` + statusExecution("10", "success") + `],"nextCursor":"s2"}`,
+			"s2": `{"data":[` + statusExecution("4", "success") + `],"nextCursor":null}`,
+		},
+		"error": {"": `{"data":[` + statusExecution("9", "error") + `],"nextCursor":null}`},
+	})
+	before := f.requestCount()
+	got := f.run("execution", "list", "--status", "success,error", "--quiet")
+	if got.code != ExitSuccess || got.stdout != "10\n9\n" {
+		t.Fatalf("result = %+v, want the first page of each status merged", got)
+	}
+	for i := before; i < f.requestCount(); i++ {
+		if limit := f.request(i).URL.Query().Get("limit"); limit != "30" {
+			t.Errorf("request %d limit = %q, want the multi-status default 30", i, limit)
+		}
+	}
+	got = f.run("execution", "list", "--status", "success,error", "--all", "--brief")
+	if got.code != ExitSuccess || got.stdout != "10\twf-1\tsuccess\n9\twf-1\terror\n4\twf-1\tsuccess\n" || got.stderr != "" {
+		t.Errorf("--all result = %+v, want every row and no hint", got)
+	}
+}
+
+func TestExecutionListMultiStatusScriptViewErrorPrintsNoRows(t *testing.T) {
+	f := executionFixture(t, "")
+	f.route = func(r *http.Request, _ int) (int, string) {
+		if r.URL.Query().Get("status") == "error" {
+			return http.StatusForbidden, `{"message":"forbidden"}`
+		}
+		return http.StatusOK, `{"data":[` + statusExecution("10", "success") + `],"nextCursor":null}`
+	}
+	for _, flag := range []string{"--quiet", "--brief"} {
+		got := f.run("execution", "list", "--status", "success,error", flag)
+		if got.code != ExitError || got.stdout != "" || !strings.Contains(got.stderr, "execution:list") {
+			t.Errorf("%s result = %+v, want the scope error and no partial rows", flag, got)
+		}
+	}
+}
+
+func TestExecutionListScriptViewsKeepPreTransportChecks(t *testing.T) {
+	f := executionFixture(t, `{"data":[],"nextCursor":null}`)
+	before := f.requestCount()
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--status", "success,error", "--cursor", "c1", "--quiet"}, "--cursor needs a single --status"},
+		{[]string{"--status", "bogus", "--brief"}, "bogus"},
+		{[]string{"--all", "--include-data", "--quiet"}, "--all cannot be combined with --include-data"},
+		{[]string{"--status", "success,error", "--quiet", "--output", "json"}, "cannot be combined with --output json"},
+	} {
+		got := f.run(append([]string{"execution", "list"}, tc.args...)...)
+		if got.code != ExitError || !strings.Contains(got.stderr, tc.want) {
+			t.Errorf("%v result = %+v, want %q", tc.args, got, tc.want)
+		}
+	}
+	if f.requestCount() != before {
+		t.Error("a rejected execution list reached the instance")
+	}
+}

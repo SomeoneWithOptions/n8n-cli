@@ -57,6 +57,7 @@ type credentialListFlags struct {
 	limit    int
 	cursor   string
 	all      bool
+	view     listViewFlags
 	output   string
 }
 
@@ -69,8 +70,11 @@ func newCredentialListCommand(opts Options) *cobra.Command {
 			"never returned or printed. n8n restricts this endpoint to instance owners and\n" +
 			"admins. Use --all to follow cursors, capped at 10,000 credentials.\n\n" +
 			"Requires credential:list. A 403 can mean either missing scope or insufficient\n" +
-			"instance role; inspect capabilities with 'n8n discover --resource credential'.",
+			"instance role; inspect capabilities with 'n8n discover --resource credential'.\n\n" +
+			scriptViewHelp("credential", "ID, name and type"),
 		Example: "  n8n credential list\n" +
+			"  n8n credential list --brief\n" +
+			"  n8n credential list --all --quiet\n" +
 			"  n8n credential list --limit 50 --output json\n" +
 			"  n8n credential list --all",
 		Args: cobra.NoArgs,
@@ -82,12 +86,13 @@ func newCredentialListCommand(opts Options) *cobra.Command {
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "credentials per API page (default: server default)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list")
 	cmd.Flags().BoolVar(&f.all, "all", false, "follow all pages (maximum 10,000 credentials)")
+	f.view.register(cmd, "credential", "ID, name and type")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
 	return cmd
 }
 
 func runCredentialList(ctx context.Context, opts Options, f credentialListFlags) error {
-	if err := validateOutput(f.output); err != nil {
+	if err := f.view.validate(f.output); err != nil {
 		return err
 	}
 	listOpts := n8n.ListOptions{Limit: f.limit, Cursor: f.cursor}
@@ -110,8 +115,15 @@ func runCredentialList(ctx context.Context, opts Options, f credentialListFlags)
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
 	}
+	if f.view.enabled() {
+		return writeScriptPage(opts, f.view, "credential", page, credentialListEmptyHint, func(credential n8n.Credential) scriptListRow {
+			return scriptListRow{ID: credential.ID, Fields: []string{credential.Name, credential.Type}}
+		})
+	}
 	return writeCredentialListText(opts, resolution, page)
 }
+
+const credentialListEmptyHint = "No credentials were returned. This endpoint includes metadata only, never secret data."
 
 func writeCredentialListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.Credential]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
@@ -130,7 +142,7 @@ func writeCredentialListText(opts Options, resolution config.Resolution, page n8
 		return err
 	}
 	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No credentials were returned. This endpoint includes metadata only, never secret data.")
+		fmt.Fprintln(opts.Streams.Err, credentialListEmptyHint)
 	}
 	return nil
 }

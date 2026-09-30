@@ -113,6 +113,7 @@ type executionListFlags struct {
 	projectID     string
 	startedAfter  string
 	startedBefore string
+	view          listViewFlags
 	output        string
 }
 
@@ -134,11 +135,15 @@ func newExecutionListCommand(opts Options) *cobra.Command {
 			"page through such results explicitly. With several statuses it fetches up to\n" +
 			"--limit detailed rows per status and shows --limit of them. Oversized data\n" +
 			"remains omitted unless --ignore-data-size-limit is given. Requesting unredacted\n" +
-			"data additionally needs execution:reveal. Listing requires execution:list.",
+			"data additionally needs execution:reveal. Listing requires execution:list.\n\n" +
+			scriptViewHelp("execution", "ID, workflow ID and status") + "\n\n" +
+			"With several statuses, both views print the merged newest-first rows.",
 		Example: "  n8n execution list\n" +
 			"  n8n execution list --status error --workflow-id WORKFLOW_ID\n" +
 			"  n8n execution list --status error,crashed --workflow-id WORKFLOW_ID\n" +
 			"  n8n execution list --status success --status error --all --output json\n" +
+			"  n8n execution list --status error,crashed --limit 20 --brief\n" +
+			"  n8n execution list --status error --all --quiet\n" +
 			"  n8n execution list --started-after 2026-09-17T00:00:00Z --limit 50\n" +
 			"  n8n execution list --include-data --limit 10 --output json\n" +
 			"  n8n execution list --all --output json",
@@ -157,12 +162,13 @@ func newExecutionListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "only executions in this project, from 'n8n project list' (default: every accessible project)")
 	cmd.Flags().StringVar(&f.startedAfter, "started-after", "", "only executions started after this RFC3339 timestamp, e.g. 2026-09-17T00:00:00Z (default: no lower bound)")
 	cmd.Flags().StringVar(&f.startedBefore, "started-before", "", "only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)")
+	f.view.register(cmd, "execution", "ID, workflow ID and status")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
 	return cmd
 }
 
 func runExecutionList(ctx context.Context, opts Options, f executionListFlags) error {
-	if err := validateOutput(f.output); err != nil {
+	if err := f.view.validate(f.output); err != nil {
 		return err
 	}
 	dataOpts, err := f.data.options()
@@ -220,10 +226,7 @@ func runExecutionList(ctx context.Context, opts Options, f executionListFlags) e
 	if err != nil {
 		return executionAPIError(err, resolution, "", "list")
 	}
-	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
-	}
-	return writeExecutionList(opts, resolution, page)
+	return writeExecutionListPage(opts, f, resolution, page)
 }
 
 // runExecutionListForStatuses lists several statuses by fanning out one
@@ -234,12 +237,7 @@ func runExecutionListForStatuses(ctx context.Context, opts Options, f executionL
 	if err != nil {
 		return executionAPIError(err, resolution, "", "list")
 	}
-	if f.output == outputJSON {
-		err = writeJSON(opts.Streams.Out, page)
-	} else {
-		err = writeExecutionList(opts, resolution, page)
-	}
-	if err != nil {
+	if err := writeExecutionListPage(opts, f, resolution, page); err != nil {
 		return err
 	}
 	if more {
@@ -247,6 +245,23 @@ func runExecutionListForStatuses(ctx context.Context, opts Options, f executionL
 	}
 	return nil
 }
+
+// writeExecutionListPage renders one fetched or merged page in the chosen
+// format; both the single- and multi-status paths go through it.
+func writeExecutionListPage(opts Options, f executionListFlags, resolution config.Resolution, page n8n.Page[n8n.Execution]) error {
+	switch {
+	case f.output == outputJSON:
+		return writeJSON(opts.Streams.Out, page)
+	case f.view.enabled():
+		return writeScriptPage(opts, f.view, "execution", page, executionListEmptyHint, func(execution n8n.Execution) scriptListRow {
+			return scriptListRow{ID: execution.ID, Fields: []string{execution.WorkflowID, execution.Status}}
+		})
+	default:
+		return writeExecutionList(opts, resolution, page)
+	}
+}
+
+const executionListEmptyHint = "No executions were returned. Widen the status, workflow, project, or time filters."
 
 func writeExecutionList(opts Options, resolution config.Resolution, page n8n.Page[n8n.Execution]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
@@ -268,7 +283,7 @@ func writeExecutionList(opts Options, resolution config.Resolution, page n8n.Pag
 		return err
 	}
 	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No executions were returned. Widen the status, workflow, project, or time filters.")
+		fmt.Fprintln(opts.Streams.Err, executionListEmptyHint)
 	}
 	return nil
 }

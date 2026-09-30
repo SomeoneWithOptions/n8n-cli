@@ -85,8 +85,7 @@ type workflowListFlags struct {
 	name        string
 	projectID   string
 	excludePins bool
-	quiet       bool
-	brief       bool
+	view        listViewFlags
 	output      string
 }
 
@@ -102,10 +101,7 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 			"set with --active, --name, --tag and --project-id. Each row carries the full\n" +
 			"definition, so on a large instance prefer --exclude-pinned-data, which drops\n" +
 			"the pinned sample data that dominates the response. Requires workflow:list.\n\n" +
-			"--quiet prints only workflow IDs, one per line; --brief prints ID and name\n" +
-			"separated by a tab. Both drop the header and summary so stdout pipes cleanly;\n" +
-			"the next cursor, when there is one, goes to stderr. They are text-only views,\n" +
-			"so they cannot be combined with each other or with --output json.",
+			scriptViewHelp("workflow", "ID and name"),
 		Example: "  n8n workflow list\n" +
 			"  n8n workflow list --all --brief --exclude-pinned-data\n" +
 			"  n8n workflow list --tag production --quiet\n" +
@@ -128,21 +124,14 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.name, "name", "", "only workflows with exactly this name (default: any name)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "only workflows in this project, from 'n8n project list' (default: every project)")
 	cmd.Flags().BoolVar(&f.excludePins, "exclude-pinned-data", false, "leave pinned sample data out of the response (default: include it)")
-	cmd.Flags().BoolVar(&f.quiet, "quiet", false, "print only workflow IDs, one per line, with no header (default: full table)")
-	cmd.Flags().BoolVar(&f.brief, "brief", false, "print only ID and name, tab-separated, with no header (default: full table)")
+	f.view.register(cmd, "workflow", "ID and name")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
 	return cmd
 }
 
 func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) error {
-	if err := validateOutput(f.output); err != nil {
+	if err := f.view.validate(f.output); err != nil {
 		return err
-	}
-	if f.quiet && f.brief {
-		return fmt.Errorf("--quiet cannot be combined with --brief: --quiet prints IDs only, --brief prints IDs and names")
-	}
-	if (f.quiet || f.brief) && f.output == outputJSON {
-		return fmt.Errorf("--quiet and --brief cannot be combined with --output json: they are text views; filter the JSON with jq instead")
 	}
 	active, err := workflowActiveFilter(f.active)
 	if err != nil {
@@ -181,8 +170,10 @@ func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) err
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
 	}
-	if f.quiet || f.brief {
-		return writeWorkflowListBrief(opts, page, f.quiet)
+	if f.view.enabled() {
+		return writeScriptPage(opts, f.view, "workflow", page, workflowListEmptyHint, func(workflow n8n.Workflow) scriptListRow {
+			return scriptListRow{ID: workflow.ID, Fields: []string{workflow.Name}}
+		})
 	}
 	return writeWorkflowList(opts, resolution, page)
 }
@@ -204,6 +195,8 @@ func workflowActiveFilter(value string) (*bool, error) {
 	}
 }
 
+const workflowListEmptyHint = "No workflows were returned. Widen the filters, or create one with 'n8n workflow create --name NAME'."
+
 func writeWorkflowList(opts Options, resolution config.Resolution, page n8n.Page[n8n.Workflow]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
@@ -224,30 +217,7 @@ func writeWorkflowList(opts Options, resolution config.Resolution, page n8n.Page
 		return err
 	}
 	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No workflows were returned. Widen the filters, or create one with 'n8n workflow create --name NAME'.")
-	}
-	return nil
-}
-
-// writeWorkflowListBrief prints IDs (quiet) or ID and name rows with no header
-// so stdout pipes cleanly; the next cursor and empty hint go to stderr.
-func writeWorkflowListBrief(opts Options, page n8n.Page[n8n.Workflow], idsOnly bool) error {
-	for _, workflow := range page.Data {
-		var err error
-		if idsOnly {
-			_, err = fmt.Fprintln(opts.Streams.Out, workflow.ID)
-		} else {
-			_, err = fmt.Fprintf(opts.Streams.Out, "%s\t%s\n", workflow.ID, workflow.Name)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	if page.HasMore() {
-		fmt.Fprintf(opts.Streams.Err, "More workflows: pass --cursor %s for the next page, or use --all.\n", page.NextCursor)
-	}
-	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No workflows were returned. Widen the filters, or create one with 'n8n workflow create --name NAME'.")
+		fmt.Fprintln(opts.Streams.Err, workflowListEmptyHint)
 	}
 	return nil
 }
