@@ -3,6 +3,8 @@ package n8n
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -351,5 +353,123 @@ func TestFolderValidationBeforeRequest(t *testing.T) {
 	}
 	if len(server.requests) != 0 {
 		t.Errorf("request count = %d, want 0", len(server.requests))
+	}
+}
+
+// folderPager serves offset pages from a fixed folder list and reports count
+// as the matching total, recording each request.
+type folderPager struct {
+	folders int
+	count   int
+	calls   []ListFoldersOptions
+}
+
+func (p *folderPager) fetch(_ context.Context, opts ListFoldersOptions) (FolderPage, error) {
+	p.calls = append(p.calls, opts)
+	page := FolderPage{Count: p.count, Data: []Folder{}}
+	for i := opts.Skip; i < p.folders && i < opts.Skip+opts.Take; i++ {
+		page.Data = append(page.Data, Folder{ID: fmt.Sprintf("fo-%d", i)})
+	}
+	return page, nil
+}
+
+func TestCollectFoldersWithInfoBoundaries(t *testing.T) {
+	tests := []struct {
+		name      string
+		pager     folderPager
+		opts      ListFoldersOptions
+		max       int
+		folders   int
+		truncated bool
+		nextSkip  int
+		calls     int
+	}{
+		{name: "count proves the end below the cap", pager: folderPager{folders: 5, count: 5}, opts: ListFoldersOptions{Take: 2}, max: 10, folders: 5, calls: 3},
+		{name: "count proves the end at the cap", pager: folderPager{folders: 4, count: 4}, opts: ListFoldersOptions{Take: 2}, max: 4, folders: 4, calls: 2},
+		{name: "short page without a count", pager: folderPager{folders: 3}, opts: ListFoldersOptions{Take: 2}, max: 10, folders: 3, calls: 2},
+		{name: "empty result", pager: folderPager{}, opts: ListFoldersOptions{Take: 2}, max: 10, calls: 1},
+		{name: "cap cuts through a page", pager: folderPager{folders: 10, count: 10}, opts: ListFoldersOptions{Take: 4}, max: 6, folders: 6, truncated: true, nextSkip: 6, calls: 2},
+		{name: "cap on a full page without a count", pager: folderPager{folders: 10}, opts: ListFoldersOptions{Take: 2}, max: 4, folders: 4, truncated: true, nextSkip: 4, calls: 2},
+		{name: "nonzero starting skip", pager: folderPager{folders: 10, count: 10}, opts: ListFoldersOptions{Skip: 3, Take: 2}, max: 3, folders: 3, truncated: true, nextSkip: 6, calls: 2},
+		{name: "starting skip past the total", pager: folderPager{folders: 3, count: 3}, opts: ListFoldersOptions{Skip: 5, Take: 2}, max: 10, calls: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tt.pager
+			got, err := CollectFoldersWithInfo(context.Background(), p.fetch, tt.opts, tt.max)
+			if err != nil {
+				t.Fatalf("CollectFoldersWithInfo: %v", err)
+			}
+			if got.Data == nil {
+				t.Fatal("Data is nil, want an empty slice so JSON stays []")
+			}
+			if len(got.Data) != tt.folders || got.Truncated != tt.truncated || got.NextSkip != tt.nextSkip {
+				t.Errorf("got %d folders truncated %t nextSkip %d, want %d %t %d", len(got.Data), got.Truncated, got.NextSkip, tt.folders, tt.truncated, tt.nextSkip)
+			}
+			if got.Count != p.count {
+				t.Errorf("Count = %d, want the server's total %d", got.Count, p.count)
+			}
+			if len(p.calls) != tt.calls {
+				t.Errorf("requests = %d, want %d", len(p.calls), tt.calls)
+			}
+			if len(p.calls) > 1 && p.calls[1].Skip != tt.opts.Skip+tt.opts.Take {
+				t.Errorf("second skip = %d, want %d", p.calls[1].Skip, tt.opts.Skip+tt.opts.Take)
+			}
+		})
+	}
+}
+
+func TestCollectFoldersWithInfoKeepsQuery(t *testing.T) {
+	p := &folderPager{folders: 3, count: 3}
+	opts := ListFoldersOptions{Take: 2, SortBy: "name:asc", Select: []string{"id"}, Filter: FolderFilter{Name: "Invoices"}}
+	if _, err := CollectFoldersWithInfo(context.Background(), p.fetch, opts, 0); err != nil {
+		t.Fatalf("CollectFoldersWithInfo: %v", err)
+	}
+	for i, call := range p.calls {
+		if call.SortBy != "name:asc" || len(call.Select) != 1 || call.Filter.Name != "Invoices" || call.Take != 2 {
+			t.Errorf("call %d = %+v, want sort, select, filter and take kept", i, call)
+		}
+	}
+}
+
+func TestCollectFoldersWithInfoRejectsInconsistentPages(t *testing.T) {
+	for _, data := range [][]Folder{{}, {{ID: "fo-1"}}} {
+		calls := 0
+		fetch := func(_ context.Context, _ ListFoldersOptions) (FolderPage, error) {
+			calls++
+			return FolderPage{Count: 50, Data: data}, nil
+		}
+		_, err := CollectFoldersWithInfo(context.Background(), fetch, ListFoldersOptions{Take: 2}, 0)
+		if err == nil || !strings.Contains(err.Error(), "inconsistently") {
+			t.Errorf("%d-folder page: error = %v, want inconsistent pagination", len(data), err)
+		}
+		if calls != 1 {
+			t.Errorf("%d-folder page: requests = %d, want no retry loop", len(data), calls)
+		}
+	}
+}
+
+func TestCollectFoldersWithInfoErrorsAndCancellation(t *testing.T) {
+	boom := errors.New("boom")
+	calls := 0
+	fetch := func(_ context.Context, opts ListFoldersOptions) (FolderPage, error) {
+		calls++
+		if calls == 2 {
+			return FolderPage{}, boom
+		}
+		return FolderPage{Count: 10, Data: []Folder{{ID: "a"}, {ID: "b"}}}, nil
+	}
+	got, err := CollectFoldersWithInfo(context.Background(), fetch, ListFoldersOptions{Take: 2}, 0)
+	if !errors.Is(err, boom) || len(got.Data) != 2 {
+		t.Errorf("got %d folders, error %v; want the first page and boom", len(got.Data), err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := CollectFoldersWithInfo(ctx, fetch, ListFoldersOptions{}, 0); !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
+	}
+	if _, err := CollectFoldersWithInfo(context.Background(), fetch, ListFoldersOptions{Skip: -1}, 0); err == nil {
+		t.Error("want negative skip rejected before transport")
 	}
 }

@@ -2,8 +2,10 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -370,4 +372,85 @@ func TestFolderScopeAndNotFoundErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// folderOffsetRoute serves total folders by skip and take, reporting count as
+// the matching total.
+func folderOffsetRoute(total int) func(*http.Request, int) (int, string) {
+	return func(r *http.Request, _ int) (int, string) {
+		skip, _ := strconv.Atoi(r.URL.Query().Get("skip"))
+		take, _ := strconv.Atoi(r.URL.Query().Get("take"))
+		var body strings.Builder
+		fmt.Fprintf(&body, `{"count":%d,"data":[`, total)
+		for i := skip; i < total && i < skip+take; i++ {
+			if i > skip {
+				body.WriteByte(',')
+			}
+			fmt.Fprintf(&body, `{"id":"fo-%d","name":"Folder %d"}`, i, i)
+		}
+		body.WriteString(`]}`)
+		return http.StatusOK, body.String()
+	}
+}
+
+func TestFolderListAllReportsCompleteness(t *testing.T) {
+	t.Run("stops at the cap with a resume offset", func(t *testing.T) {
+		f := folderFixture(t, "")
+		f.route = folderOffsetRoute(12_000)
+		before := f.requestCount()
+		got := f.run("folder", "list", "pr-1", "--all", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		if requests := f.requestCount() - before; requests != 100 {
+			t.Errorf("requests = %d, want 100 and no probe past the cap", requests)
+		}
+		page, rows := decodeCollected(t, got.stdout)
+		if rows != n8n.DefaultCollectLimit || page.Count == nil || *page.Count != 12_000 {
+			t.Errorf("rows %d count %v, want 10000 rows and the server's total 12000", rows, page.Count)
+		}
+		if c := page.Collection; c == nil || !c.Truncated || c.Limit != n8n.DefaultCollectLimit || c.NextSkip == nil || *c.NextSkip != 10_000 {
+			t.Errorf("collection = %+v, want truncated with nextSkip 10000", page.Collection)
+		}
+		if page.NextCursor != nil {
+			t.Error("folder JSON carries nextCursor, want the offset-only shape")
+		}
+		if !strings.Contains(got.stderr, "Warning: collection stopped") || !strings.Contains(got.stderr, "--skip 10000") {
+			t.Errorf("stderr = %q, want the cap warning and resume offset", got.stderr)
+		}
+	})
+
+	t.Run("keeps the total after a starting skip", func(t *testing.T) {
+		f := folderFixture(t, "")
+		f.route = folderOffsetRoute(30)
+		got := f.run("folder", "list", "pr-1", "--all", "--skip", "10", "--take", "15", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		page, rows := decodeCollected(t, got.stdout)
+		if rows != 20 || page.Count == nil || *page.Count != 30 {
+			t.Errorf("rows %d count %v, want 20 shown of 30 matching", rows, page.Count)
+		}
+		if c := page.Collection; c == nil || c.Truncated || c.NextSkip != nil {
+			t.Errorf("collection = %+v, want complete without nextSkip", page.Collection)
+		}
+		if got.stderr != "" {
+			t.Errorf("stderr = %q, want no warning", got.stderr)
+		}
+
+		got = f.run("folder", "list", "pr-1", "--all", "--skip", "10", "--take", "15")
+		for _, want := range []string{"Matching folders:  30", "Shown:             20"} {
+			if !strings.Contains(got.stdout, want) {
+				t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+			}
+		}
+	})
+
+	t.Run("inconsistent pagination prints nothing", func(t *testing.T) {
+		f := folderFixture(t, `{"count":50,"data":[{"id":"fo-1"}]}`)
+		got := f.run("folder", "list", "pr-1", "--all", "--output", "json")
+		if got.code != ExitError || got.stdout != "" || !strings.Contains(got.stderr, "inconsistently") {
+			t.Errorf("result = %+v, want an error and no partial output", got)
+		}
+	})
 }

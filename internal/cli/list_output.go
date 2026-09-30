@@ -60,12 +60,14 @@ type scriptListRow struct {
 }
 
 // writeScriptPage renders one fetched page as a script view: rows on stdout,
-// then the next-cursor hint and the empty-result hint on stderr.
-func writeScriptPage[T any](opts Options, view listViewFlags, noun string, page n8n.Page[T], emptyHint string, row func(T) scriptListRow) error {
+// then the next-cursor hint and the empty-result hint on stderr. A bounded
+// collection (non-nil collection) prints no next-cursor hint: the caller's
+// finishCollection reports how to resume it.
+func writeScriptPage[T any](opts Options, view listViewFlags, noun string, page n8n.Page[T], collection *listCollection, emptyHint string, row func(T) scriptListRow) error {
 	if err := writeScriptList(opts.Streams.Out, noun, page.Data, view.quiet, row); err != nil {
 		return err
 	}
-	if page.HasMore() {
+	if collection == nil && page.HasMore() {
 		fmt.Fprintf(opts.Streams.Err, "More %ss: pass --cursor %s for the next page, or use --all.\n", noun, escapeScriptField(page.NextCursor))
 	}
 	if len(page.Data) == 0 {

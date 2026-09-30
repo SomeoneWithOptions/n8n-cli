@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -297,5 +298,131 @@ func TestExecutionListScriptViewsKeepPreTransportChecks(t *testing.T) {
 	}
 	if f.requestCount() != before {
 		t.Error("a rejected execution list reached the instance")
+	}
+}
+
+// bulkStatusRoute serves each status's executions, given newest first, in
+// pages of 250 chained by "<status>-<page>" cursors.
+func bulkStatusRoute(ids map[string][]int) func(*http.Request, int) (int, string) {
+	const size = 250
+	return func(r *http.Request, _ int) (int, string) {
+		status := r.URL.Query().Get("status")
+		list, ok := ids[status]
+		if !ok {
+			return http.StatusBadRequest, `{"message":"unexpected status"}`
+		}
+		index := 0
+		if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+			if _, err := fmt.Sscanf(cursor, status+"-%d", &index); err != nil {
+				return http.StatusBadRequest, `{"message":"bad cursor"}`
+			}
+		}
+		var body strings.Builder
+		body.WriteString(`{"data":[`)
+		for i := index * size; i < len(list) && i < (index+1)*size; i++ {
+			if i > index*size {
+				body.WriteByte(',')
+			}
+			body.WriteString(statusExecution(strconv.Itoa(list[i]), status))
+		}
+		next := "null"
+		if (index+1)*size < len(list) {
+			next = strconv.Quote(fmt.Sprintf("%s-%d", status, index+1))
+		}
+		fmt.Fprintf(&body, `],"nextCursor":%s}`, next)
+		return http.StatusOK, body.String()
+	}
+}
+
+// descendingIDs returns n IDs from first down, stepping by step.
+func descendingIDs(first, n, step int) []int {
+	ids := make([]int, n)
+	for i := range ids {
+		ids[i] = first - i*step
+	}
+	return ids
+}
+
+func TestExecutionListMultiStatusAllReportsCompleteness(t *testing.T) {
+	tests := []struct {
+		name      string
+		ids       map[string][]int
+		rows      int
+		truncated bool
+	}{
+		{
+			name: "one status stops at its cap while another exhausts",
+			ids:  map[string][]int{"success": descendingIDs(100_000, 10_001, 2), "error": descendingIDs(99_999, 10, 2)},
+			rows: 10_000, truncated: true,
+		},
+		{
+			name: "exhausted statuses whose union exceeds the cap",
+			ids:  map[string][]int{"success": descendingIDs(20_000, 6_000, 2), "error": descendingIDs(19_999, 6_000, 2)},
+			rows: 10_000, truncated: true,
+		},
+		{
+			name: "exactly the cap of unique rows",
+			ids:  map[string][]int{"success": descendingIDs(20_000, 5_000, 2), "error": descendingIDs(19_999, 5_000, 2)},
+			rows: 10_000,
+		},
+		{
+			name: "duplicates alone are not truncation",
+			ids:  map[string][]int{"success": descendingIDs(20_000, 6_000, 1), "error": descendingIDs(20_000, 6_000, 1)},
+			rows: 6_000,
+		},
+		{
+			name: "a truncated status stays incomplete after deduplication",
+			ids:  map[string][]int{"success": descendingIDs(20_000, 10_001, 1), "error": descendingIDs(20_000, 10, 1)},
+			rows: 10_000, truncated: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := executionFixture(t, "")
+			f.route = bulkStatusRoute(tt.ids)
+			got := f.run("execution", "list", "--status", "success,error", "--all", "--limit", "250", "--output", "json")
+			if got.code != ExitSuccess {
+				t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+			}
+			page, rows := decodeCollected(t, got.stdout)
+			if rows != tt.rows {
+				t.Errorf("rows = %d, want %d", rows, tt.rows)
+			}
+			if c := page.Collection; c == nil || c.Truncated != tt.truncated || c.Limit != n8n.DefaultCollectLimit {
+				t.Errorf("collection = %+v, want truncated %t at the 10000 limit", page.Collection, tt.truncated)
+			}
+			if page.NextCursor == nil || *page.NextCursor != "" {
+				t.Errorf("nextCursor = %v, want empty: a merged stream has no single cursor", page.NextCursor)
+			}
+			if tt.truncated {
+				if !strings.Contains(got.stderr, "Warning: collection stopped") || !strings.Contains(got.stderr, "Repeating --all does not reach") {
+					t.Errorf("stderr = %q, want the merged cap warning", got.stderr)
+				}
+			} else if got.stderr != "" {
+				t.Errorf("stderr = %q, want no warning", got.stderr)
+			}
+		})
+	}
+}
+
+func TestExecutionListMultiStatusPageReportsCollection(t *testing.T) {
+	f := executionFixture(t, "")
+	f.route = bulkStatusRoute(map[string][]int{"success": {10, 7}, "error": {9}})
+	got := f.run("execution", "list", "--status", "success,error", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	page, rows := decodeCollected(t, got.stdout)
+	if c := page.Collection; rows != 3 || c == nil || c.Truncated || c.Limit != executionMultiStatusPageSize {
+		t.Errorf("rows %d collection %+v, want 3 rows, complete at the merged limit 30", rows, page.Collection)
+	}
+
+	got = f.run("execution", "list", "--status", "success,error", "--limit", "2", "--output", "json")
+	page, _ = decodeCollected(t, got.stdout)
+	if c := page.Collection; c == nil || !c.Truncated || c.Limit != 2 {
+		t.Errorf("collection = %+v, want truncated at the explicit limit 2", page.Collection)
+	}
+	if !strings.Contains(got.stderr, "More executions match these statuses") || strings.Contains(got.stderr, "Warning") {
+		t.Errorf("stderr = %q, want the page-mode hint only", got.stderr)
 	}
 }

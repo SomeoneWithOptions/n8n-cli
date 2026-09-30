@@ -126,3 +126,29 @@ func TestTagListCommand(t *testing.T) {
 		t.Error("credential leaked into stdout")
 	}
 }
+
+// TestTagListAllCommandReportsCollection is read-only: --all JSON carries the
+// additive collection report, and an exhausted list warns about nothing.
+func TestTagListAllCommandReportsCollection(t *testing.T) {
+	instance := integration.Require(t)
+	code, stdout, stderr := runCLI(t, context.Background(), instance, "tag", "list", "--all", "--output", "json")
+	if code != cli.ExitSuccess {
+		t.Fatalf("tag list --all exit code = %d, want %d (stderr: %s)", code, cli.ExitSuccess, stderr)
+	}
+	var page struct {
+		Data       []n8n.Tag `json:"data"`
+		Collection *struct {
+			Truncated bool `json:"truncated"`
+			Limit     int  `json:"limit"`
+		} `json:"collection"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &page); err != nil {
+		t.Fatalf("stdout is not a collected tag page: %v\n%s", err, stdout)
+	}
+	if page.Data == nil || page.Collection == nil || page.Collection.Limit != n8n.DefaultCollectLimit {
+		t.Fatalf("stdout = %s, want a data array and the collection report", stdout)
+	}
+	if !page.Collection.Truncated && strings.Contains(stderr, "Warning") {
+		t.Errorf("stderr = %q, want no warning for an exhausted list", stderr)
+	}
+}

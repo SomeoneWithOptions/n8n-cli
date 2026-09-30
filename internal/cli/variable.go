@@ -61,7 +61,7 @@ func newVariableListCommand(opts Options) *cobra.Command {
 			"--state empty to find variables with an empty value. Use --all to follow every\n" +
 			"cursor, capped at 10,000 variables.\n\n" +
 			"Values are requested output: text prints quoted values and JSON preserves exact\n" +
-			"strings. Keep output and redirected files private. Requires variable:list.",
+			"strings. Keep output and redirected files private. Requires variable:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n variable list\n" +
 			"  n8n variable list --project-id PROJECT_ID --limit 50\n" +
 			"  n8n variable list --state empty --output json\n" +
@@ -74,10 +74,10 @@ func newVariableListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "variables per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 variables)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 variables; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "return variables for this project ID (default: all visible scopes)")
 	cmd.Flags().StringVar(&f.state, "state", "", "filter by value state: empty (default: all values)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object containing exact variable values)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object containing exact variable values, plus collection with --all)")
 	return cmd
 }
 
@@ -98,13 +98,14 @@ func runVariableList(ctx context.Context, opts Options, f variableListFlags) err
 		return err
 	}
 	var page n8n.Page[n8n.Variable]
+	var collection *listCollection
 	if f.all {
 		fetch := func(ctx context.Context, pagination n8n.ListOptions) (n8n.Page[n8n.Variable], error) {
 			pageOpts := listOpts
 			pageOpts.ListOptions = pagination
 			return client.ListVariables(ctx, pageOpts)
 		}
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = client.ListVariables(ctx, listOpts)
 	}
@@ -112,9 +113,11 @@ func runVariableList(ctx context.Context, opts Options, f variableListFlags) err
 		return variableAPIError(err, resolution, "", "", "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeVariableListText(opts, resolution, page)
 	}
-	return writeVariableListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeVariableListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.Variable]) error {

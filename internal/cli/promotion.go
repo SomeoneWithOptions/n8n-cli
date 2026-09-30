@@ -111,7 +111,7 @@ func newPromotionProviderListCommand(opts Options) *cobra.Command {
 			"cursor-paginated page at a time. Use --all to follow every cursor,\n" +
 			"capped at 10,000 providers.\n\n" +
 			"Use a returned ID with get, update, delete, and 'connection create'.\n" +
-			"Requires gitConnection:list.",
+			"Requires gitConnection:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n promotion provider list\n" +
 			"  n8n promotion provider list --limit 50 --output json\n" +
 			"  n8n promotion provider list --all",
@@ -123,8 +123,8 @@ func newPromotionProviderListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "providers per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 providers)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 providers; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -144,8 +144,9 @@ func runPromotionProviderList(ctx context.Context, opts Options, f promotionProv
 		return err
 	}
 	var page n8n.Page[n8n.PromotionProvider]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, client.ListPromotionProviders, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, client.ListPromotionProviders, listOpts)
 	} else {
 		page, err = client.ListPromotionProviders(ctx, listOpts)
 	}
@@ -153,9 +154,11 @@ func runPromotionProviderList(ctx context.Context, opts Options, f promotionProv
 		return promotionAPIError(err, resolution, "provider list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writePromotionProviderListText(opts, resolution, page)
 	}
-	return writePromotionProviderListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writePromotionProviderListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.PromotionProvider]) error {
@@ -465,7 +468,7 @@ func newPromotionConnectionListCommand(opts Options) *cobra.Command {
 			"projects) and --provider-id; filters are preserved across --all.\n" +
 			"Use --all to follow every cursor, capped at 10,000 connections.\n\n" +
 			"Use a returned ID with get, update, delete, config, checkout, project,\n" +
-			"promote, and apply. Requires gitConnection:list.",
+			"promote, and apply. Requires gitConnection:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n promotion connection list\n" +
 			"  n8n promotion connection list --scope projects --provider-id PROVIDER_ID\n" +
 			"  n8n promotion connection list --limit 50 --output json\n" +
@@ -480,8 +483,8 @@ func newPromotionConnectionListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
 	cmd.Flags().StringVar(&f.scope, "scope", "", "filter by connection scope: instance or projects (default: all scopes)")
 	cmd.Flags().StringVar(&f.providerID, "provider-id", "", "filter by provider ID from 'n8n promotion provider list' (default: all providers)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 connections)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 connections; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -508,13 +511,14 @@ func runPromotionConnectionList(ctx context.Context, opts Options, f promotionCo
 		return err
 	}
 	var page n8n.Page[n8n.PromotionConnection]
+	var collection *listCollection
 	if f.all {
 		collect := func(ctx context.Context, base n8n.ListOptions) (n8n.Page[n8n.PromotionConnection], error) {
 			return client.ListPromotionConnections(ctx, n8n.ListPromotionConnectionsOptions{
 				ListOptions: base, Scope: listOpts.Scope, ProviderID: listOpts.ProviderID,
 			})
 		}
-		page.Data, err = n8n.Collect(ctx, collect, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, collect, listOpts.ListOptions)
 	} else {
 		page, err = client.ListPromotionConnections(ctx, listOpts)
 	}
@@ -522,9 +526,11 @@ func runPromotionConnectionList(ctx context.Context, opts Options, f promotionCo
 		return promotionAPIError(err, resolution, "connection list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writePromotionConnectionListText(opts, resolution, page)
 	}
-	return writePromotionConnectionListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writePromotionConnectionListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.PromotionConnection]) error {

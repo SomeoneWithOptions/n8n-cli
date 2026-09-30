@@ -261,7 +261,7 @@ func newLDAPSyncHistoryCommand(opts Options) *cobra.Command {
 		Long: "List LDAP synchronization records newest first, one cursor-paginated page at\n" +
 			"a time. Pass nextCursor to --cursor, or use --all to follow pages up to the\n" +
 			"10,000-record safety cap. Each record reports mode, status, timing, scanned users,\n" +
-			"and create, update, and disable counts. Requires ldap:sync and the LDAP license.",
+			"and create, update, and disable counts. Requires ldap:sync and the LDAP license.\n\n" + cursorCollectionHelp,
 		Example: "  n8n ldap sync history\n" +
 			"  n8n ldap sync history --limit 25 --cursor NEXT_CURSOR\n" +
 			"  n8n ldap sync history --all --output json",
@@ -271,8 +271,8 @@ func newLDAPSyncHistoryCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "records per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by previous history request (default: first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every history page instead of one (maximum 10,000 records)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every history page instead of one (maximum 10,000 records; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -292,8 +292,9 @@ func runLDAPSyncHistory(ctx context.Context, opts Options, f ldapSyncHistoryFlag
 		return client.ListLDAPSyncHistory(ctx, n8n.ListLDAPSyncHistoryOptions{ListOptions: pageOpts})
 	}
 	var page n8n.Page[n8n.LDAPSyncHistory]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -301,9 +302,11 @@ func runLDAPSyncHistory(ctx context.Context, opts Options, f ldapSyncHistoryFlag
 		return ldapAPIError(err, resolution, "read sync history")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeLDAPSyncHistory(opts, resolution, page)
 	}
-	return writeLDAPSyncHistory(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeLDAPSyncHistory(opts Options, resolution config.Resolution, page n8n.Page[n8n.LDAPSyncHistory]) error {

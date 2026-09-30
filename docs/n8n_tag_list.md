@@ -19,6 +19,13 @@ empty result prints nothing:
 characters in fields as \\, \t, \n, \r and \uXXXX; use --output json for exact
 values. The views combine neither with each other nor with --output json.
 
+With --all, JSON output adds a collection object. Its truncated field is true,
+and a warning goes to stderr, when the walk stopped at the 10,000-item limit
+without reaching the end. nextCursor then resumes the walk when the limit fell
+between pages; it stays empty when the limit fell inside a page, because
+resuming from the next page would skip items: narrow the filters or page
+explicitly with --limit and --cursor instead.
+
 ```
 n8n tag list [flags]
 ```
@@ -37,13 +44,13 @@ n8n tag list [flags]
 ### Options
 
 ```
-      --all              follow every page instead of one (maximum 10,000 tags)
+      --all              follow every page instead of one (maximum 10,000 tags; hitting it warns and sets JSON collection.truncated)
       --brief            print only ID and name, tab-separated and escaped, with no header (default: full table)
       --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string    pagination cursor returned by a previous list (default: the first page)
   -h, --help             help for list
       --limit int        tags per API page, 1 to 250 (default: server default of 100)
-      --output string    output format: text or json (JSON is a page object with data and nextCursor) (default "text")
+      --output string    output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
       --quiet            print only tag IDs, one per line, with no header (default: full table)
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```

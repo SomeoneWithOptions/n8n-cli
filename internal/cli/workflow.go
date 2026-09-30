@@ -101,7 +101,8 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 			"set with --active, --name, --tag and --project-id. Each row carries the full\n" +
 			"definition, so on a large instance prefer --exclude-pinned-data, which drops\n" +
 			"the pinned sample data that dominates the response. Requires workflow:list.\n\n" +
-			scriptViewHelp("workflow", "ID and name"),
+			scriptViewHelp("workflow", "ID and name") + "\n\n" +
+			cursorCollectionHelp,
 		Example: "  n8n workflow list\n" +
 			"  n8n workflow list --all --brief --exclude-pinned-data\n" +
 			"  n8n workflow list --tag production --quiet\n" +
@@ -118,14 +119,14 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "workflows per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
 	cmd.Flags().IntVar(&f.offset, "offset", 0, "number of workflows to skip before the page (default: start at the first workflow)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 workflows)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 workflows; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.active, "active", "", "only published (true) or unpublished (false) workflows (default: both)")
 	cmd.Flags().StringArrayVar(&f.tags, "tag", nil, "only workflows carrying this tag name, repeatable and combined with AND (default: any tag)")
 	cmd.Flags().StringVar(&f.name, "name", "", "only workflows with exactly this name (default: any name)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "only workflows in this project, from 'n8n project list' (default: every project)")
 	cmd.Flags().BoolVar(&f.excludePins, "exclude-pinned-data", false, "leave pinned sample data out of the response (default: include it)")
 	f.view.register(cmd, "workflow", "ID and name")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -159,8 +160,9 @@ func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) err
 		return client.ListWorkflows(ctx, next)
 	}
 	var page n8n.Page[n8n.Workflow]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -168,14 +170,15 @@ func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) err
 		return workflowAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
-	}
-	if f.view.enabled() {
-		return writeScriptPage(opts, f.view, "workflow", page, workflowListEmptyHint, func(workflow n8n.Workflow) scriptListRow {
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else if f.view.enabled() {
+		err = writeScriptPage(opts, f.view, "workflow", page, collection, workflowListEmptyHint, func(workflow n8n.Workflow) scriptListRow {
 			return scriptListRow{ID: workflow.ID, Fields: []string{workflow.Name}}
 		})
+	} else {
+		err = writeWorkflowList(opts, resolution, page)
 	}
-	return writeWorkflowList(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 // workflowActiveFilter turns the tri-state --active flag into the optional
@@ -899,7 +902,7 @@ func newWorkflowHistoryCommand(opts Options) *cobra.Command {
 			"Use it to find the version ID that 'n8n workflow version get' reads and that\n" +
 			"'n8n workflow publish --version-id' puts live. Pass a returned cursor to\n" +
 			"--cursor for the next page, or use --all to follow every cursor, capped at\n" +
-			"10,000 versions. Requires workflow:read.",
+			"10,000 versions. Requires workflow:read.\n\n" + cursorCollectionHelp,
 		Example: "  n8n workflow history WORKFLOW_ID\n" +
 			"  n8n workflow history WORKFLOW_ID --limit 5\n" +
 			"  n8n workflow history WORKFLOW_ID --all --output json",
@@ -911,8 +914,8 @@ func newWorkflowHistoryCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "versions per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous page (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 versions)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 versions; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -935,8 +938,9 @@ func runWorkflowHistory(ctx context.Context, opts Options, id string, f workflow
 		return client.ListWorkflowHistory(ctx, id, pagination)
 	}
 	var page n8n.Page[n8n.WorkflowVersionSummary]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts)
 	} else {
 		page, err = fetch(ctx, listOpts)
 	}
@@ -944,8 +948,14 @@ func runWorkflowHistory(ctx context.Context, opts Options, id string, f workflow
 		return workflowAPIError(err, resolution, "read")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeWorkflowHistory(opts, resolution, id, page)
 	}
+	return finishCollection(opts.Streams.Err, collection, err)
+}
+
+func writeWorkflowHistory(opts Options, resolution config.Resolution, id string, page n8n.Page[n8n.WorkflowVersionSummary]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Workflow:\t%s\n", id)
 	fmt.Fprintf(tw, "Versions:\t%d\n", len(page.Data))

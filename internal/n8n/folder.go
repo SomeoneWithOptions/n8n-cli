@@ -316,14 +316,43 @@ func (c *Client) DeleteFolder(ctx context.Context, projectID, folderID, transfer
 // FolderPageFunc fetches one folder page for the given options.
 type FolderPageFunc func(context.Context, ListFoldersOptions) (FolderPage, error)
 
+// FolderCollection is the result of walking the folder list up to a bound.
+type FolderCollection struct {
+	// Data is the collected folders, never nil.
+	Data []Folder
+	// Count is the matching total the server last reported, including matches
+	// before the starting skip. Zero means the server did not report one.
+	Count int
+	// Truncated reports that the walk stopped at the bound without proving
+	// the list was exhausted. It is meaningful only when no error was returned.
+	Truncated bool
+	// NextSkip is the offset that resumes the walk exactly after Data, set
+	// when Truncated. Unlike a cursor, an offset can point inside a page.
+	NextSkip int
+}
+
 // CollectFolders walks every offset page and returns the accumulated folders.
+// It is [CollectFoldersWithInfo] without the completeness report.
+func CollectFolders(ctx context.Context, fetch FolderPageFunc, opts ListFoldersOptions, max int) ([]Folder, error) {
+	collection, err := CollectFoldersWithInfo(ctx, fetch, opts, max)
+	return collection.Data, err
+}
+
+// CollectFoldersWithInfo walks every offset page, starting at opts.Skip, and
+// reports whether the list was exhausted.
 //
 // max caps the number of folders collected; zero uses [DefaultCollectLimit].
-// Collection stops on a short page, on the reported total, or on the cap, so a
-// server that ignores skip cannot loop forever.
-func CollectFolders(ctx context.Context, fetch FolderPageFunc, opts ListFoldersOptions, max int) ([]Folder, error) {
+// Collection ends on the reported total, on a short page, or on the cap, so a
+// server that ignores skip cannot loop forever. Reaching the cap sends no
+// extra request: without a total proving the end, the result is reported as
+// truncated. A short page while the reported total says more folders remain
+// is inconsistent pagination and an error.
+//
+// On error the folders fetched so far are returned with it; they are not a
+// complete collection.
+func CollectFoldersWithInfo(ctx context.Context, fetch FolderPageFunc, opts ListFoldersOptions, max int) (FolderCollection, error) {
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return FolderCollection{}, err
 	}
 	if max <= 0 {
 		max = DefaultCollectLimit
@@ -333,28 +362,41 @@ func CollectFolders(ctx context.Context, fetch FolderPageFunc, opts ListFoldersO
 	}
 
 	start := opts.Skip
-	var folders []Folder
+	result := FolderCollection{Data: []Folder{}}
 	for {
 		if err := ctx.Err(); err != nil {
-			return folders, err
+			return result, err
 		}
 
 		page, err := fetch(ctx, opts)
 		if err != nil {
-			return folders, err
+			return result, err
 		}
-		folders = append(folders, page.Data...)
+		result.Count = page.Count
+		kept := min(len(page.Data), max-len(result.Data))
+		result.Data = append(result.Data, page.Data[:kept]...)
+		next := start + len(result.Data)
 
-		if len(folders) >= max {
-			return folders[:max], nil
+		if kept < len(page.Data) {
+			result.Truncated = true
+			result.NextSkip = next
+			return result, nil
+		}
+		if page.Count > 0 && next >= page.Count {
+			return result, nil
 		}
 		if len(page.Data) < opts.Take {
-			return folders, nil
+			if page.Count > 0 {
+				return result, fmt.Errorf("folder pagination returned %d of %d folders at skip %d, but reports %d matching: the API is paging inconsistently", len(page.Data), opts.Take, opts.Skip, page.Count)
+			}
+			return result, nil
 		}
-		if page.Count > 0 && start+len(folders) >= page.Count {
-			return folders, nil
+		if len(result.Data) >= max {
+			result.Truncated = true
+			result.NextSkip = next
+			return result, nil
 		}
-		opts.Skip = start + len(folders)
+		opts.Skip = next
 	}
 }
 

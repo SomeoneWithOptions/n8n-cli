@@ -137,7 +137,13 @@ func newExecutionListCommand(opts Options) *cobra.Command {
 			"remains omitted unless --ignore-data-size-limit is given. Requesting unredacted\n" +
 			"data additionally needs execution:reveal. Listing requires execution:list.\n\n" +
 			scriptViewHelp("execution", "ID, workflow ID and status") + "\n\n" +
-			"With several statuses, both views print the merged newest-first rows.",
+			"With several statuses, both views print the merged newest-first rows.\n\n" +
+			cursorCollectionHelp + "\n\n" +
+			"A merged list of several statuses carries the collection object with or without\n" +
+			"--all; its limit is the merged bound and nextCursor is always empty, because\n" +
+			"each status pages with its own cursor and one could skip rows the merge\n" +
+			"dropped. Repeating the same --all does not reach omitted rows: narrow the\n" +
+			"workflow, project or time filters, or list one status at a time with --cursor.",
 		Example: "  n8n execution list\n" +
 			"  n8n execution list --status error --workflow-id WORKFLOW_ID\n" +
 			"  n8n execution list --status error,crashed --workflow-id WORKFLOW_ID\n" +
@@ -156,14 +162,14 @@ func newExecutionListCommand(opts Options) *cobra.Command {
 	f.data.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "executions per API page, 1 to 250 (default: server default of 100 with zero or one --status, 30 with several)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every metadata page instead of one (maximum 10,000 executions; incompatible with --include-data)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every metadata page instead of one (maximum 10,000 executions; incompatible with --include-data; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringSliceVar(&f.statuses, "status", nil, "execution statuses, comma-separated or repeated: canceled, crashed, error, new, running, success, unknown, waiting; more than one fetches each status and merges newest first (default: every status)")
 	cmd.Flags().StringVar(&f.workflowID, "workflow-id", "", "only executions of this workflow, from 'n8n workflow list' (default: every workflow)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "only executions in this project, from 'n8n project list' (default: every accessible project)")
 	cmd.Flags().StringVar(&f.startedAfter, "started-after", "", "only executions started after this RFC3339 timestamp, e.g. 2026-09-17T00:00:00Z (default: no lower bound)")
 	cmd.Flags().StringVar(&f.startedBefore, "started-before", "", "only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)")
 	f.view.register(cmd, "execution", "ID, workflow ID and status")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all or several --status)")
 	return cmd
 }
 
@@ -218,42 +224,38 @@ func runExecutionList(ctx context.Context, opts Options, f executionListFlags) e
 		return client.ListExecutions(ctx, next)
 	}
 	var page n8n.Page[n8n.Execution]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
 	if err != nil {
 		return executionAPIError(err, resolution, "", "list")
 	}
-	return writeExecutionListPage(opts, f, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, writeExecutionListPage(opts, f, resolution, page, collection))
 }
 
 // runExecutionListForStatuses lists several statuses by fanning out one
 // request (or one paged walk with --all) per status; see
 // listExecutionsForStatuses.
 func runExecutionListForStatuses(ctx context.Context, opts Options, f executionListFlags, client *n8n.Client, resolution config.Resolution, listOpts n8n.ListExecutionsOptions, statuses []string) error {
-	page, more, err := listExecutionsForStatuses(ctx, client, listOpts, statuses, f.all)
+	page, collection, err := listExecutionsForStatuses(ctx, client, listOpts, statuses, f.all)
 	if err != nil {
 		return executionAPIError(err, resolution, "", "list")
 	}
-	if err := writeExecutionListPage(opts, f, resolution, page); err != nil {
-		return err
-	}
-	if more {
-		fmt.Fprintln(opts.Streams.Err, "More executions match these statuses; use --all (up to 10,000) or a single --status with --cursor to page further.")
-	}
-	return nil
+	return finishCollection(opts.Streams.Err, collection, writeExecutionListPage(opts, f, resolution, page, collection))
 }
 
 // writeExecutionListPage renders one fetched or merged page in the chosen
-// format; both the single- and multi-status paths go through it.
-func writeExecutionListPage(opts Options, f executionListFlags, resolution config.Resolution, page n8n.Page[n8n.Execution]) error {
+// format; both the single- and multi-status paths go through it. collection
+// is nil for one ordinary API page.
+func writeExecutionListPage(opts Options, f executionListFlags, resolution config.Resolution, page n8n.Page[n8n.Execution], collection *listCollection) error {
 	switch {
 	case f.output == outputJSON:
-		return writeJSON(opts.Streams.Out, page)
+		return writePageJSON(opts.Streams.Out, page, collection)
 	case f.view.enabled():
-		return writeScriptPage(opts, f.view, "execution", page, executionListEmptyHint, func(execution n8n.Execution) scriptListRow {
+		return writeScriptPage(opts, f.view, "execution", page, collection, executionListEmptyHint, func(execution n8n.Execution) scriptListRow {
 			return scriptListRow{ID: execution.ID, Fields: []string{execution.WorkflowID, execution.Status}}
 		})
 	default:
