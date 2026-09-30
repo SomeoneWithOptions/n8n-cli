@@ -64,7 +64,7 @@ func newEvaluationListCommand(opts Options) *cobra.Command {
 			"or use --all to follow every page up to 10,000 runs.\n\n" +
 			"Use 'n8n evaluation get WORKFLOW_ID RUN_ID' for aggregate metrics and final\n" +
 			"result, then 'n8n evaluation case list' for individual cases. Requires\n" +
-			"testRun:list and access to the workflow's project.",
+			"testRun:list and access to the workflow's project.\n\n" + cursorCollectionHelp,
 		Example: "  n8n evaluation list WORKFLOW_ID\n" +
 			"  n8n evaluation list WORKFLOW_ID --status running --limit 50\n" +
 			"  n8n evaluation list WORKFLOW_ID --all --output json",
@@ -76,9 +76,9 @@ func newEvaluationListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "evaluation runs per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous run list (default: first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every run page instead of one (maximum 10,000 runs)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every run page instead of one (maximum 10,000 runs; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.status, "status", "", "run status: new, running, completed, error, or cancelled (default: every status)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -106,8 +106,9 @@ func runEvaluationList(ctx context.Context, opts Options, workflowID string, f e
 		return client.ListEvaluationRuns(ctx, workflowID, next)
 	}
 	var page n8n.Page[n8n.EvaluationRunSummary]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -115,9 +116,11 @@ func runEvaluationList(ctx context.Context, opts Options, workflowID string, f e
 		return evaluationAPIError(err, resolution, workflowID, "", "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeEvaluationRunList(opts, resolution, workflowID, page)
 	}
-	return writeEvaluationRunList(opts, resolution, workflowID, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeEvaluationRunList(opts Options, resolution config.Resolution, workflowID string, page n8n.Page[n8n.EvaluationRunSummary]) error {
@@ -366,7 +369,7 @@ func newEvaluationCaseListCommand(opts Options) *cobra.Command {
 			"outputs, metrics and error details.\n\n" +
 			"Pass nextCursor to --cursor, or use --all to follow every case page up to 10,000\n" +
 			"cases. This pagination is independent from 'n8n evaluation list'. Requires\n" +
-			"testRun:read and access to the workflow's project.",
+			"testRun:read and access to the workflow's project.\n\n" + cursorCollectionHelp,
 		Example: "  n8n evaluation case list WORKFLOW_ID RUN_ID\n" +
 			"  n8n evaluation case list WORKFLOW_ID RUN_ID --limit 50 --cursor NEXT_CURSOR\n" +
 			"  n8n evaluation case list WORKFLOW_ID RUN_ID --all --output json",
@@ -378,7 +381,7 @@ func newEvaluationCaseListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "test cases per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous case list (default: first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every test-case page instead of one (maximum 10,000 cases)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every test-case page instead of one (maximum 10,000 cases; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON includes case inputs, outputs, metrics and errors)")
 	return cmd
 }
@@ -402,8 +405,9 @@ func runEvaluationCaseList(ctx context.Context, opts Options, workflowID, runID 
 		return client.ListEvaluationCases(ctx, workflowID, runID, n8n.ListEvaluationCasesOptions{ListOptions: pageOpts})
 	}
 	var page n8n.Page[n8n.EvaluationTestCase]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -411,9 +415,11 @@ func runEvaluationCaseList(ctx context.Context, opts Options, workflowID, runID 
 		return evaluationAPIError(err, resolution, workflowID, runID, "list cases for")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeEvaluationCaseList(opts, resolution, workflowID, runID, page)
 	}
-	return writeEvaluationCaseList(opts, resolution, workflowID, runID, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeEvaluationCaseList(opts Options, resolution config.Resolution, workflowID, runID string, page n8n.Page[n8n.EvaluationTestCase]) error {

@@ -71,7 +71,7 @@ func newRoleMappingListCommand(opts Options) *cobra.Command {
 			"The order column is the rule's position within its own type, so an unfiltered\n" +
 			"list contains two independent sequences that both start at 0. Pass\n" +
 			"--type instance or --type project to read one evaluation order on its own.\n" +
-			"Use a returned ID with update, move, or delete. Requires roleMappingRule:list.",
+			"Use a returned ID with update, move, or delete. Requires roleMappingRule:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n role-mapping list\n" +
 			"  n8n role-mapping list --type project --limit 50\n" +
 			"  n8n role-mapping list --all --output json",
@@ -83,9 +83,9 @@ func newRoleMappingListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "rules per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 rules)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 rules; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.ruleType, "type", "", "return one evaluation order: instance or project (default: both)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -105,13 +105,14 @@ func runRoleMappingList(ctx context.Context, opts Options, f roleMappingListFlag
 		return err
 	}
 	var page n8n.Page[n8n.RoleMappingRule]
+	var collection *listCollection
 	if f.all {
 		fetch := func(ctx context.Context, pagination n8n.ListOptions) (n8n.Page[n8n.RoleMappingRule], error) {
 			pageOpts := listOpts
 			pageOpts.ListOptions = pagination
 			return client.ListRoleMappingRules(ctx, pageOpts)
 		}
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = client.ListRoleMappingRules(ctx, listOpts)
 	}
@@ -119,9 +120,11 @@ func runRoleMappingList(ctx context.Context, opts Options, f roleMappingListFlag
 		return roleMappingAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeRoleMappingListText(opts, resolution, page)
 	}
-	return writeRoleMappingListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeRoleMappingListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.RoleMappingRule]) error {

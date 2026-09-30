@@ -74,7 +74,8 @@ func newProjectListCommand(opts Options) *cobra.Command {
 			"Use this to find the project ID that update, delete, and every 'project user'\n" +
 			"command takes. Personal projects appear with type 'personal'. Requires\n" +
 			"project:list and a licensed instance.\n\n" +
-			scriptViewHelp("project", "ID, name and type"),
+			scriptViewHelp("project", "ID, name and type") + "\n\n" +
+			cursorCollectionHelp,
 		Example: "  n8n project list\n" +
 			"  n8n project list --brief\n" +
 			"  n8n project list --all --quiet\n" +
@@ -89,9 +90,9 @@ func newProjectListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "projects per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 projects)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 projects; hitting it warns and sets JSON collection.truncated)")
 	f.view.register(cmd, "project", "ID, name and type")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -108,8 +109,9 @@ func runProjectList(ctx context.Context, opts Options, f projectListFlags) error
 		return err
 	}
 	var page n8n.Page[n8n.Project]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, client.ListProjects, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, client.ListProjects, listOpts)
 	} else {
 		page, err = client.ListProjects(ctx, listOpts)
 	}
@@ -117,14 +119,15 @@ func runProjectList(ctx context.Context, opts Options, f projectListFlags) error
 		return projectAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
-	}
-	if f.view.enabled() {
-		return writeScriptPage(opts, f.view, "project", page, projectListEmptyHint, func(project n8n.Project) scriptListRow {
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else if f.view.enabled() {
+		err = writeScriptPage(opts, f.view, "project", page, collection, projectListEmptyHint, func(project n8n.Project) scriptListRow {
 			return scriptListRow{ID: project.ID, Fields: []string{project.Name, project.Type}}
 		})
+	} else {
+		err = writeProjectListText(opts, resolution, page)
 	}
-	return writeProjectListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 const projectListEmptyHint = "No projects were returned. Create one with 'n8n project create NAME'."
@@ -340,7 +343,7 @@ func newProjectUserListCommand(opts Options) *cobra.Command {
 			"follow every cursor, capped at 10,000 members.\n\n" +
 			"This endpoint needs the user:list scope on top of project access, so a credential\n" +
 			"that can read the project may still be refused here. Use the returned user IDs\n" +
-			"with 'n8n project user role set' and 'n8n project user remove'.",
+			"with 'n8n project user role set' and 'n8n project user remove'.\n\n" + cursorCollectionHelp,
 		Example: "  n8n project user list PROJECT_ID\n" +
 			"  n8n project user list PROJECT_ID --limit 50 --output json\n" +
 			"  n8n project user list PROJECT_ID --all",
@@ -352,8 +355,8 @@ func newProjectUserListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "members per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 members)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 members; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -376,8 +379,9 @@ func runProjectUserList(ctx context.Context, opts Options, projectID string, f p
 		return client.ListProjectUsers(ctx, projectID, pagination)
 	}
 	var page n8n.Page[n8n.ProjectMember]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts)
 	} else {
 		page, err = fetch(ctx, listOpts)
 	}
@@ -385,9 +389,11 @@ func runProjectUserList(ctx context.Context, opts Options, projectID string, f p
 		return projectAPIError(err, resolution, "member list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeProjectMemberListText(opts, resolution, projectID, page)
 	}
-	return writeProjectMemberListText(opts, resolution, projectID, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeProjectMemberListText(opts Options, resolution config.Resolution, projectID string, page n8n.Page[n8n.ProjectMember]) error {

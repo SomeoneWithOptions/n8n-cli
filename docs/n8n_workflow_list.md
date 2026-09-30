@@ -22,6 +22,13 @@ empty result prints nothing:
 characters in fields as \\, \t, \n, \r and \uXXXX; use --output json for exact
 values. The views combine neither with each other nor with --output json.
 
+With --all, JSON output adds a collection object. Its truncated field is true,
+and a warning goes to stderr, when the walk stopped at the 10,000-item limit
+without reaching the end. nextCursor then resumes the walk when the limit fell
+between pages; it stays empty when the limit fell inside a page, because
+resuming from the next page would skip items: narrow the filters or page
+explicitly with --limit and --cursor instead.
+
 ```
 n8n workflow list [flags]
 ```
@@ -42,7 +49,7 @@ n8n workflow list [flags]
 
 ```
       --active string         only published (true) or unpublished (false) workflows (default: both)
-      --all                   follow every page instead of one (maximum 10,000 workflows)
+      --all                   follow every page instead of one (maximum 10,000 workflows; hitting it warns and sets JSON collection.truncated)
       --brief                 print only ID and name, tab-separated and escaped, with no header (default: full table)
       --context string        saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string         pagination cursor returned by a previous list (default: the first page)
@@ -51,7 +58,7 @@ n8n workflow list [flags]
       --limit int             workflows per API page, 1 to 250 (default: server default of 100)
       --name string           only workflows with exactly this name (default: any name)
       --offset int            number of workflows to skip before the page (default: start at the first workflow)
-      --output string         output format: text or json (JSON is a page object with data and nextCursor) (default "text")
+      --output string         output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
       --project-id string     only workflows in this project, from 'n8n project list' (default: every project)
       --quiet                 print only workflow IDs, one per line, with no header (default: full table)
       --tag stringArray       only workflows carrying this tag name, repeatable and combined with AND (default: any tag)

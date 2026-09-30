@@ -71,7 +71,7 @@ func newUserListCommand(opts Options) *cobra.Command {
 			"cursor-paginated; --offset selects a starting position, while --cursor resumes\n" +
 			"a previous response. They cannot be combined.\n\n" +
 			"--all follows cursors and collects at most 10,000 users. Instance-wide listing\n" +
-			"may require the instance owner. Requires user:list.",
+			"may require the instance owner. Requires user:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n user list --include-role\n" +
 			"  n8n user list --project-id PROJECT_ID --limit 50\n" +
 			"  n8n user list --offset 100 --output json\n" +
@@ -85,10 +85,10 @@ func newUserListCommand(opts Options) *cobra.Command {
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "users per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().IntVar(&f.offset, "offset", 0, "users to skip before first page, zero or greater (default: 0; cannot combine with --cursor)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: first page; cannot combine with --offset)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 users)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 users; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().BoolVar(&f.includeRole, "include-role", false, "include each user's global role (default: role is omitted by API)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "return members of this project ID (default: all visible instance users)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a paginated user object)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a paginated user object, plus collection with --all)")
 	return cmd
 }
 
@@ -110,6 +110,7 @@ func runUserList(ctx context.Context, opts Options, f userListFlags) error {
 		return err
 	}
 	var page n8n.Page[n8n.User]
+	var collection *listCollection
 	if f.all {
 		fetch := func(ctx context.Context, pagination n8n.ListOptions) (n8n.Page[n8n.User], error) {
 			pageOpts := listOpts
@@ -119,7 +120,7 @@ func runUserList(ctx context.Context, opts Options, f userListFlags) error {
 			}
 			return client.ListUsers(ctx, pageOpts)
 		}
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = client.ListUsers(ctx, listOpts)
 	}
@@ -127,9 +128,11 @@ func runUserList(ctx context.Context, opts Options, f userListFlags) error {
 		return userAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeUserListText(opts, resolution, page)
 	}
-	return writeUserListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeUserListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.User]) error {

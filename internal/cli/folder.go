@@ -79,7 +79,7 @@ func newFolderListCommand(opts Options) *cobra.Command {
 			"fields, which is worth it on large projects; note that the 'project', 'tags',\n" +
 			"and 'parentFolder' select fields are answered with a 500 by some instances, so\n" +
 			"prefer leaving --select off when in doubt, since the full response already\n" +
-			"carries them. Requires folder:list.",
+			"carries them. Requires folder:list.\n\n" + folderCollectionHelp,
 		Example: "  n8n folder list PROJECT_ID\n" +
 			"  n8n folder list PROJECT_ID --take 50 --sort-by name:asc\n" +
 			"  n8n folder list PROJECT_ID --skip 50 --take 50 --output json\n" +
@@ -95,7 +95,7 @@ func newFolderListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.skip, "skip", 0, "number of folders to skip before the page (default: start at the first folder)")
 	cmd.Flags().IntVar(&f.take, "take", 0, "folders per API page (default: server default of 10; 100 with --all)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 folders)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 folders; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.sortBy, "sort-by", "", "sort order: one of "+strings.Join(n8n.FolderSortFields, ", ")+" (default: the server's order)")
 	cmd.Flags().StringArrayVar(&f.selected, "select", nil, "field to return, repeatable: one of "+strings.Join(n8n.FolderSelectFields, ", ")+" (default: every field)")
 	cmd.Flags().StringVar(&f.filter, "filter", "", "whole filter object as JSON, e.g. '{\"name\":\"Invoices\"}' (cannot combine with the single-filter flags)")
@@ -103,7 +103,7 @@ func newFolderListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.name, "name", "", "only folders whose name matches this value (cannot combine with --filter)")
 	cmd.Flags().StringArrayVar(&f.tags, "tag", nil, "only folders carrying this tag name, repeatable (cannot combine with --filter)")
 	cmd.Flags().StringVar(&f.exclude, "exclude-folder-id", "", "drop this folder and everything under it (cannot combine with --filter)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is an object with count and data)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is an object with count and data, plus collection with --all)")
 	return cmd
 }
 
@@ -136,10 +136,11 @@ func runFolderList(ctx context.Context, opts Options, projectID string, f folder
 		return client.ListFolders(ctx, projectID, pagination)
 	}
 	var page n8n.FolderPage
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.CollectFolders(ctx, fetch, listOpts, n8n.DefaultCollectLimit)
-		// Every matching folder was collected, so the count is what is here.
-		page.Count = len(page.Data)
+		// The count stays the server's matching total: it includes folders
+		// before --skip and those past the collection limit.
+		page, collection, err = collectFolderPage(ctx, fetch, listOpts)
 	} else {
 		page, err = fetch(ctx, listOpts)
 	}
@@ -147,9 +148,11 @@ func runFolderList(ctx context.Context, opts Options, projectID string, f folder
 		return folderAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writeFolderPageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeFolderListText(opts, resolution, projectID, page, f)
 	}
-	return writeFolderListText(opts, resolution, projectID, page, f)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 // folderFilter builds the filter from the single-filter flags or from the raw

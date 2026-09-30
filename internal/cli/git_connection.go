@@ -85,7 +85,7 @@ func newGitConnectionListCommand(opts Options) *cobra.Command {
 			"connection, so this usually carries zero or one row. Use --all to\n" +
 			"follow every cursor, capped at 10,000 connections.\n\n" +
 			"Use a returned ID with get, update, delete, clone, disconnect, project,\n" +
-			"push, and pull. Requires gitConnection:list.",
+			"push, and pull. Requires gitConnection:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n git-connection list\n" +
 			"  n8n git-connection list --limit 50 --output json\n" +
 			"  n8n git-connection list --all",
@@ -97,8 +97,8 @@ func newGitConnectionListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "connections per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 connections)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 connections; hitting it warns and sets JSON collection.truncated)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -118,8 +118,9 @@ func runGitConnectionList(ctx context.Context, opts Options, f gitConnectionList
 		return err
 	}
 	var page n8n.Page[n8n.GitConnection]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, client.ListGitConnections, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, client.ListGitConnections, listOpts)
 	} else {
 		page, err = client.ListGitConnections(ctx, listOpts)
 	}
@@ -127,9 +128,11 @@ func runGitConnectionList(ctx context.Context, opts Options, f gitConnectionList
 		return gitConnectionAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeGitConnectionListText(opts, resolution, page)
 	}
-	return writeGitConnectionListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeGitConnectionListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.GitConnection]) error {

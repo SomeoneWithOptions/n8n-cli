@@ -95,7 +95,7 @@ func newDataTableListCommand(opts Options) *cobra.Command {
 			"Use this to find the table ID every other command takes. --name is the only\n" +
 			"filter the API documents. --sort-by takes field:asc or field:desc, for example\n" +
 			"name:asc or size:desc, where size orders by the reported sizeBytes. Requires\n" +
-			"dataTable:list and API-key authentication.",
+			"dataTable:list and API-key authentication.\n\n" + cursorCollectionHelp,
 		Example: "  n8n data-table list\n" +
 			"  n8n data-table list --name customers\n" +
 			"  n8n data-table list --sort-by size:desc --limit 50 --output json\n" +
@@ -108,10 +108,10 @@ func newDataTableListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "tables per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 tables)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 tables; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.name, "name", "", "only tables with this name (default: every table)")
 	cmd.Flags().StringVar(&f.sortBy, "sort-by", "", "sort order as field:asc or field:desc, e.g. name:asc or size:desc (default: the server's order)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -137,8 +137,9 @@ func runDataTableList(ctx context.Context, opts Options, f dataTableListFlags) e
 		return client.ListDataTables(ctx, scoped)
 	}
 	var page n8n.Page[n8n.DataTable]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -146,9 +147,11 @@ func runDataTableList(ctx context.Context, opts Options, f dataTableListFlags) e
 		return dataTableAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeDataTableListText(opts, resolution, page)
 	}
-	return writeDataTableListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 func writeDataTableListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.DataTable]) error {
@@ -557,7 +560,7 @@ func newDataTableRowListCommand(opts Options) *cobra.Command {
 			"matches text across every string column, and --sort-by takes columnName:asc or\n" +
 			"columnName:desc. Text output prints the system columns first, then the\n" +
 			"user-defined ones; --output json is the faithful copy of the row data and the\n" +
-			"right input for a backup. Requires dataTableRow:read.",
+			"right input for a backup. Requires dataTableRow:read.\n\n" + cursorCollectionHelp,
 		Example: "  n8n data-table row list TABLE_ID\n" +
 			"  n8n data-table row list TABLE_ID --where status=active --limit 50\n" +
 			"  n8n data-table row list TABLE_ID --where age=gte=30 --sort-by age:desc\n" +
@@ -572,10 +575,10 @@ func newDataTableRowListCommand(opts Options) *cobra.Command {
 	f.filter.register(cmd, false)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "rows per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 rows)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 rows; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.sortBy, "sort-by", "", "sort order as columnName:asc or columnName:desc (default: the server's order)")
 	cmd.Flags().StringVar(&f.search, "search", "", "match this text across every string column (default: no search)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -609,8 +612,9 @@ func runDataTableRowList(ctx context.Context, opts Options, tableID string, f da
 		return client.ListDataTableRows(ctx, tableID, scoped)
 	}
 	var page n8n.Page[n8n.DataTableRow]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, fetch, listOpts.ListOptions, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
 	} else {
 		page, err = fetch(ctx, listOpts.ListOptions)
 	}
@@ -618,8 +622,14 @@ func runDataTableRowList(ctx context.Context, opts Options, tableID string, f da
 		return dataTableAPIError(err, resolution, "row list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else {
+		err = writeDataTableRowList(opts, resolution, tableID, page)
 	}
+	return finishCollection(opts.Streams.Err, collection, err)
+}
+
+func writeDataTableRowList(opts Options, resolution config.Resolution, tableID string, page n8n.Page[n8n.DataTableRow]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	fmt.Fprintf(tw, "Data table:\t%s\n", tableID)

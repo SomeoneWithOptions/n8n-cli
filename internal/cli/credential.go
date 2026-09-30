@@ -71,7 +71,8 @@ func newCredentialListCommand(opts Options) *cobra.Command {
 			"admins. Use --all to follow cursors, capped at 10,000 credentials.\n\n" +
 			"Requires credential:list. A 403 can mean either missing scope or insufficient\n" +
 			"instance role; inspect capabilities with 'n8n discover --resource credential'.\n\n" +
-			scriptViewHelp("credential", "ID, name and type"),
+			scriptViewHelp("credential", "ID, name and type") + "\n\n" +
+			cursorCollectionHelp,
 		Example: "  n8n credential list\n" +
 			"  n8n credential list --brief\n" +
 			"  n8n credential list --all --quiet\n" +
@@ -85,9 +86,9 @@ func newCredentialListCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "credentials per API page (default: server default)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list")
-	cmd.Flags().BoolVar(&f.all, "all", false, "follow all pages (maximum 10,000 credentials)")
+	cmd.Flags().BoolVar(&f.all, "all", false, "follow all pages (maximum 10,000 credentials; hitting it warns and sets JSON collection.truncated)")
 	f.view.register(cmd, "credential", "ID, name and type")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
 
@@ -104,8 +105,9 @@ func runCredentialList(ctx context.Context, opts Options, f credentialListFlags)
 		return err
 	}
 	var page n8n.Page[n8n.Credential]
+	var collection *listCollection
 	if f.all {
-		page.Data, err = n8n.Collect(ctx, client.ListCredentials, listOpts, n8n.DefaultCollectLimit)
+		page, collection, err = collectPage(ctx, client.ListCredentials, listOpts)
 	} else {
 		page, err = client.ListCredentials(ctx, listOpts)
 	}
@@ -113,14 +115,15 @@ func runCredentialList(ctx context.Context, opts Options, f credentialListFlags)
 		return credentialAPIError(err, resolution, "list")
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, page)
-	}
-	if f.view.enabled() {
-		return writeScriptPage(opts, f.view, "credential", page, credentialListEmptyHint, func(credential n8n.Credential) scriptListRow {
+		err = writePageJSON(opts.Streams.Out, page, collection)
+	} else if f.view.enabled() {
+		err = writeScriptPage(opts, f.view, "credential", page, collection, credentialListEmptyHint, func(credential n8n.Credential) scriptListRow {
 			return scriptListRow{ID: credential.ID, Fields: []string{credential.Name, credential.Type}}
 		})
+	} else {
+		err = writeCredentialListText(opts, resolution, page)
 	}
-	return writeCredentialListText(opts, resolution, page)
+	return finishCollection(opts.Streams.Err, collection, err)
 }
 
 const credentialListEmptyHint = "No credentials were returned. This endpoint includes metadata only, never secret data."

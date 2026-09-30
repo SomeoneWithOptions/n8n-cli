@@ -12,6 +12,13 @@ a previous response. They cannot be combined.
 --all follows cursors and collects at most 10,000 users. Instance-wide listing
 may require the instance owner. Requires user:list.
 
+With --all, JSON output adds a collection object. Its truncated field is true,
+and a warning goes to stderr, when the walk stopped at the 10,000-item limit
+without reaching the end. nextCursor then resumes the walk when the limit fell
+between pages; it stays empty when the limit fell inside a page, because
+resuming from the next page would skip items: narrow the filters or page
+explicitly with --limit and --cursor instead.
+
 ```
 n8n user list [flags]
 ```
@@ -28,14 +35,14 @@ n8n user list [flags]
 ### Options
 
 ```
-      --all                 follow every page instead of one (maximum 10,000 users)
+      --all                 follow every page instead of one (maximum 10,000 users; hitting it warns and sets JSON collection.truncated)
       --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string       pagination cursor returned by a previous list (default: first page; cannot combine with --offset)
   -h, --help                help for list
       --include-role        include each user's global role (default: role is omitted by API)
       --limit int           users per API page, 1 to 250 (default: server default of 100)
       --offset int          users to skip before first page, zero or greater (default: 0; cannot combine with --cursor)
-      --output string       output format: text or json (JSON is a paginated user object) (default "text")
+      --output string       output format: text or json (JSON is a paginated user object, plus collection with --all) (default "text")
       --project-id string   return members of this project ID (default: all visible instance users)
       --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```

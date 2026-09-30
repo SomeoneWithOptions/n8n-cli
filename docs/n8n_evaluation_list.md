@@ -12,6 +12,13 @@ Use 'n8n evaluation get WORKFLOW_ID RUN_ID' for aggregate metrics and final
 result, then 'n8n evaluation case list' for individual cases. Requires
 testRun:list and access to the workflow's project.
 
+With --all, JSON output adds a collection object. Its truncated field is true,
+and a warning goes to stderr, when the walk stopped at the 10,000-item limit
+without reaching the end. nextCursor then resumes the walk when the limit fell
+between pages; it stays empty when the limit fell inside a page, because
+resuming from the next page would skip items: narrow the filters or page
+explicitly with --limit and --cursor instead.
+
 ```
 n8n evaluation list <workflow-id> [flags]
 ```
@@ -27,12 +34,12 @@ n8n evaluation list <workflow-id> [flags]
 ### Options
 
 ```
-      --all              follow every run page instead of one (maximum 10,000 runs)
+      --all              follow every run page instead of one (maximum 10,000 runs; hitting it warns and sets JSON collection.truncated)
       --context string   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string    pagination cursor returned by a previous run list (default: first page)
   -h, --help             help for list
       --limit int        evaluation runs per API page, 1 to 250 (default: server default of 100)
-      --output string    output format: text or json (JSON is a page object with data and nextCursor) (default "text")
+      --output string    output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
       --status string    run status: new, running, completed, error, or cancelled (default: every status)
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```

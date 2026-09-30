@@ -17,6 +17,12 @@ and 'parentFolder' select fields are answered with a 500 by some instances, so
 prefer leaving --select off when in doubt, since the full response already
 carries them. Requires folder:list.
 
+With --all, count stays the server's matching total, including folders before
+--skip, so it can exceed the folders shown. JSON output adds a collection
+object: when the walk stopped at the 10,000-folder limit without reaching the
+end, truncated is true, nextSkip is the --skip that continues it, and a warning
+goes to stderr.
+
 ```
 n8n folder list <project-id> [flags]
 ```
@@ -36,13 +42,13 @@ n8n folder list <project-id> [flags]
 ### Options
 
 ```
-      --all                        follow every page instead of one (maximum 10,000 folders)
+      --all                        follow every page instead of one (maximum 10,000 folders; hitting it warns and sets JSON collection.truncated)
       --context string             saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --exclude-folder-id string   drop this folder and everything under it (cannot combine with --filter)
       --filter string              whole filter object as JSON, e.g. '{"name":"Invoices"}' (cannot combine with the single-filter flags)
   -h, --help                       help for list
       --name string                only folders whose name matches this value (cannot combine with --filter)
-      --output string              output format: text or json (JSON is an object with count and data) (default "text")
+      --output string              output format: text or json (JSON is an object with count and data, plus collection with --all) (default "text")
       --parent-folder-id string    only folders directly inside this folder (cannot combine with --filter)
       --select stringArray         field to return, repeatable: one of id, name, createdAt, updatedAt, project, tags, parentFolder, workflowCount, subFolderCount, path (default: every field)
       --skip int                   number of folders to skip before the page (default: start at the first folder)

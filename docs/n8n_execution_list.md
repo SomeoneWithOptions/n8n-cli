@@ -32,6 +32,19 @@ values. The views combine neither with each other nor with --output json.
 
 With several statuses, both views print the merged newest-first rows.
 
+With --all, JSON output adds a collection object. Its truncated field is true,
+and a warning goes to stderr, when the walk stopped at the 10,000-item limit
+without reaching the end. nextCursor then resumes the walk when the limit fell
+between pages; it stays empty when the limit fell inside a page, because
+resuming from the next page would skip items: narrow the filters or page
+explicitly with --limit and --cursor instead.
+
+A merged list of several statuses carries the collection object with or without
+--all; its limit is the merged bound and nextCursor is always empty, because
+each status pages with its own cursor and one could skip rows the merge
+dropped. Repeating the same --all does not reach omitted rows: narrow the
+workflow, project or time filters, or list one status at a time with --cursor.
+
 ```
 n8n execution list [flags]
 ```
@@ -53,7 +66,7 @@ n8n execution list [flags]
 ### Options
 
 ```
-      --all                            follow every metadata page instead of one (maximum 10,000 executions; incompatible with --include-data)
+      --all                            follow every metadata page instead of one (maximum 10,000 executions; incompatible with --include-data; hitting it warns and sets JSON collection.truncated)
       --brief                          print only ID, workflow ID and status, tab-separated and escaped, with no header (default: full table)
       --context string                 saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string                  pagination cursor returned by a previous list (default: first page)
@@ -61,7 +74,7 @@ n8n execution list [flags]
       --ignore-data-size-limit         return detailed data even when it exceeds the instance display-size limit (default: omit oversized data)
       --include-data                   include detailed node input/output and saved workflow data (default: metadata only)
       --limit int                      executions per API page, 1 to 250 (default: server default of 100 with zero or one --status, 30 with several)
-      --output string                  output format: text or json (JSON is a page object with data and nextCursor) (default "text")
+      --output string                  output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all or several --status) (default "text")
       --project-id string              only executions in this project, from 'n8n project list' (default: every accessible project)
       --quiet                          print only execution IDs, one per line, with no header (default: full table)
       --redact-execution-data string   detailed-data redaction: true always redacts, false reveals and needs execution:reveal (default: workflow policy)

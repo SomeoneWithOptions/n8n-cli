@@ -26,10 +26,12 @@ const executionMultiStatusPageSize = 30
 // each status is walked with its own cursor and the merge is capped at
 // [n8n.DefaultCollectLimit] by the same argument.
 //
-// more reports, in page mode, that at least one status had further pages or
-// the merge dropped rows, so the caller can say the list is not exhaustive.
-// The returned page never carries a cursor: each status pages with its own.
-func listExecutionsForStatuses(ctx context.Context, client *n8n.Client, opts n8n.ListExecutionsOptions, statuses []string, all bool) (n8n.Page[n8n.Execution], bool, error) {
+// The returned collection reports the merge bound and whether the result is
+// incomplete: a status had further pages (or, with all, stopped at its own
+// cap), or the merge dropped unique rows. Duplicates alone are not
+// truncation. The returned page never carries a cursor: each status pages
+// with its own, and a per-status cursor could skip rows the merge dropped.
+func listExecutionsForStatuses(ctx context.Context, client *n8n.Client, opts n8n.ListExecutionsOptions, statuses []string, all bool) (n8n.Page[n8n.Execution], *listCollection, error) {
 	if !all && opts.Limit == 0 {
 		opts.Limit = executionMultiStatusPageSize
 	}
@@ -44,26 +46,30 @@ func listExecutionsForStatuses(ctx context.Context, client *n8n.Client, opts n8n
 				next.ListOptions = pageOpts
 				return client.ListExecutions(ctx, next)
 			}
-			data, err := n8n.Collect(ctx, fetch, statusOpts.ListOptions, n8n.DefaultCollectLimit)
+			collection, err := n8n.CollectWithInfo(ctx, fetch, statusOpts.ListOptions, n8n.DefaultCollectLimit)
 			if err != nil {
-				return n8n.Page[n8n.Execution]{}, false, err
+				return n8n.Page[n8n.Execution]{}, nil, err
 			}
-			lists = append(lists, data)
+			more = more || collection.Truncated
+			lists = append(lists, collection.Data)
 			continue
 		}
 		page, err := client.ListExecutions(ctx, statusOpts)
 		if err != nil {
-			return n8n.Page[n8n.Execution]{}, false, err
+			return n8n.Page[n8n.Execution]{}, nil, err
 		}
 		more = more || page.HasMore()
 		lists = append(lists, page.Data)
 	}
 	limit := opts.Limit
+	resume := resumeMultiStatusPage
 	if all {
 		limit = n8n.DefaultCollectLimit
+		resume = resumeMultiStatus
 	}
 	merged, truncated := mergeExecutionsNewestFirst(limit, lists...)
-	return n8n.Page[n8n.Execution]{Data: merged}, !all && (more || truncated), nil
+	collection := &listCollection{info: collectionInfo{Truncated: more || truncated, Limit: limit}, resume: resume}
+	return n8n.Page[n8n.Execution]{Data: merged}, collection, nil
 }
 
 // mergeExecutionsNewestFirst concatenates lists in order, keeps the first

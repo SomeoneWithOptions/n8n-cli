@@ -54,43 +54,86 @@ func (p Page[T]) HasMore() bool { return p.NextCursor != "" }
 // PageFunc fetches one page for the given options.
 type PageFunc[T any] func(context.Context, ListOptions) (Page[T], error)
 
-// Collect walks every page and returns the accumulated items.
+// Collection is the result of walking a cursor-paginated list up to a bound.
+type Collection[T any] struct {
+	// Data is the collected items, never nil.
+	Data []T
+	// NextCursor resumes the walk exactly after Data. It is set only when the
+	// bound fell on a whole-page boundary and the server offered another page;
+	// a bound that cuts through a page leaves it empty, because a server cursor
+	// cannot point inside a page and resuming from the next one would skip the
+	// discarded items.
+	NextCursor string
+	// Truncated reports that the walk stopped at the bound without proving the
+	// list was exhausted. It is meaningful only when no error was returned.
+	Truncated bool
+}
+
+// Collect walks every page and returns the accumulated items. It is
+// [CollectWithInfo] without the completeness report, for callers that only
+// need the items.
+func Collect[T any](ctx context.Context, fetch PageFunc[T], opts ListOptions, max int) ([]T, error) {
+	collection, err := CollectWithInfo(ctx, fetch, opts, max)
+	return collection.Data, err
+}
+
+// CollectWithInfo walks every page, starting at opts.Cursor with opts.Limit
+// items per page, and reports whether the list was exhausted.
 //
 // max caps the number of items collected; zero uses [DefaultCollectLimit].
-// Collection stops early on a repeated cursor, which is how a buggy or proxied
-// endpoint presents an infinite loop.
-func Collect[T any](ctx context.Context, fetch PageFunc[T], opts ListOptions, max int) ([]T, error) {
+// Reaching the cap sends no extra request to probe for more: a page that fits
+// exactly and carries no next cursor is complete, one that carries a next
+// cursor is truncated and resumable, and one that has to be clipped is
+// truncated without a cursor. A repeated cursor, including the starting one,
+// or an empty page with a next cursor is how a buggy or proxied endpoint
+// presents an infinite loop, and is an error.
+//
+// On error the items fetched so far are returned with it; they are not a
+// complete collection.
+func CollectWithInfo[T any](ctx context.Context, fetch PageFunc[T], opts ListOptions, max int) (Collection[T], error) {
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return Collection[T]{}, err
 	}
 	if max <= 0 {
 		max = DefaultCollectLimit
 	}
 
-	var items []T
+	result := Collection[T]{Data: []T{}}
 	seen := map[string]bool{}
+	if opts.Cursor != "" {
+		seen[opts.Cursor] = true
+	}
 	for {
 		if err := ctx.Err(); err != nil {
-			return items, err
+			return result, err
 		}
 
 		page, err := fetch(ctx, opts)
 		if err != nil {
-			return items, err
+			return result, err
 		}
-		items = append(items, page.Data...)
+		kept := min(len(page.Data), max-len(result.Data))
+		result.Data = append(result.Data, page.Data[:kept]...)
 
-		if len(items) >= max {
-			return items[:max], nil
+		if page.HasMore() {
+			if seen[page.NextCursor] {
+				return result, fmt.Errorf("pagination cursor %q repeated: the API is looping", page.NextCursor)
+			}
+			if len(page.Data) == 0 {
+				return result, errors.New("pagination returned an empty page with a next cursor: the API is looping")
+			}
+		}
+		if kept < len(page.Data) {
+			result.Truncated = true
+			return result, nil
 		}
 		if !page.HasMore() {
-			return items, nil
+			return result, nil
 		}
-		if seen[page.NextCursor] {
-			return items, fmt.Errorf("pagination cursor %q repeated: the API is looping", page.NextCursor)
-		}
-		if len(page.Data) == 0 {
-			return items, errors.New("pagination returned an empty page with a next cursor: the API is looping")
+		if len(result.Data) >= max {
+			result.Truncated = true
+			result.NextCursor = page.NextCursor
+			return result, nil
 		}
 		seen[page.NextCursor] = true
 		opts.Cursor = page.NextCursor
