@@ -58,7 +58,9 @@ type projectListFlags struct {
 	limit    int
 	cursor   string
 	all      bool
-	output   string
+	// view is registered on 'project list' only; member lists keep their table.
+	view   listViewFlags
+	output string
 }
 
 func newProjectListCommand(opts Options) *cobra.Command {
@@ -71,8 +73,11 @@ func newProjectListCommand(opts Options) *cobra.Command {
 			"page, or use --all to follow every cursor, capped at 10,000 projects.\n\n" +
 			"Use this to find the project ID that update, delete, and every 'project user'\n" +
 			"command takes. Personal projects appear with type 'personal'. Requires\n" +
-			"project:list and a licensed instance.",
+			"project:list and a licensed instance.\n\n" +
+			scriptViewHelp("project", "ID, name and type"),
 		Example: "  n8n project list\n" +
+			"  n8n project list --brief\n" +
+			"  n8n project list --all --quiet\n" +
 			"  n8n project list --limit 50 --output json\n" +
 			"  n8n project list --cursor NEXT_CURSOR\n" +
 			"  n8n project list --all",
@@ -85,12 +90,13 @@ func newProjectListCommand(opts Options) *cobra.Command {
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "projects per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
 	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 projects)")
+	f.view.register(cmd, "project", "ID, name and type")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
 	return cmd
 }
 
 func runProjectList(ctx context.Context, opts Options, f projectListFlags) error {
-	if err := validateOutput(f.output); err != nil {
+	if err := f.view.validate(f.output); err != nil {
 		return err
 	}
 	listOpts := n8n.ListOptions{Limit: f.limit, Cursor: f.cursor}
@@ -113,8 +119,15 @@ func runProjectList(ctx context.Context, opts Options, f projectListFlags) error
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
 	}
+	if f.view.enabled() {
+		return writeScriptPage(opts, f.view, "project", page, projectListEmptyHint, func(project n8n.Project) scriptListRow {
+			return scriptListRow{ID: project.ID, Fields: []string{project.Name, project.Type}}
+		})
+	}
 	return writeProjectListText(opts, resolution, page)
 }
+
+const projectListEmptyHint = "No projects were returned. Create one with 'n8n project create NAME'."
 
 func writeProjectListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.Project]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
@@ -133,7 +146,7 @@ func writeProjectListText(opts Options, resolution config.Resolution, page n8n.P
 		return err
 	}
 	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No projects were returned. Create one with 'n8n project create NAME'.")
+		fmt.Fprintln(opts.Streams.Err, projectListEmptyHint)
 	}
 	return nil
 }

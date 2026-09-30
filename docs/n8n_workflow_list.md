@@ -13,10 +13,14 @@ set with --active, --name, --tag and --project-id. Each row carries the full
 definition, so on a large instance prefer --exclude-pinned-data, which drops
 the pinned sample data that dominates the response. Requires workflow:list.
 
---quiet prints only workflow IDs, one per line; --brief prints ID and name
-separated by a tab. Both drop the header and summary so stdout pipes cleanly;
-the next cursor, when there is one, goes to stderr. They are text-only views,
-so they cannot be combined with each other or with --output json.
+Script views print rows only, with no header, count or blank lines, so stdout
+pipes cleanly; the next cursor and any empty-result hint go to stderr, and an
+empty result prints nothing:
+  --quiet  one workflow ID per line, printed exactly
+  --brief  ID and name, separated by a literal tab
+--brief escapes backslash, tab, newline, carriage return and other control
+characters in fields as \\, \t, \n, \r and \uXXXX; use --output json for exact
+values. The views combine neither with each other nor with --output json.
 
 ```
 n8n workflow list [flags]
@@ -39,7 +43,7 @@ n8n workflow list [flags]
 ```
       --active string         only published (true) or unpublished (false) workflows (default: both)
       --all                   follow every page instead of one (maximum 10,000 workflows)
-      --brief                 print only ID and name, tab-separated, with no header (default: full table)
+      --brief                 print only ID and name, tab-separated and escaped, with no header (default: full table)
       --context string        saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --cursor string         pagination cursor returned by a previous list (default: the first page)
       --exclude-pinned-data   leave pinned sample data out of the response (default: include it)

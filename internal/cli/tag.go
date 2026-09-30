@@ -49,6 +49,7 @@ type tagListFlags struct {
 	limit    int
 	cursor   string
 	all      bool
+	view     listViewFlags
 	output   string
 }
 
@@ -60,8 +61,11 @@ func newTagListCommand(opts Options) *cobra.Command {
 		Long: "List the tags of the selected instance, one cursor-paginated page at a time.\n" +
 			"The page carries a next cursor; pass it to --cursor for the following page, or\n" +
 			"use --all to follow every cursor, capped at 10,000 tags.\n\n" +
-			"Use this to find the tag ID that get, update and delete take. Requires tag:list.",
+			"Use this to find the tag ID that get, update and delete take. Requires tag:list.\n\n" +
+			scriptViewHelp("tag", "ID and name"),
 		Example: "  n8n tag list\n" +
+			"  n8n tag list --brief\n" +
+			"  n8n tag list --all --quiet\n" +
 			"  n8n tag list --limit 50 --output json\n" +
 			"  n8n tag list --cursor NEXT_CURSOR\n" +
 			"  n8n tag list --all",
@@ -74,12 +78,13 @@ func newTagListCommand(opts Options) *cobra.Command {
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "tags per API page, 1 to 250 (default: server default of 100)")
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
 	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 tags)")
+	f.view.register(cmd, "tag", "ID and name")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor)")
 	return cmd
 }
 
 func runTagList(ctx context.Context, opts Options, f tagListFlags) error {
-	if err := validateOutput(f.output); err != nil {
+	if err := f.view.validate(f.output); err != nil {
 		return err
 	}
 	listOpts := n8n.ListOptions{Limit: f.limit, Cursor: f.cursor}
@@ -102,8 +107,15 @@ func runTagList(ctx context.Context, opts Options, f tagListFlags) error {
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, page)
 	}
+	if f.view.enabled() {
+		return writeScriptPage(opts, f.view, "tag", page, tagListEmptyHint, func(tag n8n.Tag) scriptListRow {
+			return scriptListRow{ID: tag.ID, Fields: []string{tag.Name}}
+		})
+	}
 	return writeTagListText(opts, resolution, page)
 }
+
+const tagListEmptyHint = "No tags were returned. Create one with 'n8n tag create NAME'."
 
 func writeTagListText(opts Options, resolution config.Resolution, page n8n.Page[n8n.Tag]) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
@@ -122,7 +134,7 @@ func writeTagListText(opts Options, resolution config.Resolution, page n8n.Page[
 		return err
 	}
 	if len(page.Data) == 0 {
-		fmt.Fprintln(opts.Streams.Err, "No tags were returned. Create one with 'n8n tag create NAME'.")
+		fmt.Fprintln(opts.Streams.Err, tagListEmptyHint)
 	}
 	return nil
 }
