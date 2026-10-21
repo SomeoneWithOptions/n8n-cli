@@ -116,6 +116,58 @@ func TestExportPackageOptionalBools(t *testing.T) {
 	}
 }
 
+func TestExportPackageSendsCurrentFieldNames(t *testing.T) {
+	server := newCommunityPackageServer(t, exportGzipHandler(t, `{"agents":1,"workflows":1}`, ""))
+
+	var out bytes.Buffer
+	_, err := server.client(t).ExportPackage(context.Background(), ExportPackageRequest{
+		AgentIDs:         []string{"ag1"},
+		WorkflowIDs:      []string{"wf1"},
+		DependencyPolicy: ExportDependencyIncludeInPackage,
+		VersionPolicy:    ExportVersionPreferPublished,
+	}, &out)
+	if err != nil {
+		t.Fatalf("ExportPackage: %v", err)
+	}
+	_, raw := server.last(t)
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(raw), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v\n%s", err, raw)
+	}
+	want := map[string]any{
+		"agentIds":         []any{"ag1"},
+		"workflowIds":      []any{"wf1"},
+		"dependencyPolicy": "include-in-package",
+		"versionPolicy":    "prefer-published",
+	}
+	if diff := cmp.Diff(want, sent); diff != "" {
+		t.Errorf("export body mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestExportPackageAcceptsEveryPolicyValue(t *testing.T) {
+	server := newCommunityPackageServer(t, exportGzipHandler(t, "", ""))
+	client := server.client(t)
+	var out bytes.Buffer
+	for _, policy := range exportDependencyPolicies {
+		if _, err := client.ExportPackage(context.Background(), ExportPackageRequest{ProjectIDs: []string{"p"}, DependencyPolicy: policy}, &out); err != nil {
+			t.Errorf("dependency policy %q: %v", policy, err)
+		}
+	}
+	for _, policy := range exportVersionPolicies {
+		if _, err := client.ExportPackage(context.Background(), ExportPackageRequest{ProjectIDs: []string{"p"}, VersionPolicy: policy}, &out); err != nil {
+			t.Errorf("version policy %q: %v", policy, err)
+		}
+	}
+	many := make([]string, maxExportIDs)
+	for i := range many {
+		many[i] = "p"
+	}
+	if _, err := client.ExportPackage(context.Background(), ExportPackageRequest{ProjectIDs: many}, &out); err != nil {
+		t.Errorf("300 project IDs: %v, want accepted", err)
+	}
+}
+
 func TestExportPackageValidation(t *testing.T) {
 	server := newCommunityPackageServer(t, exportGzipHandler(t, "", ""))
 	client := server.client(t)
@@ -127,8 +179,11 @@ func TestExportPackageValidation(t *testing.T) {
 		{WorkflowIDs: []string{"  padded "}},
 		{WorkflowIDs: []string{"a"}, ProjectIDs: []string{"p"}},
 		{FolderIDs: []string{"f"}, ProjectIDs: []string{"p"}},
-		{WorkflowIDs: []string{"a"}, MissingDependencyPolicy: "sometimes"},
-		{WorkflowIDs: []string{"a"}, WorkflowVersionPolicy: "sometimes"},
+		{AgentIDs: []string{"ag"}, ProjectIDs: []string{"p"}},
+		{AgentIDs: []string{" "}},
+		{ProjectIDs: []string{"p", ""}},
+		{WorkflowIDs: []string{"a"}, DependencyPolicy: "sometimes"},
+		{WorkflowIDs: []string{"a"}, VersionPolicy: "sometimes"},
 		{WorkflowIDs: []string{"a"}, CredentialExportPolicy: "sometimes"},
 	}
 	for i, request := range cases {
@@ -140,8 +195,15 @@ func TestExportPackageValidation(t *testing.T) {
 	for i := range many {
 		many[i] = "w"
 	}
-	if _, err := client.ExportPackage(context.Background(), ExportPackageRequest{WorkflowIDs: many}, &out); err == nil {
-		t.Error("301 workflow IDs: want a validation error")
+	for name, request := range map[string]ExportPackageRequest{
+		"agentIds":    {AgentIDs: many},
+		"workflowIds": {WorkflowIDs: many},
+		"folderIds":   {FolderIDs: many},
+		"projectIds":  {ProjectIDs: many},
+	} {
+		if _, err := client.ExportPackage(context.Background(), request, &out); err == nil || !strings.Contains(err.Error(), name) {
+			t.Errorf("301 %s: error = %v, want a validation error naming the field", name, err)
+		}
 	}
 	if len(server.requests) != 0 {
 		t.Errorf("requests = %d, want 0 before transport", len(server.requests))
@@ -299,6 +361,94 @@ func TestImportPackageStreamsMultipart(t *testing.T) {
 	}
 	if result.Bindings.Workflows["wf-src"] != "wf-local" {
 		t.Errorf("bindings = %+v, want wf-src to wf-local", result.Bindings)
+	}
+}
+
+func TestImportPackageAcceptsNewModes(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+	client := server.client(t)
+
+	for _, tc := range []struct {
+		credential, schema string
+	}{
+		{ImportCredentialMissingCreateWithValues, ImportDataTableSchemaOverwrite},
+		{ImportCredentialMissingCreateStub, ImportDataTableSchemaOverwriteNonDestructive},
+	} {
+		_, err := client.ImportPackage(context.Background(), ImportPackageRequest{
+			WorkflowConflictPolicy:  ImportWorkflowConflictSkip,
+			WorkflowIDPolicy:        ImportWorkflowIDSource,
+			CredentialMissingMode:   tc.credential,
+			DataTableSchemaConflict: tc.schema,
+		}, strings.NewReader(packageArchiveBytes), "p.n8np")
+		if err != nil {
+			t.Fatalf("ImportPackage(%s, %s): %v", tc.credential, tc.schema, err)
+		}
+		req, raw := server.last(t)
+		fields, _, _ := parseMultipartImport(t, req, []byte(raw))
+		if fields["credentialMissingMode"] != tc.credential || fields["dataTableSchemaConflictPolicy"] != tc.schema {
+			t.Errorf("fields = %v, want credential %q and schema %q", fields, tc.credential, tc.schema)
+		}
+	}
+}
+
+func TestImportPackageResultKeepsNewFields(t *testing.T) {
+	body := `{
+  "package":{"sourceN8nVersion":"2.0.0","sourceId":"pkg-2","exportedAt":"2026-10-01T00:00:00.000Z"},
+  "workflows":[],"removedWorkflows":[],"removedFolders":[],"folders":[],"projects":[],
+  "bindings":{"workflows":{},"credentials":{"c-seeded":"t-seeded","c-partial":"t-partial"}},
+  "credentials":{"matched":[],"stubbed":[],"seeded":["c-seeded"],"incomplete":["c-partial"],"futureBucket":["x"]},
+  "dataTables":{"matched":1,"created":0,"updated":2},
+  "variables":{"matched":[],"missing":[],"created":[],"stubbed":[],"updated":[]},
+  "tags":{"matched":[],"created":[],"renamed":[],"reconciled":[],"skipped":[]},
+  "agents":{"created":["ag-1"]}
+}`
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+
+	result, err := server.client(t).ImportPackage(context.Background(), ImportPackageRequest{
+		WorkflowConflictPolicy: ImportWorkflowConflictSkip,
+		WorkflowIDPolicy:       ImportWorkflowIDSource,
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if err != nil {
+		t.Fatalf("ImportPackage: %v", err)
+	}
+	wantCredentials := ImportCredentials{Matched: []string{}, Stubbed: []string{}, Seeded: []string{"c-seeded"}, Incomplete: []string{"c-partial"}}
+	if diff := cmp.Diff(wantCredentials, result.Credentials); diff != "" {
+		t.Errorf("credentials mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(ImportDataTables{Matched: 1, Updated: 2}, result.DataTables); diff != "" {
+		t.Errorf("data tables mismatch (-want +got):\n%s", diff)
+	}
+
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got, want any
+	if err := json.Unmarshal(encoded, &got); err != nil {
+		t.Fatalf("re-decode: %v", err)
+	}
+	if err := json.Unmarshal([]byte(body), &want); err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("round trip lost data (-want +got):\n%s", diff)
+	}
+
+	built := ImportPackageResult{DataTables: ImportDataTables{Updated: 3}}
+	encoded, err = json.Marshal(built)
+	if err != nil || !strings.Contains(string(encoded), `"updated":3`) {
+		t.Errorf("Marshal without raw = %s (error %v), want the typed fields", encoded, err)
+	}
+}
+
+func TestImportBlockedErrorNamesItsPath(t *testing.T) {
+	resp := &http.Response{StatusCode: http.StatusConflict, Status: "409 Conflict", Header: http.Header{}}
+	blocked := newImportBlockedError(resp, "/n8n-packages/import-selection", []byte(`{"message":"overlap","issues":[{"type":"workflow-removal-conflict"}]}`))
+	if blocked.Path != "/n8n-packages/import-selection" {
+		t.Errorf("path = %q, want the selection endpoint", blocked.Path)
+	}
+	if !strings.Contains(blocked.Error(), "POST /n8n-packages/import-selection") {
+		t.Errorf("error = %q, want the path in the message", blocked.Error())
 	}
 }
 

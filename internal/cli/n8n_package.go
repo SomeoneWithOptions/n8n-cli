@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -27,7 +29,7 @@ func newPackageCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "package",
 		Short: "Export and import n8n packages (beta)",
-		Long: "Move workflows, folders, and projects between instances as gzipped tar\n" +
+		Long: "Move agents, workflows, folders, and projects between instances as gzipped tar\n" +
 			"packages (.n8np). Start with 'export' to write a package file from this\n" +
 			"instance, then 'import' to read one back into a project.\n\n" +
 			"The whole group is beta: breaking changes may still occur without a major\n" +
@@ -49,15 +51,25 @@ func newPackageCommand(opts Options) *cobra.Command {
 	return cmd
 }
 
+// Export flags renamed with the dependencyPolicy and versionPolicy fields.
+// The old names stay as hidden, deprecated aliases so scripts keep working.
+const (
+	packageDependencyPolicyFlag       = "dependency-policy"
+	packageVersionPolicyFlag          = "version-policy"
+	packageLegacyDependencyPolicyFlag = "missing-workflow-dependency-policy"
+	packageLegacyVersionPolicyFlag    = "workflow-version-policy"
+)
+
 type packageExportFlags struct {
 	instance              instanceFlags
+	agentIDs              []string
 	workflowIDs           []string
 	folderIDs             []string
 	projectIDs            []string
 	includeVariableValues bool
 	includeTags           bool
 	includeArchived       bool
-	missingPolicy         string
+	dependencyPolicy      string
 	versionPolicy         string
 	credentialPolicy      string
 	input                 string
@@ -69,18 +81,20 @@ func newPackageExportCommand(opts Options) *cobra.Command {
 	var f packageExportFlags
 	cmd := &cobra.Command{
 		Use:   "export",
-		Short: "Export workflows, folders, or projects as an n8n package (beta)",
-		Long: "Export workflows and/or folders, or whole projects, as a gzipped tar\n" +
-			"archive (.n8np) streamed to a local file. Pass --workflow-id and/or\n" +
-			"--folder-id for loose workflows and folders, or --project-id for whole\n" +
-			"projects, but not both groups in the same request; at least one ID is\n" +
-			"required. Each exported folder includes its nested folders.\n\n" +
+		Short: "Export agents, workflows, folders, or projects as an n8n package (beta)",
+		Long: "Export agents, workflows, and/or folders, or whole projects, as a gzipped\n" +
+			"tar archive (.n8np) streamed to a local file. Pass --agent-id,\n" +
+			"--workflow-id, and/or --folder-id for loose entities, or --project-id for\n" +
+			"whole projects, but not both groups in the same request; at least one ID\n" +
+			"is required. Each exported folder includes its nested folders, and whole\n" +
+			"projects include their agents when the agents module is enabled.\n\n" +
 			"Beta: breaking changes may still occur without a major version bump.\n" +
-			"Requires the licensed Packages feature: workflow and folder exports need\n" +
-			"workflow:export, project exports need project:export, and exports that\n" +
-			"reference variables with values included also need variable:list.\n" +
-			"Statically referenced sub-workflows must be included or the export is\n" +
-			"rejected under the default missing-dependency policy. The archive may\n" +
+			"Requires the licensed Packages feature: agent exports need agent:export\n" +
+			"and the agents module, workflow and folder exports need workflow:export,\n" +
+			"project exports need project:export, and exports that reference\n" +
+			"variables with values included also need variable:list. Workflow and\n" +
+			"agent dependencies outside the selection must be included or the export\n" +
+			"is rejected under the default --dependency-policy fail. The archive may\n" +
 			"bundle variable values and credential expressions, so it is written with\n" +
 			"owner-only file permissions and the destination file is overwritten.\n\n" +
 			"Pass the selection as flags, or the whole request document with --input\n" +
@@ -91,27 +105,39 @@ func newPackageExportCommand(opts Options) *cobra.Command {
 			"server-side. Follow with 'n8n package import' to restore the archive.",
 		Example: "  n8n package export --workflow-id 2tUt1wbLX592XDdX --out workflows.n8np\n" +
 			"  n8n package export --workflow-id a --folder-id 9xKp2mNqRzAbCdEf --out mixed.n8np\n" +
-			"  n8n package export --project-id Ox8O54VQrmBrb4qL --out project.n8np --output json\n" +
+			"  n8n package export --project-id Ox8O54VQrmBrb4qL --dependency-policy include-in-package --out project.n8np --output json\n" +
+			"  n8n package export --agent-id uT9LdQx7rK2MvB4f --version-policy prefer-published --out agent.n8np\n" +
 			"  n8n package export --input selection.json --out workflows.n8np",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			changed := map[string]bool{
-				"include-variable-values": cmd.Flags().Changed("include-variable-values"),
-				"include-tags":            cmd.Flags().Changed("include-tags"),
-				"include-archived":        cmd.Flags().Changed("include-archived"),
+			changed := map[string]bool{}
+			for _, name := range []string{
+				"include-variable-values", "include-tags", "include-archived",
+				packageDependencyPolicyFlag, packageLegacyDependencyPolicyFlag,
+				packageVersionPolicyFlag, packageLegacyVersionPolicyFlag,
+			} {
+				changed[name] = cmd.Flags().Changed(name)
 			}
 			return runPackageExport(cmd.Context(), opts, f, changed)
 		},
 	}
+	// Deprecation notices go to the flag set output; cobra would otherwise
+	// print them on stdout, which carries the archive or the JSON summary.
+	cmd.Flags().SetOutput(opts.Streams.Err)
 	f.instance.register(cmd)
+	cmd.Flags().StringArrayVar(&f.agentIDs, "agent-id", nil, "agent to include, repeatable up to 300; needs the agents module (cannot combine with --project-id or --input)")
 	cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "workflow to include, repeatable up to 300 (cannot combine with --project-id or --input)")
 	cmd.Flags().StringArrayVar(&f.folderIDs, "folder-id", nil, "folder to include with nested folders, repeatable up to 300 (cannot combine with --project-id or --input)")
-	cmd.Flags().StringArrayVar(&f.projectIDs, "project-id", nil, "project to include, repeatable (cannot combine with --workflow-id, --folder-id, or --input)")
+	cmd.Flags().StringArrayVar(&f.projectIDs, "project-id", nil, "project to include with its workflows and agents, repeatable up to 300 (cannot combine with --agent-id, --workflow-id, --folder-id, or --input)")
 	cmd.Flags().BoolVar(&f.includeVariableValues, "include-variable-values", true, "bundle referenced variable values, else names only (default: true)")
 	cmd.Flags().BoolVar(&f.includeTags, "include-tags", true, "bundle workflow tags, else no tag files or references (default: true)")
 	cmd.Flags().BoolVar(&f.includeArchived, "include-archived", false, "include archived workflows in folder and project exports; listed workflows always export (default: false)")
-	cmd.Flags().StringVar(&f.missingPolicy, "missing-workflow-dependency-policy", "", "missing static sub-workflow handling: fail, reference-only, or include-in-package (default: server default fail)")
-	cmd.Flags().StringVar(&f.versionPolicy, "workflow-version-policy", "", "which workflow version travels: published-strict, prefer-published, ignore-unpublished, or latest (default: server default latest)")
+	cmd.Flags().StringVar(&f.dependencyPolicy, packageDependencyPolicyFlag, "", "workflow and agent dependencies outside the selection: fail, reference-only, or include-in-package (default: server default fail)")
+	cmd.Flags().StringVar(&f.versionPolicy, packageVersionPolicyFlag, "", "which workflow and agent version travels: published-strict, prefer-published, ignore-unpublished, or latest (default: server default latest)")
+	cmd.Flags().StringVar(&f.dependencyPolicy, packageLegacyDependencyPolicyFlag, "", "deprecated alias of --dependency-policy, same values (default: server default fail)")
+	cmd.Flags().StringVar(&f.versionPolicy, packageLegacyVersionPolicyFlag, "", "deprecated alias of --version-policy, same values (default: server default latest)")
+	_ = cmd.Flags().MarkDeprecated(packageLegacyDependencyPolicyFlag, "use --"+packageDependencyPolicyFlag)
+	_ = cmd.Flags().MarkDeprecated(packageLegacyVersionPolicyFlag, "use --"+packageVersionPolicyFlag)
 	cmd.Flags().StringVar(&f.credentialPolicy, "credential-export-policy", "", "credential data handling: expression-values-only or no-values; literal values never travel (default: server default expression-values-only)")
 	cmd.Flags().StringVar(&f.input, "input", "", "export selection as JSON: a file path, or - for stdin (cannot combine with selection or policy flags; maximum 1 MiB)")
 	cmd.Flags().StringVar(&f.out, "out", "", "local destination for the .n8np archive: a file path, or - for stdout raw bytes (required)")
@@ -137,12 +163,13 @@ func runPackageExport(ctx context.Context, opts Options, f packageExportFlags, c
 	if err != nil {
 		return err
 	}
+	need := packageExportScopes(request)
 
 	toStdout := strings.TrimSpace(f.out) == "-"
 	if toStdout {
 		result, err := client.ExportPackage(ctx, request, opts.Streams.Out)
 		if err != nil {
-			return packageAPIError(err, resolution, "export")
+			return packageAPIError(err, resolution, "export", need)
 		}
 		if f.output == outputJSON {
 			return writeJSON(opts.Streams.Err, packageExportSummary{Result: result, File: "-"})
@@ -158,7 +185,7 @@ func runPackageExport(ctx context.Context, opts Options, f packageExportFlags, c
 	closeErr := file.Close()
 	if exportErr != nil {
 		_ = os.Remove(f.out)
-		return packageAPIError(exportErr, resolution, "export")
+		return packageAPIError(exportErr, resolution, "export", need)
 	}
 	if closeErr != nil {
 		_ = os.Remove(f.out)
@@ -177,11 +204,35 @@ type packageExportSummary struct {
 	File   string                   `json:"file"`
 }
 
+// packageExportScopes names the API key scopes the selection needs: each
+// explicitly selected entity type has its own export scope.
+func packageExportScopes(request n8n.ExportPackageRequest) scopeNeed {
+	var scopes []string
+	if len(request.AgentIDs) > 0 {
+		scopes = append(scopes, "agent:export")
+	}
+	if len(request.WorkflowIDs) > 0 || len(request.FolderIDs) > 0 {
+		scopes = append(scopes, "workflow:export")
+	}
+	if len(request.ProjectIDs) > 0 {
+		scopes = append(scopes, "project:export")
+	}
+	return allOf(scopes...)
+}
+
 func packageExportRequest(opts Options, f packageExportFlags, changed map[string]bool) (n8n.ExportPackageRequest, error) {
 	var request n8n.ExportPackageRequest
+	if changed[packageDependencyPolicyFlag] && changed[packageLegacyDependencyPolicyFlag] {
+		return request, fmt.Errorf("--%s and its deprecated alias --%s cannot both be set: pass only --%s",
+			packageDependencyPolicyFlag, packageLegacyDependencyPolicyFlag, packageDependencyPolicyFlag)
+	}
+	if changed[packageVersionPolicyFlag] && changed[packageLegacyVersionPolicyFlag] {
+		return request, fmt.Errorf("--%s and its deprecated alias --%s cannot both be set: pass only --%s",
+			packageVersionPolicyFlag, packageLegacyVersionPolicyFlag, packageVersionPolicyFlag)
+	}
 	hasInput := strings.TrimSpace(f.input) != ""
-	hasFlags := len(f.workflowIDs) > 0 || len(f.folderIDs) > 0 || len(f.projectIDs) > 0 ||
-		strings.TrimSpace(f.missingPolicy) != "" || strings.TrimSpace(f.versionPolicy) != "" ||
+	hasFlags := len(f.agentIDs) > 0 || len(f.workflowIDs) > 0 || len(f.folderIDs) > 0 || len(f.projectIDs) > 0 ||
+		strings.TrimSpace(f.dependencyPolicy) != "" || strings.TrimSpace(f.versionPolicy) != "" ||
 		strings.TrimSpace(f.credentialPolicy) != "" ||
 		changed["include-variable-values"] || changed["include-tags"] || changed["include-archived"]
 	switch {
@@ -191,12 +242,13 @@ func packageExportRequest(opts Options, f packageExportFlags, changed map[string
 		return readPackageExportDocument(opts, f.input)
 	default:
 		request = n8n.ExportPackageRequest{
-			WorkflowIDs:             f.workflowIDs,
-			FolderIDs:               f.folderIDs,
-			ProjectIDs:              f.projectIDs,
-			MissingDependencyPolicy: strings.TrimSpace(f.missingPolicy),
-			WorkflowVersionPolicy:   strings.TrimSpace(f.versionPolicy),
-			CredentialExportPolicy:  strings.TrimSpace(f.credentialPolicy),
+			AgentIDs:               f.agentIDs,
+			WorkflowIDs:            f.workflowIDs,
+			FolderIDs:              f.folderIDs,
+			ProjectIDs:             f.projectIDs,
+			DependencyPolicy:       strings.TrimSpace(f.dependencyPolicy),
+			VersionPolicy:          strings.TrimSpace(f.versionPolicy),
+			CredentialExportPolicy: strings.TrimSpace(f.credentialPolicy),
 		}
 		if changed["include-variable-values"] {
 			request.IncludeVariableValues = n8n.Bool(f.includeVariableValues)
@@ -229,6 +281,9 @@ func readPackageExportDocument(opts Options, path string) (n8n.ExportPackageRequ
 	if len(raw) > maxPackageDocument {
 		return request, fmt.Errorf("package export JSON exceeds %d bytes", maxPackageDocument)
 	}
+	if err := rejectRenamedExportFields(raw); err != nil {
+		return request, err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil {
@@ -242,6 +297,22 @@ func readPackageExportDocument(opts Options, path string) (n8n.ExportPackageRequ
 		return request, fmt.Errorf("decode package export JSON: %w", err)
 	}
 	return request, nil
+}
+
+// rejectRenamedExportFields names the current field when a document still
+// uses a pre-rename one; the instance would reject the old name with a 400.
+// A document that is not an object is left to the strict decode to report.
+func rejectRenamedExportFields(raw []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil
+	}
+	for _, old := range slices.Sorted(maps.Keys(n8n.RenamedExportFields)) {
+		if _, ok := fields[old]; ok {
+			return fmt.Errorf("decode package export JSON: field %q was renamed to %q: rename it in the document and retry", old, n8n.RenamedExportFields[old])
+		}
+	}
+	return nil
 }
 
 func writePackageExportText(opts Options, resolution config.Resolution, result *n8n.ExportPackageResult, file string) error {
@@ -328,13 +399,17 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 			"workflows the package does not contain (archive is recoverable,\n" +
 			"hard-delete also drops executions permanently, so prefer archive),\n" +
 			"missing credentials become empty stubs unless --credential-missing-mode\n" +
-			"must-preexist, and folders, tags, variables, or tables may be created or\n" +
-			"overwritten. Interactive runs ask for confirmation and non-interactive\n" +
-			"runs require --yes; --file - also requires --yes because stdin cannot\n" +
-			"answer. Needs workflow:import plus, depending on the package and the\n" +
-			"policies, variable, tag, data-table, folder, and delete scopes, and the\n" +
-			"Packages, Variables, and Folders features where the contents require\n" +
-			"them.",
+			"is must-preexist or create-with-values, --data-table-schema-policy\n" +
+			"overwrite permanently drops the values in removed or retyped columns,\n" +
+			"and folders, tags, variables, or tables may be created or overwritten.\n" +
+			"Interactive runs ask for confirmation and non-interactive runs require\n" +
+			"--yes; --file - also requires --yes because stdin cannot answer.\n" +
+			"Credentials created from incomplete package data are reported on\n" +
+			"stderr and keep their workflows unpublished until completed. Needs\n" +
+			"workflow:import plus, depending on the package and the policies,\n" +
+			"credential, variable, tag, data-table, folder, and delete scopes, and\n" +
+			"the Packages, Variables, and Folders features where the contents\n" +
+			"require them.",
 		Example: "  n8n package import --file workflows.n8np --workflow-conflict-policy new-version --yes\n" +
 			"  n8n package import --file project.n8np --workflow-conflict-policy fail --project-id Ox8O54VQrmBrb4qL --yes --output json\n" +
 			"  n8n package import --file update.n8np --workflow-conflict-policy skip --workflow-publishing-policy publish-all --yes",
@@ -348,7 +423,7 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "target project ID, from 'n8n project list' (default: the caller's personal project)")
 	cmd.Flags().StringVar(&f.folderID, "folder-id", "", "folder within the target project, from 'n8n folder list PROJECT_ID' (default: the project root)")
 	cmd.Flags().StringVar(&f.credentialMatching, "credential-matching-mode", "", "how package credential references match: id-only, name-and-type, or type-only (default: server default id-only)")
-	cmd.Flags().StringVar(&f.credentialMissing, "credential-missing-mode", "", "unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders (default: server default create-stub)")
+	cmd.Flags().StringVar(&f.credentialMissing, "credential-missing-mode", "", "unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders, create-with-values seeds them from the package's expression values (needs credential:create; unconfirmed data lands in credentials.incomplete and blocks publishing) (default: server default create-stub)")
 	cmd.Flags().StringVar(&f.bindings, "bindings", "", "explicit credential bindings as JSON, e.g. '{\"credentials\":{\"pkg-id\":\"target-id\"}}' (default: server default {})")
 	cmd.Flags().StringVar(&f.workflowConflict, "workflow-conflict-policy", "", "matching workflow handling, required: new-version, fail, or skip")
 	cmd.Flags().StringVar(&f.workflowIDPolicy, "workflow-id-policy", n8n.ImportWorkflowIDSource, "ID for newly created workflows, always sent: source reuses the package ID for promotions, new mints a fresh ID for repeat imports (default: source)")
@@ -359,7 +434,7 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.deletionPolicy, "overwrite-deletion-policy", "", "how folder overwrite removes missing workflows: archive (recoverable) or hard-delete (also drops executions; prefer archive) (default: server default archive)")
 	cmd.Flags().StringVar(&f.dataTableMatching, "data-table-matching-mode", "", "data-table matching: by-id, the only mode (default: server default by-id)")
 	cmd.Flags().StringVar(&f.dataTableMissing, "data-table-missing-mode", "", "missing data-table handling: create, must-preexist, or do-nothing (default: server default create)")
-	cmd.Flags().StringVar(&f.dataTableSchema, "data-table-schema-policy", "", "matched table schema strictness: keep-existing or fail (default: server default keep-existing)")
+	cmd.Flags().StringVar(&f.dataTableSchema, "data-table-schema-policy", "", "matched table schema handling: keep-existing accepts extra target columns, fail rejects any difference, overwrite reshapes the table to the package and permanently drops values in removed or retyped columns for every workflow using it, overwrite-non-destructive applies the same changes but rejects removals and retypes; rows are kept (default: server default keep-existing)")
 	cmd.Flags().StringVar(&f.variableMissing, "variable-missing-mode", "", "missing variable handling: do-nothing, must-preexist, create-stub, or create-with-value (default: server default create-with-value)")
 	cmd.Flags().StringVar(&f.variableConflict, "variable-conflict-policy", "", "differing variable value handling: keep-existing, overwrite (may rewrite globals), or fail (default: server default keep-existing)")
 	cmd.Flags().StringVar(&f.variableParent, "variable-parent-policy", "", "where workflow and folder packages create missing variables: project or global; omit for project packages, which reject it (default: import target project)")
@@ -419,7 +494,7 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 	defer cleanup()
 	result, err := client.ImportPackage(ctx, request, archive, filename)
 	if err != nil {
-		return packageAPIError(err, resolution, "import")
+		return packageAPIError(err, resolution, "import", allOf("workflow:import"))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, result)
@@ -455,13 +530,23 @@ func packageImportQuestion(f packageImportFlags, resolution config.Resolution) s
 	if strings.TrimSpace(f.publishingPolicy) != "" {
 		question += fmt.Sprintf(" Publishing uses %q.", strings.TrimSpace(f.publishingPolicy))
 	}
+	credentials := "Missing credentials become stubs"
+	switch strings.TrimSpace(f.credentialMissing) {
+	case n8n.ImportCredentialMissingCreateWithValues:
+		credentials = "Missing credentials are created from the package's expression values"
+	case n8n.ImportCredentialMissingMustPreexist:
+		credentials = "Missing credentials reject the import"
+	}
 	switch {
 	case strings.TrimSpace(f.folderConflict) == n8n.ImportFolderOverwrite && strings.TrimSpace(f.deletionPolicy) == n8n.ImportDeletionHardDelete:
 		question += " Folder overwrite with hard-delete permanently deletes workflows the package does not contain, with their executions; prefer archive."
 	case strings.TrimSpace(f.folderConflict) == n8n.ImportFolderOverwrite || strings.TrimSpace(f.projectConflict) == n8n.ImportProjectOverwrite:
 		question += " Overwrite removes workflows the package does not contain (archived by default) and reconciles folders, projects, tags, variables, and tables."
 	default:
-		question += " Missing credentials become stubs, and folders, tags, variables, or tables may be created or overwritten."
+		question += " " + credentials + ", and folders, tags, variables, or tables may be created or overwritten."
+	}
+	if strings.TrimSpace(f.dataTableSchema) == n8n.ImportDataTableSchemaOverwrite {
+		question += " Data-table schema overwrite reshapes matched tables to the package and permanently deletes the values in removed or retyped columns, for every workflow using those tables."
 	}
 	return question
 }
@@ -503,8 +588,9 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	fmt.Fprintf(tw, "Imported:\t%d workflows (%d created, %d updated, %d skipped)\n", len(result.Workflows), created, updated, skipped)
 	fmt.Fprintf(tw, "Removed:\t%d workflows, %d folders\n", len(result.RemovedWorkflows), len(result.RemovedFolders))
 	fmt.Fprintf(tw, "Shells:\t%d folders, %d projects\n", len(result.Folders), len(result.Projects))
-	fmt.Fprintf(tw, "Credentials:\t%d matched, %d stubbed\n", len(result.Credentials.Matched), len(result.Credentials.Stubbed))
-	fmt.Fprintf(tw, "Data tables:\t%d matched, %d created\n", result.DataTables.Matched, result.DataTables.Created)
+	fmt.Fprintf(tw, "Credentials:\t%d matched, %d stubbed, %d seeded, %d incomplete\n",
+		len(result.Credentials.Matched), len(result.Credentials.Stubbed), len(result.Credentials.Seeded), len(result.Credentials.Incomplete))
+	fmt.Fprintf(tw, "Data tables:\t%d matched, %d created, %d updated\n", result.DataTables.Matched, result.DataTables.Created, result.DataTables.Updated)
 	fmt.Fprintf(tw, "Variables:\t%d matched, %d created, %d stubbed, %d updated, %d missing\n",
 		len(result.Variables.Matched), len(result.Variables.Created), len(result.Variables.Stubbed), len(result.Variables.Updated), len(result.Variables.Missing))
 	fmt.Fprintf(tw, "Tags:\t%d matched, %d created, %d renamed, %d reconciled, %d skipped\n",
@@ -520,6 +606,10 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	}
 	if err := tw.Flush(); err != nil {
 		return err
+	}
+	if len(result.Credentials.Incomplete) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "%d credential(s) created from package data that may be incomplete (%s): workflows using them stay unpublished until you complete each with 'n8n credential update <credential-id>'; see credentials.incomplete in --output json.\n",
+			len(result.Credentials.Incomplete), strings.Join(importedCredentialIDs(result), ", "))
 	}
 	if len(result.Variables.Missing) > 0 {
 		fmt.Fprintf(opts.Streams.Err, "%d variable(s) still unresolved: workflows referencing them may fail until the variables exist.\n", len(result.Variables.Missing))
@@ -539,7 +629,23 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	return nil
 }
 
-func packageAPIError(err error, resolution config.Resolution, action string) error {
+// importedCredentialIDs maps the incomplete source credential IDs to their IDs
+// on this instance, keeping the source ID when no binding names one.
+func importedCredentialIDs(result *n8n.ImportPackageResult) []string {
+	ids := make([]string, 0, len(result.Credentials.Incomplete))
+	for _, source := range result.Credentials.Incomplete {
+		if target := result.Bindings.Credentials[source]; target != "" {
+			ids = append(ids, target)
+			continue
+		}
+		ids = append(ids, source)
+	}
+	return ids
+}
+
+// packageAPIError restates the fix for a failed export or import. need is the
+// scope requirement reported on a 403.
+func packageAPIError(err error, resolution config.Resolution, action string, need scopeNeed) error {
 	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import" {
 		if blocked.StatusCode == http.StatusConflict {
 			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --workflow-conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, or --variable-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
@@ -549,16 +655,16 @@ func packageAPIError(err error, resolution config.Resolution, action string) err
 	switch {
 	case n8n.IsStatus(err, http.StatusBadRequest):
 		if action == "export" {
-			return fmt.Errorf("%s rejected the package export (400): check the selected IDs (unknown, mixed project and loose groups, or missing sub-workflows under fail) and the version policy: %w", resolution.URL, err)
+			return fmt.Errorf("%s rejected the package export (400): check the selected IDs (unknown, mixed project and loose groups, agents without the agents module, or missing dependencies under --dependency-policy fail) and --version-policy: %w", resolution.URL, err)
 		}
 		return fmt.Errorf("%s rejected the package import (400): the archive is malformed, the manifest is missing, or a routing or policy field is invalid (bindings JSON, --variable-parent-policy on a project package): %w", resolution.URL, err)
 	case n8n.IsForbidden(err):
 		if action == "export" {
-			return forbiddenScopeError(err, resolution, "package export", allOf("workflow:export", "project:export"),
-				"project:export applies to project packages, variable:list is needed when values are included, and the instance needs the licensed Packages feature.", packageResource)
+			return forbiddenScopeError(err, resolution, "package export", need,
+				"variable:list is also needed when exported entities reference variables and values are included, agent exports need the agents module, and the instance needs the licensed Packages feature.", packageResource)
 		}
-		return forbiddenScopeError(err, resolution, "package import", allOf("workflow:import"),
-			"the import also needs the variable, tag, data-table, folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
+		return forbiddenScopeError(err, resolution, "package import", need,
+			"the import also needs the credential (create-with-values), variable, tag, data-table (dataTable:update for schema overwrite), folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
 	case n8n.IsNotFound(err):
 		return fmt.Errorf("%s does not serve n8n packages (404): it needs the licensed Packages feature; run %s to see what this instance offers: %w",
 			resolution.URL, discoverHint(packageResource), err)

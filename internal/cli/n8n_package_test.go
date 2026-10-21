@@ -133,8 +133,8 @@ func TestPackageExportJSONAndPolicies(t *testing.T) {
 
 	got := f.run("package", "export",
 		"--project-id", "p1",
-		"--missing-workflow-dependency-policy", "include-in-package",
-		"--workflow-version-policy", "latest",
+		"--dependency-policy", "include-in-package",
+		"--version-policy", "latest",
 		"--credential-export-policy", "no-values",
 		"--include-archived",
 		"--out", out, "--output", "json")
@@ -145,8 +145,8 @@ func TestPackageExportJSONAndPolicies(t *testing.T) {
 	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
 		t.Fatalf("request body is not an export: %v", err)
 	}
-	if len(sent.ProjectIDs) != 1 || sent.MissingDependencyPolicy != "include-in-package" ||
-		sent.WorkflowVersionPolicy != "latest" || sent.CredentialExportPolicy != "no-values" {
+	if len(sent.ProjectIDs) != 1 || sent.DependencyPolicy != "include-in-package" ||
+		sent.VersionPolicy != "latest" || sent.CredentialExportPolicy != "no-values" {
 		t.Errorf("request = %+v, want the project selection and policies", sent)
 	}
 	if sent.IncludeArchived == nil || !*sent.IncludeArchived {
@@ -187,7 +187,11 @@ func TestPackageExportRejectsBadSelectionBeforeTransport(t *testing.T) {
 	cases := [][]string{
 		{"package", "export", "--out", out},
 		{"package", "export", "--workflow-id", "a", "--project-id", "p", "--out", out},
+		{"package", "export", "--workflow-id", "a", "--dependency-policy", "sometimes", "--out", out},
 		{"package", "export", "--workflow-id", "a", "--missing-workflow-dependency-policy", "sometimes", "--out", out},
+		{"package", "export", "--workflow-id", "a", "--dependency-policy", "fail", "--missing-workflow-dependency-policy", "fail", "--out", out},
+		{"package", "export", "--workflow-id", "a", "--version-policy", "latest", "--workflow-version-policy", "latest", "--out", out},
+		{"package", "export", "--agent-id", "ag", "--project-id", "p", "--out", out},
 		{"package", "export", "--workflow-id", "a", "--out", out, "--output", "yaml"},
 		{"package", "export", "--workflow-id", "a", "--out", out, "--input", input},
 		{"package", "export", "--workflow-id", "a"},
@@ -207,13 +211,14 @@ func TestPackageExportInputDocument(t *testing.T) {
 	f := packageFixture(t, cliPackageArchive)
 
 	out := filepath.Join(t.TempDir(), "from-file.n8np")
-	input := writePackageInput(t, "selection.json", `{"folderIds":["f1"],"workflowVersionPolicy":"latest"}`)
+	input := writePackageInput(t, "selection.json", `{"agentIds":["ag1"],"folderIds":["f1"],"dependencyPolicy":"reference-only","versionPolicy":"latest"}`)
 	got := f.run("package", "export", "--input", input, "--out", out)
 	if got.code != ExitSuccess {
 		t.Fatalf("input exit = %d, stderr: %s", got.code, got.stderr)
 	}
 	var sent n8n.ExportPackageRequest
-	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil || len(sent.FolderIDs) != 1 {
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil || len(sent.FolderIDs) != 1 || len(sent.AgentIDs) != 1 ||
+		sent.DependencyPolicy != "reference-only" || sent.VersionPolicy != "latest" {
 		t.Errorf("request = %q (error %v), want the file document", f.lastBody(), err)
 	}
 
@@ -228,6 +233,103 @@ func TestPackageExportInputDocument(t *testing.T) {
 	got = f.run("package", "export", "--input", bad, "--out", filepath.Join(t.TempDir(), "bad.n8np"))
 	if got.code != ExitError || f.requestCount() != before {
 		t.Errorf("unknown-field result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+}
+
+func TestPackageExportInputRejectsRenamedFields(t *testing.T) {
+	f := packageFixture(t, cliPackageArchive)
+	before := f.requestCount()
+
+	for old, current := range map[string]string{
+		"missingWorkflowDependencyPolicy": "dependencyPolicy",
+		"workflowVersionPolicy":           "versionPolicy",
+	} {
+		input := writePackageInput(t, "old.json", `{"workflowIds":["a"],"`+old+`":"latest"}`)
+		got := f.run("package", "export", "--input", input, "--out", filepath.Join(t.TempDir(), "old.n8np"))
+		if got.code != ExitError || !strings.Contains(got.stderr, old) || !strings.Contains(got.stderr, current) {
+			t.Errorf("%s: result = %+v, want an error naming %s", old, got, current)
+		}
+	}
+	if f.requestCount() != before {
+		t.Errorf("requests = %d, want %d before transport", f.requestCount(), before)
+	}
+}
+
+func TestPackageExportDeprecatedPolicyFlags(t *testing.T) {
+	f := packageFixture(t, cliPackageArchive)
+	out := filepath.Join(t.TempDir(), "legacy.n8np")
+
+	got := f.run("package", "export", "--workflow-id", "a",
+		"--missing-workflow-dependency-policy", "reference-only",
+		"--workflow-version-policy", "published-strict",
+		"--out", out, "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v", err)
+	}
+	if sent["dependencyPolicy"] != "reference-only" || sent["versionPolicy"] != "published-strict" {
+		t.Errorf("request = %v, want the aliases sent under the current names", sent)
+	}
+	for _, old := range []string{"missingWorkflowDependencyPolicy", "workflowVersionPolicy"} {
+		if _, present := sent[old]; present {
+			t.Errorf("request = %v, want no %s", sent, old)
+		}
+	}
+	for _, want := range []string{
+		"Flag --missing-workflow-dependency-policy has been deprecated, use --dependency-policy",
+		"Flag --workflow-version-policy has been deprecated, use --version-policy",
+	} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr = %q, want %q", got.stderr, want)
+		}
+	}
+	var summary map[string]any
+	if err := json.Unmarshal([]byte(got.stdout), &summary); err != nil {
+		t.Errorf("stdout = %q, want only the JSON summary (error: %v)", got.stdout, err)
+	}
+
+	help := run(t, "package", "export", "--help")
+	if strings.Contains(help.stdout, "missing-workflow-dependency-policy") || strings.Contains(help.stdout, "workflow-version-policy") {
+		t.Errorf("help lists deprecated flags:\n%s", help.stdout)
+	}
+}
+
+func TestPackageExportStdoutStaysRawWithDeprecatedFlag(t *testing.T) {
+	f := packageFixture(t, cliPackageArchive)
+
+	got := f.run("package", "export", "--workflow-id", "a", "--workflow-version-policy", "latest", "--out", "-")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if got.stdout != cliPackageArchive {
+		t.Errorf("stdout = %q, want only the raw archive bytes", got.stdout)
+	}
+}
+
+func TestPackageExportAgentsNeedAgentScope(t *testing.T) {
+	f := packageFixture(t, cliPackageArchive)
+	out := filepath.Join(t.TempDir(), "agents.n8np")
+
+	got := f.run("package", "export", "--agent-id", "ag1", "--agent-id", "ag2", "--out", out)
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var sent n8n.ExportPackageRequest
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil || len(sent.AgentIDs) != 2 {
+		t.Errorf("request = %q (error %v), want two agent IDs", f.lastBody(), err)
+	}
+
+	f.status = http.StatusForbidden
+	got = f.run("package", "export", "--agent-id", "ag1", "--out", out)
+	if got.code != ExitError || !strings.Contains(got.stderr, "agent:export") || strings.Contains(got.stderr, "project:export") {
+		t.Errorf("403 result = %+v, want agent:export only", got)
+	}
+	got = f.run("package", "export", "--project-id", "p1", "--out", out)
+	if got.code != ExitError || !strings.Contains(got.stderr, "project:export") || strings.Contains(got.stderr, "workflow:export") {
+		t.Errorf("403 result = %+v, want project:export only", got)
 	}
 }
 
@@ -292,6 +394,82 @@ func TestPackageImportTextWarnsAboutDroppedItems(t *testing.T) {
 	for _, want := range []string{"Imported:", "2 workflows", "1 skipped", "Credentials:", "stubbed", "1 missing", "1 skipped"} {
 		if !strings.Contains(got.stdout, want) && !strings.Contains(got.stderr, want) {
 			t.Errorf("output missing %q:\n--- stdout ---\n%s\n--- stderr ---\n%s", want, got.stdout, got.stderr)
+		}
+	}
+}
+
+func TestPackageImportReportsIncompleteCredentials(t *testing.T) {
+	body := `{
+  "package":{"sourceN8nVersion":"2.0.0","sourceId":"pkg-2","exportedAt":"2026-10-01T00:00:00.000Z"},
+  "workflows":[],"removedWorkflows":[],"removedFolders":[],"folders":[],"projects":[],
+  "bindings":{"workflows":{},"credentials":{"c-partial":"t-partial"}},
+  "credentials":{"matched":["c-ok"],"stubbed":[],"seeded":["c-seeded"],"incomplete":["c-partial"]},
+  "dataTables":{"matched":1,"created":0,"updated":2},
+  "variables":{"matched":[],"missing":[],"created":[],"stubbed":[],"updated":[]},
+  "tags":{"matched":[],"created":[],"renamed":[],"reconciled":[],"skipped":[]},
+  "futureField":{"kept":true}
+}`
+	f := packageFixture(t, body)
+	archive := writePackageArchive(t, cliPackageArchive)
+
+	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip",
+		"--credential-missing-mode", "create-with-values", "--data-table-schema-policy", "overwrite-non-destructive", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	fields, _, _ := parseCLIImportMultipart(t, f)
+	if fields["credentialMissingMode"] != "create-with-values" || fields["dataTableSchemaConflictPolicy"] != "overwrite-non-destructive" {
+		t.Errorf("fields = %v, want the new modes sent", fields)
+	}
+	for _, want := range []string{"1 matched, 0 stubbed, 1 seeded, 1 incomplete", "1 matched, 0 created, 2 updated"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+		}
+	}
+	for _, want := range []string{"1 credential(s)", "t-partial", "n8n credential update"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, got.stderr)
+		}
+	}
+
+	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("json exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var decoded struct {
+		Credentials struct {
+			Seeded     []string `json:"seeded"`
+			Incomplete []string `json:"incomplete"`
+		} `json:"credentials"`
+		DataTables struct {
+			Updated int `json:"updated"`
+		} `json:"dataTables"`
+		FutureField map[string]bool `json:"futureField"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &decoded); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, got.stdout)
+	}
+	if len(decoded.Credentials.Seeded) != 1 || len(decoded.Credentials.Incomplete) != 1 || decoded.DataTables.Updated != 2 || !decoded.FutureField["kept"] {
+		t.Errorf("json = %s, want seeded, incomplete, updated, and the unknown field round-tripped", got.stdout)
+	}
+}
+
+func TestPackageImportSchemaOverwriteWarns(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+	before := f.requestCount()
+	f.stdin = "no\n"
+
+	got := f.run("package", "import", "--file", archive,
+		"--workflow-conflict-policy", "new-version",
+		"--data-table-schema-policy", "overwrite",
+		"--credential-missing-mode", "create-with-values")
+	if got.code != ExitError || f.requestCount() != before {
+		t.Fatalf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+	for _, want := range []string{"permanently deletes the values", "every workflow", "created from the package's expression values"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("prompt = %q, want %q", got.stderr, want)
 		}
 	}
 }
