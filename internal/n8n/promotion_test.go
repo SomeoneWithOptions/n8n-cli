@@ -352,7 +352,7 @@ func TestCreatePromotionConnection(t *testing.T) {
 
 	created, err := server.client(t).CreatePromotionConnection(context.Background(), CreatePromotionConnectionRequest{
 		Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1",
-		Target: PromotionTarget{SchemaVersion: 1, RemoteURL: "git@example.com:org/repo.git"},
+		Target: PromotionTargetDocument{SchemaVersion: 1, RemoteURL: "git@example.com:org/repo.git"},
 		Configs: &CreatePromotionConnectionConfigs{
 			Apply: &CreatePromotionApplyConfig{Settings: PromotionApplySettings{SchemaVersion: 1, BranchName: "main"}},
 		},
@@ -380,13 +380,13 @@ func TestCreatePromotionConnectionValidation(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusCreated, promotionConnectionBody))
 	client := server.client(t)
 
-	validTarget := PromotionTarget{SchemaVersion: 1, RemoteURL: "git@example.com:org/repo.git"}
+	validTarget := PromotionTargetDocument{SchemaVersion: 1, RemoteURL: "git@example.com:org/repo.git"}
 	cases := []CreatePromotionConnectionRequest{
 		{},
 		{Name: "prod", Scope: "global", ProviderID: "prov-1", Target: validTarget},
 		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "  ", Target: validTarget},
-		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1", Target: PromotionTarget{SchemaVersion: 2, RemoteURL: "git@example.com:r.git"}},
-		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1", Target: PromotionTarget{SchemaVersion: 1, RemoteURL: "  "}},
+		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1", Target: PromotionTargetDocument{SchemaVersion: 2, RemoteURL: "git@example.com:r.git"}},
+		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1", Target: PromotionTargetDocument{SchemaVersion: 1, RemoteURL: "  "}},
 		{Name: "prod", Scope: PromotionScopeProjects, ProviderID: "prov-1", Target: validTarget, Configs: &CreatePromotionConnectionConfigs{
 			Apply: &CreatePromotionApplyConfig{Settings: PromotionApplySettings{SchemaVersion: 1, BranchName: ""}},
 		}},
@@ -449,7 +449,7 @@ func TestUpdatePromotionConnectionValidation(t *testing.T) {
 	if _, err := client.UpdatePromotionConnection(context.Background(), "conn-1", UpdatePromotionConnectionRequest{}); err == nil {
 		t.Error("empty update: want an error")
 	}
-	badTarget := PromotionTarget{SchemaVersion: 9, RemoteURL: "git@example.com:r.git"}
+	badTarget := PromotionTargetDocument{SchemaVersion: 9, RemoteURL: "git@example.com:r.git"}
 	if _, err := client.UpdatePromotionConnection(context.Background(), "conn-1", UpdatePromotionConnectionRequest{Target: &badTarget}); err == nil {
 		t.Error("bad target: want an error")
 	}

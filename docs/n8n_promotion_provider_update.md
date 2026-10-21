@@ -5,14 +5,18 @@ Update a promotion provider
 ### Synopsis
 
 Update one promotion provider from strict JSON supplied by --input.
-Only the fields present are changed; at least one of name or auth is
-required. Auth follows the create shape: ssh-key with an optional key
-type, or token with a username and password.
+Only the fields present are changed; at least one of name, auth, or
+config is required. Auth follows the create shape: ssh-key with an
+optional key type, or token with a password (plus username for git
+providers). The auth type cannot change. A gitlab provider can change
+its base URL with config {"schemaVersion":1,"baseUrl":"..."}; a
+different API destination needs auth in the same document.
 
 Replacing the credential affects every connection attached to this
 provider, so interactive runs ask for confirmation and non-interactive
 runs require --yes. Credentials travel only as --input because secrets
-are never flags. Requires gitConnection:update.
+are never flags. A 409 means another request changed the provider
+first: reload it and retry. Requires gitConnection:update.
 
 ```
 n8n promotion provider update <provider-id> [flags]

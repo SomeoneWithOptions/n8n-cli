@@ -4,8 +4,9 @@ List projects linked to a promotion connection
 
 ### Synopsis
 
-List the team projects added to one promotion connection. These are
-the projects 'promote' exports and 'apply' overwrites. Find the
+List the team projects linked to one projects-scope promotion
+connection. Connection-level 'promote' and 'apply' run on the instance
+connection and do not use these links. Find the
 connection ID with 'n8n promotion connection list'. Requires
 gitConnection:read.
 

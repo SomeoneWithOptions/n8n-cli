@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,11 +33,14 @@ func newPromotionCommand(opts Options) *cobra.Command {
 			"Start with 'provider list' to find a provider, then 'connection list'\n" +
 			"to find a connection. Create a provider first, then a connection on\n" +
 			"it, then a config per direction under 'config', clone each checkout\n" +
-			"under 'checkout', link team projects under 'project', then 'promote'\n" +
-			"local projects to the remote or 'apply' the remote into the instance.\n\n" +
-			"'promote' commits and pushes every team project to the remote;\n" +
-			"'apply' resets the apply checkout and imports with overwrite behavior,\n" +
-			"creating, updating, or removing content to match. Both mutate versioned\n" +
+			"under 'checkout', link team projects to a projects-scope connection\n" +
+			"under 'project', then 'promote' the instance to the remote or 'apply'\n" +
+			"the remote into the instance.\n\n" +
+			"'promote' and 'apply' run on the instance connection. 'promote'\n" +
+			"commits and pushes every team project to the remote; 'apply' checks the\n" +
+			"package and imports with overwrite behavior, creating, updating, or\n" +
+			"removing content to match, or reports why it is blocked and writes\n" +
+			"nothing. Both mutate versioned\n" +
 			"content and ask for confirmation. Config and connection removal can\n" +
 			"remove local checkouts. This is the upstream Promotions generation: an\n" +
 			"instance that serves GitConnections instead answers 404 or 503, which\n" +
@@ -151,7 +156,7 @@ func runPromotionProviderList(ctx context.Context, opts Options, f promotionProv
 		page, err = client.ListPromotionProviders(ctx, listOpts)
 	}
 	if err != nil {
-		return promotionAPIError(err, resolution, "provider list")
+		return promotionAPIError(err, resolution, "provider list", promotionSubject{})
 	}
 	if f.output == outputJSON {
 		err = writePageJSON(opts.Streams.Out, page, collection)
@@ -185,51 +190,89 @@ func writePromotionProviderListText(opts Options, resolution config.Resolution, 
 	return nil
 }
 
-type promotionProviderInputFlags struct {
-	instance instanceFlags
-	input    string
-	output   string
+type promotionProviderCreateFlags struct {
+	instance      instanceFlags
+	input         string
+	name          string
+	providerType  string
+	baseURL       string
+	authType      string
+	keyType       string
+	username      string
+	passwordStdin bool
+	output        string
 }
 
-func (f *promotionProviderInputFlags) register(cmd *cobra.Command) {
-	f.instance.register(cmd)
-	cmd.Flags().StringVar(&f.input, "input", "", "promotion provider JSON file path, or - for stdin (required; maximum 1 MiB)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the provider returned by the API)")
+// documentFlagsSet reports whether any flag that builds the creation document
+// was passed; those flags and --input are mutually exclusive.
+func (f promotionProviderCreateFlags) documentFlagsSet() bool {
+	return f.name != "" || f.providerType != "" || f.baseURL != "" || f.authType != "" ||
+		f.keyType != "" || f.username != "" || f.passwordStdin
 }
 
 func newPromotionProviderCreateCommand(opts Options) *cobra.Command {
-	var f promotionProviderInputFlags
+	var f promotionProviderCreateFlags
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a promotion provider",
-		Long: "Create one promotion provider from strict JSON supplied by --input.\n" +
-			"Required fields are name (at most 128 characters), type (git), and an\n" +
-			"auth object: {\"authType\":\"ssh-key\"} with an optional keyType\n" +
-			"(ed25519 or rsa, default ed25519), or {\"authType\":\"token\",\n" +
-			"\"username\":\"...\", \"password\":\"...\"}.\n\n" +
-			"Credentials travel only as --input because secrets are never flags:\n" +
-			"process lists and shell history can expose argv. Unknown fields and\n" +
-			"trailing JSON documents are refused before transport. Requires\n" +
-			"gitConnection:create. Follow with 'n8n promotion connection create'.",
-		Example: "  n8n promotion provider create --input provider.json\n" +
-			"  printf '%s\\n' '{\"name\":\"github\",\"type\":\"git\",\"auth\":{\"authType\":\"ssh-key\"}}' | n8n promotion provider create --input -\n" +
+		Long: "Create one promotion provider from flags or from strict JSON supplied by\n" +
+			"--input; the two ways are mutually exclusive and one is required.\n\n" +
+			"Type git is a plain Git remote. Type gitlab is a Git host provider: the\n" +
+			"server checks API access before saving and can list repositories. Pass\n" +
+			"--base-url for self-managed GitLab; it becomes config {\"schemaVersion\":1,\n" +
+			"\"baseUrl\":\"...\"} and applies to gitlab providers only.\n\n" +
+			"Auth is ssh-key (the response carries the generated public key; add it\n" +
+			"to the remote as a deploy key) or token. A token is never a flag: the\n" +
+			"flag way asks for it without echo, or reads it from stdin with\n" +
+			"--password-stdin. A git provider needs --username with a token; GitLab\n" +
+			"ignores the username and uses n8n for Git transport.\n\n" +
+			"The --input document has name (at most 128 characters), type (git or\n" +
+			"gitlab), auth {\"authType\":\"ssh-key\"} with an optional keyType\n" +
+			"(ed25519 or rsa, default ed25519) or {\"authType\":\"token\",\n" +
+			"\"password\":\"...\"} plus username for git, and the optional config.\n" +
+			"Unknown fields and trailing JSON documents are refused before\n" +
+			"transport. Requires gitConnection:create. Follow with 'n8n promotion\n" +
+			"connection create'.",
+		Example: "  n8n promotion provider create --name github --type git --auth-type ssh-key\n" +
+			"  printf '%s\\n' \"$GITLAB_TOKEN\" | n8n promotion provider create --name gitlab --type gitlab --base-url https://gitlab.example.com --auth-type token --password-stdin\n" +
 			"  n8n promotion provider create --input provider.json --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runPromotionProviderCreate(cmd.Context(), opts, f)
 		},
 	}
-	f.register(cmd)
+	f.instance.register(cmd)
+	cmd.Flags().StringVar(&f.input, "input", "", "promotion provider JSON file path, or - for stdin (maximum 1 MiB; default: build the document from --name and the other flags)")
+	cmd.Flags().StringVar(&f.name, "name", "", "provider name, 1 to 128 characters (required without --input)")
+	cmd.Flags().StringVar(&f.providerType, "type", "", "provider type: git or gitlab (default: git)")
+	cmd.Flags().StringVar(&f.baseURL, "base-url", "", "GitLab base URL for self-managed GitLab, e.g. https://gitlab.example.com; gitlab only (default: none, no config is sent)")
+	cmd.Flags().StringVar(&f.authType, "auth-type", "", "auth type: ssh-key or token (default: ssh-key)")
+	cmd.Flags().StringVar(&f.keyType, "key-type", "", "SSH key type for ssh-key auth: ed25519 or rsa (default: the server's ed25519)")
+	cmd.Flags().StringVar(&f.username, "username", "", "Git username for token auth; required for git, ignored by gitlab (default: none)")
+	cmd.Flags().BoolVar(&f.passwordStdin, "password-stdin", false, "read the token for token auth from stdin instead of prompting without echo (default false; required when stdin is not a terminal)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the creation result: provider plus publicKey)")
 	return cmd
 }
 
-func runPromotionProviderCreate(ctx context.Context, opts Options, f promotionProviderInputFlags) error {
+func runPromotionProviderCreate(ctx context.Context, opts Options, f promotionProviderCreateFlags) error {
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
 	var request n8n.CreatePromotionProviderRequest
-	if err := readPromotionDocument(opts, f.input, &request); err != nil {
-		return err
+	switch {
+	case f.input != "" && f.documentFlagsSet():
+		return fmt.Errorf("--input and the document flags (--name, --type, --base-url, --auth-type, --key-type, --username, --password-stdin) are mutually exclusive: pass one way")
+	case f.input != "":
+		if err := readPromotionDocument(opts, f.input, &request); err != nil {
+			return err
+		}
+	case f.documentFlagsSet():
+		var err error
+		if request, err = promotionProviderFromFlags(opts, f); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("a provider document is required: pass --name with --type and --auth-type, or --input FILE (--input - for stdin)")
 	}
 	if err := request.Validate(); err != nil {
 		return err
@@ -240,12 +283,59 @@ func runPromotionProviderCreate(ctx context.Context, opts Options, f promotionPr
 	}
 	created, err := client.CreatePromotionProvider(ctx, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "provider create")
+		return promotionAPIError(err, resolution, "provider create", promotionSubject{})
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, created)
 	}
 	return writePromotionProviderResult(opts, resolution, "Created", &created.Provider, f.output)
+}
+
+// promotionProviderFromFlags builds the creation document from flags. The
+// document is checked before the token is read, so a typo never costs a
+// prompt; the token itself comes from stdin or a no-echo prompt, never argv.
+func promotionProviderFromFlags(opts Options, f promotionProviderCreateFlags) (n8n.CreatePromotionProviderRequest, error) {
+	request := n8n.CreatePromotionProviderRequest{
+		Name: f.name,
+		Type: cmp.Or(f.providerType, n8n.PromotionProviderTypeGit),
+		Auth: n8n.PromotionProviderAuth{
+			AuthType: cmp.Or(f.authType, n8n.PromotionAuthTypeSSHKey),
+			KeyType:  f.keyType,
+			Username: f.username,
+		},
+	}
+	if f.baseURL != "" {
+		request.Config = &n8n.PromotionProviderHostConfig{SchemaVersion: 1, BaseURL: f.baseURL}
+	}
+	token := request.Auth.AuthType == n8n.PromotionAuthTypeToken
+	if f.passwordStdin && !token {
+		return request, fmt.Errorf("--password-stdin needs --auth-type token")
+	}
+	probe := request
+	if token {
+		probe.Auth.Password = "unread" // stands in until the token is read
+	}
+	if err := probe.Validate(); err != nil {
+		return request, err
+	}
+	if !token {
+		return request, nil
+	}
+	var secret n8n.Secret
+	var err error
+	switch {
+	case f.passwordStdin:
+		secret, err = readSecretFrom(opts.Streams.In)
+	case opts.interactive():
+		secret, err = opts.prompter().PromptSecret("Git provider token: ")
+	default:
+		return request, fmt.Errorf("no terminal available to read the provider token: pipe it with --password-stdin")
+	}
+	if err != nil {
+		return request, err
+	}
+	request.Auth.Password = secret.Reveal()
+	return request, nil
 }
 
 type promotionProviderGetFlags struct {
@@ -290,7 +380,7 @@ func runPromotionProviderGet(ctx context.Context, opts Options, id string, f pro
 	}
 	provider, err := client.GetPromotionProvider(ctx, id)
 	if err != nil {
-		return promotionAPIError(err, resolution, "provider get")
+		return promotionAPIError(err, resolution, "provider get", promotionProviderSubject(id))
 	}
 	return writePromotionProviderResult(opts, resolution, "Provider", provider, f.output)
 }
@@ -308,13 +398,17 @@ func newPromotionProviderUpdateCommand(opts Options) *cobra.Command {
 		Use:   "update <provider-id>",
 		Short: "Update a promotion provider",
 		Long: "Update one promotion provider from strict JSON supplied by --input.\n" +
-			"Only the fields present are changed; at least one of name or auth is\n" +
-			"required. Auth follows the create shape: ssh-key with an optional key\n" +
-			"type, or token with a username and password.\n\n" +
+			"Only the fields present are changed; at least one of name, auth, or\n" +
+			"config is required. Auth follows the create shape: ssh-key with an\n" +
+			"optional key type, or token with a password (plus username for git\n" +
+			"providers). The auth type cannot change. A gitlab provider can change\n" +
+			"its base URL with config {\"schemaVersion\":1,\"baseUrl\":\"...\"}; a\n" +
+			"different API destination needs auth in the same document.\n\n" +
 			"Replacing the credential affects every connection attached to this\n" +
 			"provider, so interactive runs ask for confirmation and non-interactive\n" +
 			"runs require --yes. Credentials travel only as --input because secrets\n" +
-			"are never flags. Requires gitConnection:update.",
+			"are never flags. A 409 means another request changed the provider\n" +
+			"first: reload it and retry. Requires gitConnection:update.",
 		Example: "  n8n promotion provider update PROVIDER_ID --input provider-update.json\n" +
 			"  printf '%s\\n' '{\"name\":\"github-new\"}' | n8n promotion provider update PROVIDER_ID --input -\n" +
 			"  n8n promotion provider update PROVIDER_ID --input provider-update.json --yes --output json",
@@ -360,7 +454,7 @@ func runPromotionProviderUpdate(ctx context.Context, opts Options, id string, f 
 	}
 	updated, err := client.UpdatePromotionProvider(ctx, id, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "provider update")
+		return promotionAPIError(err, resolution, "provider update", promotionProviderSubject(id))
 	}
 	return writePromotionProviderResult(opts, resolution, "Updated", updated, f.output)
 }
@@ -414,7 +508,7 @@ func runPromotionProviderDelete(ctx context.Context, opts Options, id string, f 
 		return err
 	}
 	if err := client.DeletePromotionProvider(ctx, id); err != nil {
-		return promotionAPIError(err, resolution, "provider delete")
+		return promotionAPIError(err, resolution, "provider delete", promotionProviderSubject(id))
 	}
 	return writePromotionMutation(opts, resolution, promotionMutation{Action: "deleted", ProviderID: id}, f.output)
 }
@@ -523,7 +617,7 @@ func runPromotionConnectionList(ctx context.Context, opts Options, f promotionCo
 		page, err = client.ListPromotionConnections(ctx, listOpts)
 	}
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection list")
+		return promotionAPIError(err, resolution, "connection list", promotionSubject{})
 	}
 	if f.output == outputJSON {
 		err = writePageJSON(opts.Streams.Out, page, collection)
@@ -582,6 +676,10 @@ func newPromotionConnectionCreateCommand(opts Options) *cobra.Command {
 			"config {\"settings\":{\"schemaVersion\":1,\"branchName\":\"main\"}} and\n" +
 			"the promote config {\"settings\":{\"schemaVersion\":1,\n" +
 			"\"baseBranchName\":\"main\",\"createBranchOnPromotion\":false}}.\n\n" +
+			"On a gitlab provider the remote URL must belong to the provider: the\n" +
+			"connection stores only the repository path (reported read-only as\n" +
+			"target.repositoryPath, never sent) and derives remoteUrl from the\n" +
+			"provider base URL. Only one instance-scope connection can exist.\n" +
 			"Unknown fields and trailing JSON documents are refused before\n" +
 			"transport. Requires gitConnection:create. Follow with\n" +
 			"'n8n promotion config apply set' and 'n8n promotion config promote\n" +
@@ -614,7 +712,7 @@ func runPromotionConnectionCreate(ctx context.Context, opts Options, f promotion
 	}
 	created, err := client.CreatePromotionConnection(ctx, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection create")
+		return promotionAPIError(err, resolution, "connection create", promotionProviderSubject(request.ProviderID))
 	}
 	return writePromotionConnectionResult(opts, resolution, "Created", created, f.output)
 }
@@ -661,7 +759,7 @@ func runPromotionConnectionGet(ctx context.Context, opts Options, id string, f p
 	}
 	connection, err := client.GetPromotionConnection(ctx, id)
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection get")
+		return promotionAPIError(err, resolution, "connection get", promotionConnectionSubject(id))
 	}
 	return writePromotionConnectionResult(opts, resolution, "Connection", connection, f.output)
 }
@@ -711,7 +809,7 @@ func runPromotionConnectionUpdate(ctx context.Context, opts Options, id string, 
 	}
 	updated, err := client.UpdatePromotionConnection(ctx, id, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection update")
+		return promotionAPIError(err, resolution, "connection update", promotionConnectionSubject(id))
 	}
 	return writePromotionConnectionResult(opts, resolution, "Updated", updated, f.output)
 }
@@ -766,7 +864,7 @@ func runPromotionConnectionDelete(ctx context.Context, opts Options, id string, 
 		return err
 	}
 	if err := client.DeletePromotionConnection(ctx, id); err != nil {
-		return promotionAPIError(err, resolution, "connection delete")
+		return promotionAPIError(err, resolution, "connection delete", promotionConnectionSubject(id))
 	}
 	return writePromotionMutation(opts, resolution, promotionMutation{Action: "deleted", ConnectionID: id}, f.output)
 }
@@ -891,7 +989,7 @@ func runPromotionConfigApplySet(ctx context.Context, opts Options, id string, f 
 	}
 	config, err := client.UpsertPromotionApplyConfig(ctx, id, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "config apply set")
+		return promotionAPIError(err, resolution, "config apply set", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, config)
@@ -959,7 +1057,7 @@ func runPromotionConfigPromoteSet(ctx context.Context, opts Options, id string, 
 	}
 	config, err := client.UpsertPromotionPromoteConfig(ctx, id, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "config promote set")
+		return promotionAPIError(err, resolution, "config promote set", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, config)
@@ -1025,7 +1123,7 @@ func runPromotionConfigDelete(ctx context.Context, opts Options, id, direction s
 		return err
 	}
 	if err := client.DeletePromotionConfig(ctx, id, direction); err != nil {
-		return promotionAPIError(err, resolution, "config delete")
+		return promotionAPIError(err, resolution, "config delete", promotionConnectionSubject(id))
 	}
 	return writePromotionMutation(opts, resolution, promotionMutation{Action: "config deleted", ConnectionID: id, Direction: direction}, f.output)
 }
@@ -1102,7 +1200,7 @@ func runPromotionCheckoutClone(ctx context.Context, opts Options, id, direction 
 	}
 	checkout, err := client.ClonePromotionCheckout(ctx, id, direction)
 	if err != nil {
-		return promotionAPIError(err, resolution, "checkout clone")
+		return promotionAPIError(err, resolution, "checkout clone", promotionConnectionSubject(id))
 	}
 	return writePromotionCheckout(opts, resolution, "Cloned", checkout, f.output)
 }
@@ -1162,7 +1260,7 @@ func runPromotionCheckoutDisconnect(ctx context.Context, opts Options, id, direc
 	}
 	checkout, err := client.DisconnectPromotionCheckout(ctx, id, direction)
 	if err != nil {
-		return promotionAPIError(err, resolution, "checkout disconnect")
+		return promotionAPIError(err, resolution, "checkout disconnect", promotionConnectionSubject(id))
 	}
 	return writePromotionCheckout(opts, resolution, "Disconnected", checkout, f.output)
 }
@@ -1173,7 +1271,9 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "project",
 		Short: "Manage projects linked to a promotion connection",
-		Long: "Manage which team projects one promotion connection syncs. Start with\n" +
+		Long: "Manage which team projects a projects-scope promotion connection\n" +
+			"syncs; a project's own connection takes precedence over the instance\n" +
+			"connection for project-level sync. Start with\n" +
 			"'list' to see the linked project IDs, then 'add' a project or\n" +
 			"'remove' one.\n\n" +
 			"A project can belong to only one connection, so adding a linked\n" +
@@ -1205,8 +1305,9 @@ func newPromotionProjectListCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list <connection-id>",
 		Short: "List projects linked to a promotion connection",
-		Long: "List the team projects added to one promotion connection. These are\n" +
-			"the projects 'promote' exports and 'apply' overwrites. Find the\n" +
+		Long: "List the team projects linked to one projects-scope promotion\n" +
+			"connection. Connection-level 'promote' and 'apply' run on the instance\n" +
+			"connection and do not use these links. Find the\n" +
 			"connection ID with 'n8n promotion connection list'. Requires\n" +
 			"gitConnection:read.",
 		Example: "  n8n promotion project list CONNECTION_ID\n" +
@@ -1237,7 +1338,7 @@ func runPromotionProjectList(ctx context.Context, opts Options, id string, f pro
 	}
 	projects, err := client.ListPromotionConnectionProjects(ctx, id)
 	if err != nil {
-		return promotionAPIError(err, resolution, "project list")
+		return promotionAPIError(err, resolution, "project list", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, projects)
@@ -1271,8 +1372,9 @@ func newPromotionProjectAddCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <connection-id> <project-id>",
 		Short: "Add a project to a promotion connection",
-		Long: "Add one team project to one promotion connection so promote and apply\n" +
-			"include it. A project can belong to only one connection: adding a\n" +
+		Long: "Link one team project to one projects-scope promotion connection, so\n" +
+			"project-level sync uses that connection instead of the instance\n" +
+			"connection. A project can belong to only one connection: adding a\n" +
 			"project that is already linked elsewhere answers 409. The checkout\n" +
 			"must be cloned first. Requires gitConnection:manageProjects.",
 		Example: "  n8n promotion project add CONNECTION_ID PROJECT_ID\n" +
@@ -1303,7 +1405,7 @@ func runPromotionProjectAdd(ctx context.Context, opts Options, id, projectID str
 	}
 	link, err := client.AddProjectToPromotionConnection(ctx, id, projectID)
 	if err != nil {
-		return promotionAPIError(err, resolution, "project add")
+		return promotionAPIError(err, resolution, "project add", promotionProjectLinkSubject(id, projectID))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, link)
@@ -1328,7 +1430,8 @@ func newPromotionProjectRemoveCommand(opts Options) *cobra.Command {
 		Short: "Remove a project from a promotion connection",
 		Long: "Unlink one project from one promotion connection. The project itself\n" +
 			"and its instance content are untouched; only the sync link goes away,\n" +
-			"so later promotes and applies skip it. Re-add it later with 'n8n\n" +
+			"so project-level sync falls back to the instance connection. Re-add it\n" +
+			"later with 'n8n\n" +
 			"promotion project add'.\n\n" +
 			"Interactive runs ask for confirmation; non-interactive runs require\n" +
 			"--yes. Requires gitConnection:manageProjects.",
@@ -1359,12 +1462,12 @@ func runPromotionProjectRemove(ctx context.Context, opts Options, id, projectID 
 	if err != nil {
 		return err
 	}
-	question := fmt.Sprintf("Remove project %q from promotion connection %q on %s? The project content stays; later promotes and applies skip it.", projectID, id, resolution.URL)
+	question := fmt.Sprintf("Remove project %q from promotion connection %q on %s? The project content stays; project-level sync falls back to the instance connection.", projectID, id, resolution.URL)
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
 	if err := client.RemoveProjectFromPromotionConnection(ctx, id, projectID); err != nil {
-		return promotionAPIError(err, resolution, "project remove")
+		return promotionAPIError(err, resolution, "project remove", promotionProjectLinkSubject(id, projectID))
 	}
 	return writePromotionMutation(opts, resolution, promotionMutation{Action: "project removed", ConnectionID: id, ProjectID: projectID}, f.output)
 }
@@ -1384,10 +1487,13 @@ func newPromotionPromoteCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promote <connection-id>",
 		Short: "Promote team projects to the Git remote",
-		Long: "Export all team projects, commit them, and push to the promote\n" +
-			"checkout's branch. The promote checkout must be cloned first: run 'n8n\n" +
-			"promotion checkout clone CONNECTION_ID promote' and link projects\n" +
-			"with 'n8n promotion project add'.\n\n" +
+		Long: "Export every team project, commit it, and push to the configured base\n" +
+			"branch or a new timestamped branch (the result names it). Personal\n" +
+			"projects are ignored. This runs on the instance connection only, so\n" +
+			"project links from 'n8n promotion project add' do not select what is\n" +
+			"promoted. The promote checkout must be cloned first: run 'n8n promotion\n" +
+			"checkout clone CONNECTION_ID promote'. When workflows reference\n" +
+			"variables, the API key also needs variable:list.\n\n" +
 			"Pass --commit-message once (1 to 1000 characters). Without --force a\n" +
 			"promote the remote would reject is refused with 409 and nothing is\n" +
 			"pushed; --force pushes anyway and rewrites remote history. This\n" +
@@ -1436,7 +1542,7 @@ func runPromotionPromote(ctx context.Context, opts Options, id string, f promoti
 	}
 	result, err := client.PromotePackage(ctx, id, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "promote")
+		return promotionAPIError(err, resolution, "promote", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, result)
@@ -1455,14 +1561,25 @@ func newPromotionApplyCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply <connection-id>",
 		Short: "Apply the Git remote into this instance",
-		Long: "Reset the apply checkout to the branch tip and import projects into\n" +
-			"the instance, overwriting to match. The apply checkout must be cloned\n" +
-			"first. Preview what is linked with 'n8n promotion project list'.\n\n" +
-			"This rewrites instance content from the remote and cannot be undone:\n" +
-			"workflows, folders, credentials, data tables, variables, and tags are\n" +
-			"created, updated, or removed to match the branch, and credential gaps\n" +
-			"become stubs. Interactive runs ask for confirmation and\n" +
-			"non-interactive runs require --yes. Requires gitConnection:pull.",
+		Long: "Check the full package at the apply branch tip and import it into the\n" +
+			"instance, overwriting to match. Runs on the instance connection; the\n" +
+			"apply checkout must be cloned first.\n\n" +
+			"The server answers one of three statuses, and only one writes:\n" +
+			"  applied         content was imported; counts and warnings follow.\n" +
+			"  blocked         preflight stopped before any write: missing projects,\n" +
+			"                  missing credential or variable bindings, access\n" +
+			"                  requirements, or conflicts (including project-deletion\n" +
+			"                  and data-table destructive-change). Nothing was applied.\n" +
+			"  source-changed  the branch moved since it was reviewed. Nothing was\n" +
+			"                  applied.\n\n" +
+			"An applied run rewrites instance content from the remote and cannot be\n" +
+			"undone: workflows, folders, credentials, data tables, variables, and\n" +
+			"tags are created, updated, or removed to match the branch, and\n" +
+			"credential gaps become stubs. Interactive runs ask for confirmation and\n" +
+			"non-interactive runs require --yes. Requires gitConnection:pull.\n\n" +
+			"Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 any other error\n" +
+			"or an unknown status. --output json prints the full result on stdout\n" +
+			"in every status; the next step goes to stderr.",
 		Example: "  n8n promotion apply CONNECTION_ID\n" +
 			"  n8n promotion apply CONNECTION_ID --yes\n" +
 			"  n8n promotion apply CONNECTION_ID --yes --output json",
@@ -1473,7 +1590,7 @@ func newPromotionApplyCommand(opts Options) *cobra.Command {
 	}
 	f.instance.register(cmd)
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm overwriting instance content from the remote without prompting (required when stdin is not interactive)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the apply result with counts and commit)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full apply result: status, git, and counts or preflight)")
 	return cmd
 }
 
@@ -1497,12 +1614,83 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 	}
 	result, err := client.ApplyPackage(ctx, id)
 	if err != nil {
-		return promotionAPIError(err, resolution, "apply")
+		return promotionAPIError(err, resolution, "apply", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, result)
+		err = writeJSON(opts.Streams.Out, result)
+	} else {
+		err = writePromotionApplyResult(opts, resolution, result)
 	}
-	return writePromotionApplyResult(opts, resolution, result)
+	if err != nil {
+		return err
+	}
+	return finishPromotionApply(opts, id, result)
+}
+
+// promotionApplyStoppedError is returned after an apply answered 200 without
+// importing: blocked at preflight, the source moved, or a status this CLI does
+// not know. The result was already printed; Run reports the message and maps
+// the status to its own exit code so scripts can tell these apart from
+// transport and validation errors.
+type promotionApplyStoppedError struct {
+	connectionID, status string
+}
+
+func (e *promotionApplyStoppedError) Error() string {
+	switch e.status {
+	case n8n.PromotionApplyStatusBlocked:
+		return fmt.Sprintf("promotion apply of connection %s was blocked at preflight; nothing was applied", e.connectionID)
+	case n8n.PromotionApplyStatusSourceChanged:
+		return fmt.Sprintf("promotion apply of connection %s stopped because the source branch moved; nothing was applied", e.connectionID)
+	default:
+		return fmt.Sprintf("promotion apply of connection %s answered unknown status %q; check the instance before assuming anything was applied", e.connectionID, e.status)
+	}
+}
+
+func (e *promotionApplyStoppedError) exitCode() int {
+	switch e.status {
+	case n8n.PromotionApplyStatusBlocked:
+		return ExitPromotionBlocked
+	case n8n.PromotionApplyStatusSourceChanged:
+		return ExitPromotionSourceChanged
+	default:
+		return ExitError
+	}
+}
+
+// finishPromotionApply writes the next-step hint for a result that wrote
+// nothing and returns the matching error; an applied result returns nil.
+func finishPromotionApply(opts Options, id string, result *n8n.ApplyPromotionResult) error {
+	if result.Applied() {
+		return nil
+	}
+	source := result.ExpectedSource()
+	switch result.Status {
+	case n8n.PromotionApplyStatusBlocked:
+		fmt.Fprintln(opts.Streams.Err, "Nothing was applied: preflight found items to resolve first. Create the missing projects, bind the missing credentials and variables, and grant the listed access.")
+		if promotionNeedsConfirmation(result.Preflight) {
+			fmt.Fprintln(opts.Streams.Err, "project-deletion and destructive-change conflicts are applied only with explicit confirmation when the apply is continued.")
+		}
+		fmt.Fprintf(opts.Streams.Err, "Then continue the apply with expected source configId=%s branchName=%s commitSha=%s (an 'apply-continue' command is upcoming in this CLI).\n",
+			emptyDash(source.ConfigID), emptyDash(source.BranchName), emptyDash(source.CommitSHA))
+	case n8n.PromotionApplyStatusSourceChanged:
+		fmt.Fprintf(opts.Streams.Err, "Nothing was applied: the branch moved since it was reviewed. Review the branch again, then re-run 'n8n promotion apply %s'.\n", id)
+	default:
+		fmt.Fprintln(opts.Streams.Err, "This CLI does not know the apply status; read the full result with --output json.")
+	}
+	return &promotionApplyStoppedError{connectionID: id, status: result.Status}
+}
+
+func promotionNeedsConfirmation(preflight *n8n.PromotionApplyPreflight) bool {
+	if preflight == nil {
+		return false
+	}
+	for _, conflict := range preflight.Conflicts {
+		if conflict.Code == n8n.PromotionConflictProjectDeletion || conflict.Code == n8n.PromotionConflictDestructiveChange {
+			return true
+		}
+	}
+	return false
 }
 
 // Shared helpers.
@@ -1554,6 +1742,9 @@ func writePromotionProviderResult(opts Options, resolution config.Resolution, ac
 	if provider.Config != nil && provider.Config.PublicKey != nil {
 		fmt.Fprintf(tw, "Public key:\t%s\n", truncatedPromotionSecret(*provider.Config.PublicKey))
 	}
+	if provider.Config != nil && provider.Config.BaseURL != nil {
+		fmt.Fprintf(tw, "Base URL:\t%s\n", emptyDash(*provider.Config.BaseURL))
+	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	if provider.CreatedAt != "" {
 		fmt.Fprintf(tw, "Created:\t%s\n", provider.CreatedAt)
@@ -1573,12 +1764,21 @@ func writePromotionConnectionResult(opts Options, resolution config.Resolution, 
 	fmt.Fprintf(tw, "Name:\t%s\n", emptyDash(connection.Name))
 	fmt.Fprintf(tw, "Scope:\t%s\n", emptyDash(connection.Scope))
 	fmt.Fprintf(tw, "Remote:\t%s\n", emptyDash(connection.Target.RemoteURL))
+	if connection.Target.RepositoryPath != "" {
+		fmt.Fprintf(tw, "Repository path:\t%s\n", connection.Target.RepositoryPath)
+	}
 	fmt.Fprintf(tw, "Provider:\t%s\n", emptyDash(connection.Provider.Name))
 	if connection.Configs.Apply != nil {
 		fmt.Fprintf(tw, "Apply branch:\t%s\n", emptyDash(connection.Configs.Apply.Settings.BranchName))
+		if checkout := connection.Configs.Apply.Checkout; checkout != nil {
+			fmt.Fprintf(tw, "Apply checkout:\t%s\n", promotionCheckoutState(*checkout))
+		}
 	}
 	if connection.Configs.Promote != nil {
 		fmt.Fprintf(tw, "Promote base:\t%s\n", emptyDash(connection.Configs.Promote.Settings.BaseBranchName))
+		if checkout := connection.Configs.Promote.Checkout; checkout != nil {
+			fmt.Fprintf(tw, "Promote checkout:\t%s\n", promotionCheckoutState(*checkout))
+		}
 	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	if connection.CreatedAt != "" {
@@ -1588,6 +1788,19 @@ func writePromotionConnectionResult(opts Options, resolution config.Resolution, 
 		fmt.Fprintf(tw, "Updated:\t%s\n", connection.UpdatedAt)
 	}
 	return tw.Flush()
+}
+
+// promotionCheckoutState says whether a direction is cloned and whether the
+// clone still matches its config (a stale clone needs 'checkout clone' again).
+func promotionCheckoutState(checkout n8n.PromotionConfigCheckout) string {
+	switch {
+	case !checkout.HasCheckout:
+		return "not cloned"
+	case checkout.MatchesConfig:
+		return "cloned"
+	default:
+		return "cloned, does not match the config; clone again"
+	}
 }
 
 type promotionMutation struct {
@@ -1650,53 +1863,196 @@ func writePromotionPromoteResult(opts Options, resolution config.Resolution, res
 }
 
 func writePromotionApplyResult(opts Options, resolution config.Resolution, result *n8n.ApplyPromotionResult) error {
-	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "Applied:\t%s\n", result.ConnectionID)
+	switch {
+	case result.Applied():
+		return writePromotionAppliedResult(opts, resolution, result)
+	case result.Status == n8n.PromotionApplyStatusBlocked:
+		return writePromotionBlockedResult(opts, resolution, result)
+	default:
+		tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+		writePromotionApplyHeader(tw, resolution, result)
+		return tw.Flush()
+	}
+}
+
+func writePromotionApplyHeader(tw *tabwriter.Writer, resolution config.Resolution, result *n8n.ApplyPromotionResult) {
+	label := "Not applied"
+	if result.Applied() {
+		label = "Applied"
+	}
+	fmt.Fprintf(tw, "%s:\t%s\n", label, result.ConnectionID)
+	fmt.Fprintf(tw, "Status:\t%s\n", emptyDash(result.Status))
+	fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.ConfigID))
 	fmt.Fprintf(tw, "Commit:\t%s\n", emptyDash(result.Git.CommitSHA))
 	fmt.Fprintf(tw, "Branch:\t%s\n", emptyDash(result.Git.BranchName))
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
+}
+
+func writePromotionAppliedResult(opts Options, resolution config.Resolution, result *n8n.ApplyPromotionResult) error {
+	var counts n8n.PromotionApplyCounts
+	if result.Counts != nil {
+		counts = *result.Counts
+	}
+	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	writePromotionApplyHeader(tw, resolution, result)
 	fmt.Fprintln(tw, "\nENTITY\tDETAIL\tCOUNT")
-	fmt.Fprintf(tw, "projects\tcreated\t%d\n", result.Counts.Projects.Created)
-	fmt.Fprintf(tw, "projects\tupdated\t%d\n", result.Counts.Projects.Updated)
-	fmt.Fprintf(tw, "projects\tskipped\t%d\n", result.Counts.Projects.Skipped)
-	fmt.Fprintf(tw, "projects\tdeleted\t%d\n", result.Counts.Projects.Deleted)
-	fmt.Fprintf(tw, "folders\tcreated\t%d\n", result.Counts.Folders.Created)
-	fmt.Fprintf(tw, "folders\tskipped\t%d\n", result.Counts.Folders.Skipped)
-	fmt.Fprintf(tw, "folders\tremoved\t%d\n", result.Counts.Folders.Removed)
-	fmt.Fprintf(tw, "workflows\tcreated\t%d\n", result.Counts.Workflows.Created)
-	fmt.Fprintf(tw, "workflows\tupdated\t%d\n", result.Counts.Workflows.Updated)
-	fmt.Fprintf(tw, "workflows\tskipped\t%d\n", result.Counts.Workflows.Skipped)
-	fmt.Fprintf(tw, "workflows\tarchived\t%d\n", result.Counts.Workflows.Archived)
-	fmt.Fprintf(tw, "workflows\tdeleted\t%d\n", result.Counts.Workflows.Deleted)
-	fmt.Fprintf(tw, "workflows\tpublished\t%d\n", result.Counts.Workflows.Publishing.Published)
-	fmt.Fprintf(tw, "workflows\tunpublished\t%d\n", result.Counts.Workflows.Publishing.Unpublished)
-	fmt.Fprintf(tw, "workflows\tunchanged\t%d\n", result.Counts.Workflows.Publishing.Unchanged)
-	fmt.Fprintf(tw, "workflows\tblocked\t%d\n", result.Counts.Workflows.Publishing.Blocked)
-	fmt.Fprintf(tw, "workflows\tfailed\t%d\n", result.Counts.Workflows.Publishing.Failed)
-	fmt.Fprintf(tw, "credentials\tmatched\t%d\n", result.Counts.Credentials.Matched)
-	fmt.Fprintf(tw, "credentials\tstubbed\t%d\n", result.Counts.Credentials.Stubbed)
-	fmt.Fprintf(tw, "dataTables\tmatched\t%d\n", result.Counts.DataTables.Matched)
-	fmt.Fprintf(tw, "dataTables\tcreated\t%d\n", result.Counts.DataTables.Created)
-	fmt.Fprintf(tw, "variables\tmatched\t%d\n", result.Counts.Variables.Matched)
-	fmt.Fprintf(tw, "variables\tcreated\t%d\n", result.Counts.Variables.Created)
-	fmt.Fprintf(tw, "variables\tupdated\t%d\n", result.Counts.Variables.Updated)
-	fmt.Fprintf(tw, "variables\tstubbed\t%d\n", result.Counts.Variables.Stubbed)
-	fmt.Fprintf(tw, "variables\tmissing\t%d\n", result.Counts.Variables.Missing)
-	fmt.Fprintf(tw, "tags\tmatched\t%d\n", result.Counts.Tags.Matched)
-	fmt.Fprintf(tw, "tags\tcreated\t%d\n", result.Counts.Tags.Created)
-	fmt.Fprintf(tw, "tags\trenamed\t%d\n", result.Counts.Tags.Renamed)
-	fmt.Fprintf(tw, "tags\treconciled\t%d\n", result.Counts.Tags.Reconciled)
-	fmt.Fprintf(tw, "tags\tskipped\t%d\n", result.Counts.Tags.Skipped)
+	fmt.Fprintf(tw, "projects\tcreated\t%d\n", counts.Projects.Created)
+	fmt.Fprintf(tw, "projects\tupdated\t%d\n", counts.Projects.Updated)
+	fmt.Fprintf(tw, "projects\tskipped\t%d\n", counts.Projects.Skipped)
+	fmt.Fprintf(tw, "projects\tdeleted\t%d\n", counts.Projects.Deleted)
+	fmt.Fprintf(tw, "folders\tcreated\t%d\n", counts.Folders.Created)
+	fmt.Fprintf(tw, "folders\tskipped\t%d\n", counts.Folders.Skipped)
+	fmt.Fprintf(tw, "folders\tremoved\t%d\n", counts.Folders.Removed)
+	fmt.Fprintf(tw, "workflows\tcreated\t%d\n", counts.Workflows.Created)
+	fmt.Fprintf(tw, "workflows\tupdated\t%d\n", counts.Workflows.Updated)
+	fmt.Fprintf(tw, "workflows\tskipped\t%d\n", counts.Workflows.Skipped)
+	fmt.Fprintf(tw, "workflows\tarchived\t%d\n", counts.Workflows.Archived)
+	fmt.Fprintf(tw, "workflows\tdeleted\t%d\n", counts.Workflows.Deleted)
+	fmt.Fprintf(tw, "workflows\tpublished\t%d\n", counts.Workflows.Publishing.Published)
+	fmt.Fprintf(tw, "workflows\tunpublished\t%d\n", counts.Workflows.Publishing.Unpublished)
+	fmt.Fprintf(tw, "workflows\tunchanged\t%d\n", counts.Workflows.Publishing.Unchanged)
+	fmt.Fprintf(tw, "workflows\tblocked\t%d\n", counts.Workflows.Publishing.Blocked)
+	fmt.Fprintf(tw, "workflows\tfailed\t%d\n", counts.Workflows.Publishing.Failed)
+	fmt.Fprintf(tw, "credentials\tmatched\t%d\n", counts.Credentials.Matched)
+	fmt.Fprintf(tw, "credentials\tstubbed\t%d\n", counts.Credentials.Stubbed)
+	fmt.Fprintf(tw, "dataTables\tmatched\t%d\n", counts.DataTables.Matched)
+	fmt.Fprintf(tw, "dataTables\tcreated\t%d\n", counts.DataTables.Created)
+	fmt.Fprintf(tw, "dataTables\tupdated\t%d\n", counts.DataTables.Updated)
+	fmt.Fprintf(tw, "variables\tmatched\t%d\n", counts.Variables.Matched)
+	fmt.Fprintf(tw, "variables\tcreated\t%d\n", counts.Variables.Created)
+	fmt.Fprintf(tw, "variables\tupdated\t%d\n", counts.Variables.Updated)
+	fmt.Fprintf(tw, "variables\tstubbed\t%d\n", counts.Variables.Stubbed)
+	fmt.Fprintf(tw, "variables\tmissing\t%d\n", counts.Variables.Missing)
+	fmt.Fprintf(tw, "tags\tmatched\t%d\n", counts.Tags.Matched)
+	fmt.Fprintf(tw, "tags\tcreated\t%d\n", counts.Tags.Created)
+	fmt.Fprintf(tw, "tags\trenamed\t%d\n", counts.Tags.Renamed)
+	fmt.Fprintf(tw, "tags\treconciled\t%d\n", counts.Tags.Reconciled)
+	fmt.Fprintf(tw, "tags\tskipped\t%d\n", counts.Tags.Skipped)
+	writePromotionIssues(tw, "Warnings", result.Warnings)
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	if result.Counts.Variables.Missing > 0 {
-		fmt.Fprintf(opts.Streams.Err, "%d variable(s) still unresolved: workflows referencing them may fail until the variables exist.\n", result.Counts.Variables.Missing)
+	if counts.Variables.Missing > 0 {
+		fmt.Fprintf(opts.Streams.Err, "%d variable(s) still unresolved: workflows referencing them may fail until the variables exist.\n", counts.Variables.Missing)
 	}
-	if result.Counts.Workflows.Publishing.Failed > 0 || result.Counts.Workflows.Publishing.Blocked > 0 {
+	if counts.Workflows.Publishing.Failed > 0 || counts.Workflows.Publishing.Blocked > 0 {
 		fmt.Fprintln(opts.Streams.Err, "Some workflows did not publish: see the publishing counts in --output json.")
 	}
+	if len(result.Warnings) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "The apply finished with %d warning(s): see the WARNINGS table.\n", len(result.Warnings))
+	}
 	return nil
+}
+
+func writePromotionBlockedResult(opts Options, resolution config.Resolution, result *n8n.ApplyPromotionResult) error {
+	var preflight n8n.PromotionApplyPreflight
+	if result.Preflight != nil {
+		preflight = *result.Preflight
+	}
+	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	writePromotionApplyHeader(tw, resolution, result)
+	if len(preflight.MissingProjects) > 0 {
+		fmt.Fprintf(tw, "\nMISSING PROJECTS (%d)\nID\tNAME\n", len(preflight.MissingProjects))
+		for _, project := range preflight.MissingProjects {
+			fmt.Fprintf(tw, "%s\t%s\n", emptyDash(project.ID), emptyDash(project.Name))
+		}
+	}
+	writePromotionIssues(tw, "Missing bindings", preflight.MissingBindings)
+	writePromotionIssues(tw, "Access requirements", preflight.AccessRequirements)
+	writePromotionIssues(tw, "Conflicts", preflight.Conflicts)
+	writePromotionIssues(tw, "Warnings", preflight.Warnings)
+	if preflight.Empty() {
+		fmt.Fprintln(tw, "\nPreflight:\tno items reported")
+	}
+	return tw.Flush()
+}
+
+// writePromotionIssues renders one preflight group as a table: kind, code,
+// name, a one-line detail, and which workflows use the item.
+func writePromotionIssues(tw *tabwriter.Writer, title string, issues []n8n.PromotionApplyIssue) {
+	if len(issues) == 0 {
+		return
+	}
+	fmt.Fprintf(tw, "\n%s (%d)\nKIND\tCODE\tNAME\tDETAIL\tUSED BY\n", strings.ToUpper(title), len(issues))
+	for _, issue := range issues {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", emptyDash(issue.Kind), emptyDash(issue.Code),
+			emptyDash(promotionIssueName(issue)), emptyDash(promotionIssueDetail(issue)), emptyDash(promotionIssueConsumers(issue)))
+	}
+}
+
+func promotionIssueName(issue n8n.PromotionApplyIssue) string {
+	if issue.Name == "" && issue.Project != nil {
+		return issue.Project.Name
+	}
+	return issue.Name
+}
+
+func promotionIssueDetail(issue n8n.PromotionApplyIssue) string {
+	var parts []string
+	switch issue.Code {
+	case n8n.PromotionConflictProjectDeletion:
+		parts = append(parts, "the apply deletes this team project and everything in it")
+	case n8n.PromotionConflictDestructiveChange:
+		for _, change := range issue.Changes {
+			if change.Destructive {
+				parts = append(parts, promotionChangeText(change))
+			}
+		}
+	}
+	if issue.CredentialType != "" {
+		parts = append(parts, "type "+issue.CredentialType)
+	}
+	if len(issue.ExpectedTypes) > 0 {
+		parts = append(parts, "expected "+strings.Join(issue.ExpectedTypes, "|"))
+	}
+	if issue.TargetType != "" {
+		parts = append(parts, "instance has "+issue.TargetType)
+	}
+	if issue.UsageScope != "" {
+		parts = append(parts, "usage scope "+issue.UsageScope)
+	}
+	if issue.Scope != nil {
+		scope := issue.Scope.Kind
+		if issue.Scope.Project != nil {
+			scope += " " + issue.Scope.Project.Name
+		}
+		parts = append(parts, "scope "+scope)
+	}
+	if issue.SourceID != nil && *issue.SourceID != "" {
+		parts = append(parts, "source ID "+*issue.SourceID)
+	}
+	if issue.Project != nil && issue.Code != n8n.PromotionConflictProjectDeletion {
+		parts = append(parts, "project "+issue.Project.ID)
+	}
+	if issue.OwnerProject != nil {
+		parts = append(parts, "owner "+issue.OwnerProject.Name)
+	}
+	return strings.Join(parts, "; ")
+}
+
+func promotionChangeText(change n8n.PromotionDataTableChange) string {
+	switch {
+	case change.Column != "" && change.From != "" && change.To != "":
+		return fmt.Sprintf("%s %s %s->%s", change.Kind, change.Column, change.From, change.To)
+	case change.Column != "":
+		return fmt.Sprintf("%s %s", change.Kind, change.Column)
+	default:
+		return change.Kind
+	}
+}
+
+func promotionIssueConsumers(issue n8n.PromotionApplyIssue) string {
+	workflows := len(issue.Workflows)
+	for _, consumer := range issue.Consumers {
+		workflows += len(consumer.Workflows)
+	}
+	if workflows == 0 {
+		return ""
+	}
+	if len(issue.Consumers) == 0 {
+		return fmt.Sprintf("%d workflow(s)", workflows)
+	}
+	return fmt.Sprintf("%d workflow(s) in %d project(s)", workflows, len(issue.Consumers))
 }
 
 // truncatedPromotionSecret keeps public keys out of full display: text output
@@ -1712,12 +2068,37 @@ func truncatedPromotionSecret(value string) string {
 	return value[:prefix] + "…"
 }
 
-func promotionAPIError(err error, resolution config.Resolution, action string) error {
+// promotionSubject names what one promotion route addresses, so a 404 can say
+// which ID is missing. The zero value is a collection route, where a 404 can
+// only mean the instance does not serve the module.
+type promotionSubject struct {
+	what string // e.g. promotion connection "conn-1"
+	find string // the command that lists valid IDs
+}
+
+func promotionProviderSubject(id string) promotionSubject {
+	return promotionSubject{what: fmt.Sprintf("promotion provider %q", id), find: "'n8n promotion provider list'"}
+}
+
+func promotionConnectionSubject(id string) promotionSubject {
+	return promotionSubject{what: fmt.Sprintf("promotion connection %q", id), find: "'n8n promotion connection list'"}
+}
+
+func promotionProjectLinkSubject(id, projectID string) promotionSubject {
+	return promotionSubject{
+		what: fmt.Sprintf("promotion connection %q or project %q", id, projectID),
+		find: "'n8n promotion connection list' and 'n8n project list'",
+	}
+}
+
+func promotionAPIError(err error, resolution config.Resolution, action string, subject promotionSubject) error {
 	switch {
 	case n8n.IsConflict(err) && action == "provider delete":
 		return fmt.Errorf("%s rejected the promotion provider delete (409): the provider still has attached connections, so nothing changed; remove them first, then delete the provider: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "project add":
 		return fmt.Errorf("%s rejected the promotion project add (409): the project is already linked to a connection, so nothing changed; remove it there first, then add it here: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && action == "provider update":
+		return fmt.Errorf("%s rejected the promotion provider update (409): another request changed the provider's credential or configuration first, so nothing changed; reload it with 'n8n promotion provider get' and retry: %w", resolution.URL, err)
 	case n8n.IsConflict(err):
 		return fmt.Errorf("%s rejected the promotion %s (409): the connection or project is in a conflicting state, so nothing changed; list the current state and retry: %w", resolution.URL, action, err)
 	case n8n.IsStatus(err, http.StatusBadRequest):
@@ -1726,12 +2107,33 @@ func promotionAPIError(err error, resolution config.Resolution, action string) e
 		return fmt.Errorf("%s rejected the promotion %s (422): the remote content cannot be imported as-is (missing references or unresolvable content); resolve the references and retry: %w", resolution.URL, action, err)
 	case n8n.IsForbidden(err):
 		return forbiddenScopeError(err, resolution, "promotion "+action, allOf(promotionScope(action)), "", promotionResource)
+	case n8n.IsNotFound(err) && subject.what != "" && !promotionRouteMissing(err):
+		return fmt.Errorf("%s has no %s (404): check the ID with %s: %w", resolution.URL, subject.what, subject.find, err)
+	case n8n.IsNotFound(err) && subject.what != "":
+		return fmt.Errorf("%s answered 404 for %s: either the ID does not exist (check it with %s) or the instance does not serve promotions (run %s): %w",
+			resolution.URL, subject.what, subject.find, discoverHint(promotionResource), err)
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		return fmt.Errorf("%s does not serve promotions (%d): it needs the Promotions module (a GitConnections-generation instance answers here instead); run %s to see what this instance offers: %w",
 			resolution.URL, n8n.StatusCodeOf(err), discoverHint(promotionResource), err)
 	default:
 		return apiError(err, resolution, promotionResource)
 	}
+}
+
+// promotionRouteMissing reports whether a 404 carries nothing beyond the
+// status: no code and no message, or only a generic "not found" or framework
+// "Cannot POST ..." text. That is what an unmounted route answers; a missing
+// connection, provider or project answers with its own message.
+func promotionRouteMissing(err error) bool {
+	apiErr, ok := errors.AsType[*n8n.APIError](err)
+	if !ok {
+		return true
+	}
+	if apiErr.Code != "" {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(apiErr.Message), "."))
+	return message == "" || message == "not found" || strings.HasPrefix(message, "cannot ")
 }
 
 func promotionScope(action string) string {
@@ -1754,6 +2156,8 @@ func promotionScope(action string) string {
 		return "gitConnection:push"
 	case "apply":
 		return "gitConnection:pull"
+	case "provider repositories", "provider branches":
+		return "gitConnection:discover"
 	default:
 		return "gitConnection:*"
 	}
