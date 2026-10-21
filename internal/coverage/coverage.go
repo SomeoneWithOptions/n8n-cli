@@ -35,15 +35,22 @@ const (
 // Availability is which OpenAPI documents declare an operation. It records what
 // servers offer, never whether the CLI implements it: an operation one server
 // omits still ships, and reports 404 or 503 where the module is absent.
+//
+// Availability is never a reason to delete an implemented operation, even
+// once no document declares it.
 const (
 	// AvailabilityBoth means every document declares the operation.
 	AvailabilityBoth = "both"
 	// AvailabilityTargetOnly means only the target instance document declares
-	// it, e.g. GitConnections.
+	// it.
 	AvailabilityTargetOnly = "target-only"
 	// AvailabilityUpstreamOnly means only the upstream document declares it,
-	// e.g. NodeTypePolicy and Promotions.
+	// e.g. CredentialTypePolicy.
 	AvailabilityUpstreamOnly = "upstream-only"
+	// AvailabilityRetired means no current document declares the operation. It
+	// is kept, and its command still ships, because older instances still
+	// serve it, e.g. GitConnections, which Promotions replaced.
+	AvailabilityRetired = "retired"
 )
 
 // Manifest is the committed operation inventory.

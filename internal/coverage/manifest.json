@@ -455,7 +455,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "getFolders",
+      "operationId": "listFolders",
       "method": "GET",
       "path": "/projects/{projectId}/folders",
       "tag": "Folders",
@@ -510,7 +510,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "list-data-tables",
+      "operationId": "listDataTables",
       "method": "GET",
       "path": "/data-tables",
       "tag": "DataTable",
@@ -521,7 +521,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "create-data-table",
+      "operationId": "createDataTable",
       "method": "POST",
       "path": "/data-tables",
       "tag": "DataTable",
@@ -532,7 +532,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "delete-data-table",
+      "operationId": "deleteDataTable",
       "method": "DELETE",
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
@@ -543,7 +543,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "get-data-table",
+      "operationId": "getDataTable",
       "method": "GET",
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
@@ -554,7 +554,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "update-data-table",
+      "operationId": "updateDataTable",
       "method": "PATCH",
       "path": "/data-tables/{dataTableId}",
       "tag": "DataTable",
@@ -565,7 +565,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "list-data-table-columns",
+      "operationId": "listDataTableColumns",
       "method": "GET",
       "path": "/data-tables/{dataTableId}/columns",
       "tag": "DataTable",
@@ -576,7 +576,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "create-data-table-column",
+      "operationId": "createDataTableColumn",
       "method": "POST",
       "path": "/data-tables/{dataTableId}/columns",
       "tag": "DataTable",
@@ -587,7 +587,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "delete-data-table-column",
+      "operationId": "deleteDataTableColumn",
       "method": "DELETE",
       "path": "/data-tables/{dataTableId}/columns/{columnId}",
       "tag": "DataTable",
@@ -598,7 +598,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "update-data-table-column",
+      "operationId": "updateDataTableColumn",
       "method": "PATCH",
       "path": "/data-tables/{dataTableId}/columns/{columnId}",
       "tag": "DataTable",
@@ -609,7 +609,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "get-data-table-rows",
+      "operationId": "listDataTableRows",
       "method": "GET",
       "path": "/data-tables/{dataTableId}/rows",
       "tag": "DataTable",
@@ -620,7 +620,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "insert-data-table-rows",
+      "operationId": "createDataTableRows",
       "method": "POST",
       "path": "/data-tables/{dataTableId}/rows",
       "tag": "DataTable",
@@ -631,7 +631,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "clear-data-table-rows",
+      "operationId": "clearDataTableRows",
       "method": "DELETE",
       "path": "/data-tables/{dataTableId}/rows/clear",
       "tag": "DataTable",
@@ -642,7 +642,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "delete-data-table-rows",
+      "operationId": "deleteDataTableRows",
       "method": "DELETE",
       "path": "/data-tables/{dataTableId}/rows/delete",
       "tag": "DataTable",
@@ -653,7 +653,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "update-data-table-rows",
+      "operationId": "updateDataTableRows",
       "method": "PATCH",
       "path": "/data-tables/{dataTableId}/rows/update",
       "tag": "DataTable",
@@ -664,7 +664,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "upsert-data-table-row",
+      "operationId": "upsertDataTableRow",
       "method": "POST",
       "path": "/data-tables/{dataTableId}/rows/upsert",
       "tag": "DataTable",
@@ -697,7 +697,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "getWorkflowVersion",
+      "operationId": "getDeprecatedWorkflowVersion",
       "method": "GET",
       "path": "/workflows/{id}/{versionId}",
       "tag": "Workflow",
@@ -1071,7 +1071,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "getDestinations",
+      "operationId": "getLogStreamingDestinations",
       "method": "GET",
       "path": "/settings/log-streaming/destinations",
       "tag": "LogStreaming",
@@ -1082,7 +1082,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "createDestination",
+      "operationId": "createLogStreamingDestination",
       "method": "POST",
       "path": "/settings/log-streaming/destinations",
       "tag": "LogStreaming",
@@ -1093,7 +1093,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "deleteDestination",
+      "operationId": "deleteLogStreamingDestination",
       "method": "DELETE",
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
@@ -1104,7 +1104,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "getDestination",
+      "operationId": "getLogStreamingDestination",
       "method": "GET",
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
@@ -1115,7 +1115,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "updateDestination",
+      "operationId": "updateLogStreamingDestination",
       "method": "PUT",
       "path": "/settings/log-streaming/destinations/{id}",
       "tag": "LogStreaming",
@@ -1126,7 +1126,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "testDestination",
+      "operationId": "testLogStreamingDestination",
       "method": "POST",
       "path": "/settings/log-streaming/destinations/{id}/test",
       "tag": "LogStreaming",
@@ -1137,7 +1137,7 @@
       "status": "implemented"
     },
     {
-      "operationId": "getEventTypes",
+      "operationId": "getLogStreamingEventTypes",
       "method": "GET",
       "path": "/settings/log-streaming/event-types",
       "tag": "LogStreaming",
@@ -1328,7 +1328,7 @@
       "method": "POST",
       "path": "/n8n-packages/export",
       "tag": "N8nPackage",
-      "scope": "project:export,workflow:export",
+      "scope": "project:export,workflow:export,agent:export",
       "availability": "both",
       "phase": 27,
       "command": "n8n package export",
@@ -1351,7 +1351,7 @@
       "path": "/git-connections",
       "tag": "GitConnections",
       "scope": "gitConnection:list",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection list",
       "status": "implemented"
@@ -1362,7 +1362,7 @@
       "path": "/git-connections",
       "tag": "GitConnections",
       "scope": "gitConnection:create",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection create",
       "status": "implemented"
@@ -1373,7 +1373,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:delete",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection delete",
       "status": "implemented"
@@ -1384,7 +1384,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:read",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection get",
       "status": "implemented"
@@ -1395,7 +1395,7 @@
       "path": "/git-connections/{id}",
       "tag": "GitConnections",
       "scope": "gitConnection:update",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection update",
       "status": "implemented"
@@ -1406,7 +1406,7 @@
       "path": "/git-connections/{id}/clone",
       "tag": "GitConnections",
       "scope": "gitConnection:clone",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection clone",
       "status": "implemented"
@@ -1417,7 +1417,7 @@
       "path": "/git-connections/{id}/disconnect",
       "tag": "GitConnections",
       "scope": "gitConnection:clone",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection disconnect",
       "status": "implemented"
@@ -1428,7 +1428,7 @@
       "path": "/git-connections/{id}/projects",
       "tag": "GitConnections",
       "scope": "gitConnection:read",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection project list",
       "status": "implemented"
@@ -1439,7 +1439,7 @@
       "path": "/git-connections/{id}/projects/{projectId}",
       "tag": "GitConnections",
       "scope": "gitConnection:manageProjects",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection project remove",
       "status": "implemented"
@@ -1450,7 +1450,7 @@
       "path": "/git-connections/{id}/projects/{projectId}",
       "tag": "GitConnections",
       "scope": "gitConnection:manageProjects",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection project add",
       "status": "implemented"
@@ -1461,7 +1461,7 @@
       "path": "/git-connections/{id}/pull",
       "tag": "GitConnections",
       "scope": "gitConnection:pull",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection pull",
       "status": "implemented"
@@ -1472,51 +1472,51 @@
       "path": "/git-connections/{id}/push",
       "tag": "GitConnections",
       "scope": "gitConnection:push",
-      "availability": "target-only",
+      "availability": "retired",
       "phase": 28,
       "command": "n8n git-connection push",
       "status": "implemented"
     },
     {
-      "operationId": "getInstancePolicy",
+      "operationId": "getNodeTypeInstancePolicy",
       "method": "GET",
       "path": "/node-type-policies/instance",
       "tag": "NodeTypePolicy",
       "scope": "nodeTypePolicy:manage",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 18,
       "command": "n8n node-policy instance get",
       "status": "implemented"
     },
     {
-      "operationId": "putInstancePolicy",
+      "operationId": "putNodeTypeInstancePolicy",
       "method": "PUT",
       "path": "/node-type-policies/instance",
       "tag": "NodeTypePolicy",
       "scope": "nodeTypePolicy:manage",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 18,
       "command": "n8n node-policy instance set",
       "status": "implemented"
     },
     {
-      "operationId": "getProjectPolicy",
+      "operationId": "getNodeTypeProjectPolicy",
       "method": "GET",
       "path": "/node-type-policies/projects/{projectId}",
       "tag": "NodeTypePolicy",
       "scope": "nodeTypePolicy:manage",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 18,
       "command": "n8n node-policy project get",
       "status": "implemented"
     },
     {
-      "operationId": "putProjectPolicy",
+      "operationId": "putNodeTypeProjectPolicy",
       "method": "PUT",
       "path": "/node-type-policies/projects/{projectId}",
       "tag": "NodeTypePolicy",
       "scope": "nodeTypePolicy:manage",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 18,
       "command": "n8n node-policy project set",
       "status": "implemented"
@@ -1527,7 +1527,7 @@
       "path": "/promotions/connections",
       "tag": "Promotions",
       "scope": "gitConnection:list",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion connection list",
       "status": "implemented"
@@ -1538,7 +1538,7 @@
       "path": "/promotions/connections",
       "tag": "Promotions",
       "scope": "gitConnection:create",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion connection create",
       "status": "implemented"
@@ -1549,7 +1549,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:delete",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion connection delete",
       "status": "implemented"
@@ -1560,7 +1560,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:read",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion connection get",
       "status": "implemented"
@@ -1571,7 +1571,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion connection update",
       "status": "implemented"
@@ -1582,7 +1582,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/apply",
       "tag": "Promotions",
       "scope": "gitConnection:pull",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion apply",
       "status": "implemented"
@@ -1593,7 +1593,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/apply",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion config apply set",
       "status": "implemented"
@@ -1604,7 +1604,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/promote",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion config promote set",
       "status": "implemented"
@@ -1615,7 +1615,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/{direction}",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion config delete",
       "status": "implemented"
@@ -1626,7 +1626,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects",
       "tag": "Promotions",
       "scope": "gitConnection:read",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion project list",
       "status": "implemented"
@@ -1637,7 +1637,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
       "tag": "Promotions",
       "scope": "gitConnection:manageProjects",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion project remove",
       "status": "implemented"
@@ -1648,7 +1648,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
       "tag": "Promotions",
       "scope": "gitConnection:manageProjects",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion project add",
       "status": "implemented"
@@ -1659,7 +1659,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/promote",
       "tag": "Promotions",
       "scope": "gitConnection:push",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion promote",
       "status": "implemented"
@@ -1670,7 +1670,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/{direction}/clone",
       "tag": "Promotions",
       "scope": "gitConnection:clone",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion checkout clone",
       "status": "implemented"
@@ -1681,7 +1681,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/{direction}/disconnect",
       "tag": "Promotions",
       "scope": "gitConnection:clone",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion checkout disconnect",
       "status": "implemented"
@@ -1692,7 +1692,7 @@
       "path": "/promotions/providers",
       "tag": "Promotions",
       "scope": "gitConnection:list",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion provider list",
       "status": "implemented"
@@ -1703,7 +1703,7 @@
       "path": "/promotions/providers",
       "tag": "Promotions",
       "scope": "gitConnection:create",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion provider create",
       "status": "implemented"
@@ -1714,7 +1714,7 @@
       "path": "/promotions/providers/{promotionProviderId}",
       "tag": "Promotions",
       "scope": "gitConnection:delete",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion provider delete",
       "status": "implemented"
@@ -1725,7 +1725,7 @@
       "path": "/promotions/providers/{promotionProviderId}",
       "tag": "Promotions",
       "scope": "gitConnection:read",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion provider get",
       "status": "implemented"
@@ -1736,10 +1736,296 @@
       "path": "/promotions/providers/{promotionProviderId}",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "upstream-only",
+      "availability": "both",
       "phase": 29,
       "command": "n8n promotion provider update",
       "status": "implemented"
+    },
+    {
+      "operationId": "importPackageSelection",
+      "method": "POST",
+      "path": "/n8n-packages/import-selection",
+      "tag": "N8nPackage",
+      "scope": "workflow:import",
+      "availability": "both",
+      "phase": 30,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionChanges",
+      "method": "GET",
+      "path": "/promotions/projects/{projectId}/changes/{direction}",
+      "tag": "Promotions",
+      "scope": "gitConnection:push,gitConnection:pull",
+      "availability": "both",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "continueApplyPackage",
+      "method": "POST",
+      "path": "/promotions/connections/{promotionConnectionId}/apply/continue",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "both",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "applyProjectSelection",
+      "method": "POST",
+      "path": "/promotions/projects/{projectId}/apply",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "both",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "continueApplyProjectSelection",
+      "method": "POST",
+      "path": "/promotions/projects/{projectId}/apply/continue",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "both",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "promoteProjectSelection",
+      "method": "POST",
+      "path": "/promotions/projects/{projectId}/promote",
+      "tag": "Promotions",
+      "scope": "gitConnection:push",
+      "availability": "both",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionProviderRepositories",
+      "method": "GET",
+      "path": "/promotions/providers/{promotionProviderId}/repositories",
+      "tag": "Promotions",
+      "scope": "gitConnection:discover",
+      "availability": "upstream-only",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionProviderRepositoryBranches",
+      "method": "GET",
+      "path": "/promotions/providers/{promotionProviderId}/repositories/{repositoryId}/branches",
+      "tag": "Promotions",
+      "scope": "gitConnection:discover",
+      "availability": "upstream-only",
+      "phase": 31,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "listNodeTypePolicyDocuments",
+      "method": "GET",
+      "path": "/node-type-policies/policies",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createNodeTypePolicyDocument",
+      "method": "POST",
+      "path": "/node-type-policies/policies",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getNodeTypePolicyDocument",
+      "method": "GET",
+      "path": "/node-type-policies/policies/{policyId}",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateNodeTypePolicyDocument",
+      "method": "PUT",
+      "path": "/node-type-policies/policies/{policyId}",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteNodeTypePolicyDocument",
+      "method": "DELETE",
+      "path": "/node-type-policies/policies/{policyId}",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getNodeTypePolicyAttachments",
+      "method": "GET",
+      "path": "/node-type-policies/scopes/{scopeId}/attachments",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "replaceNodeTypePolicyAttachments",
+      "method": "PUT",
+      "path": "/node-type-policies/scopes/{scopeId}/attachments",
+      "tag": "NodeTypePolicy",
+      "scope": "nodeTypePolicy:manage",
+      "availability": "both",
+      "phase": 32,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialTypeInstancePolicy",
+      "method": "GET",
+      "path": "/credential-type-policies/instance",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "putCredentialTypeInstancePolicy",
+      "method": "PUT",
+      "path": "/credential-type-policies/instance",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialTypeProjectPolicy",
+      "method": "GET",
+      "path": "/credential-type-policies/projects/{projectId}",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "putCredentialTypeProjectPolicy",
+      "method": "PUT",
+      "path": "/credential-type-policies/projects/{projectId}",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "listCredentialTypePolicyDocuments",
+      "method": "GET",
+      "path": "/credential-type-policies/policies",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createCredentialTypePolicyDocument",
+      "method": "POST",
+      "path": "/credential-type-policies/policies",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialTypePolicyDocument",
+      "method": "GET",
+      "path": "/credential-type-policies/policies/{policyId}",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updateCredentialTypePolicyDocument",
+      "method": "PUT",
+      "path": "/credential-type-policies/policies/{policyId}",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deleteCredentialTypePolicyDocument",
+      "method": "DELETE",
+      "path": "/credential-type-policies/policies/{policyId}",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialTypePolicyAttachments",
+      "method": "GET",
+      "path": "/credential-type-policies/scopes/{scopeId}/attachments",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "replaceCredentialTypePolicyAttachments",
+      "method": "PUT",
+      "path": "/credential-type-policies/scopes/{scopeId}/attachments",
+      "tag": "CredentialTypePolicy",
+      "scope": "credentialTypePolicy:manage",
+      "availability": "upstream-only",
+      "phase": 33,
+      "command": "",
+      "status": "planned"
     }
   ]
 }
