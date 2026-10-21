@@ -18,13 +18,17 @@ state (archiving needs workflow:delete), folder overwrite can remove
 workflows the package does not contain (archive is recoverable,
 hard-delete also drops executions permanently, so prefer archive),
 missing credentials become empty stubs unless --credential-missing-mode
-must-preexist, and folders, tags, variables, or tables may be created or
-overwritten. Interactive runs ask for confirmation and non-interactive
-runs require --yes; --file - also requires --yes because stdin cannot
-answer. Needs workflow:import plus, depending on the package and the
-policies, variable, tag, data-table, folder, and delete scopes, and the
-Packages, Variables, and Folders features where the contents require
-them.
+is must-preexist or create-with-values, --data-table-schema-policy
+overwrite permanently drops the values in removed or retyped columns,
+and folders, tags, variables, or tables may be created or overwritten.
+Interactive runs ask for confirmation and non-interactive runs require
+--yes; --file - also requires --yes because stdin cannot answer.
+Credentials created from incomplete package data are reported on
+stderr and keep their workflows unpublished until completed. Needs
+workflow:import plus, depending on the package and the policies,
+credential, variable, tag, data-table, folder, and delete scopes, and
+the Packages, Variables, and Folders features where the contents
+require them.
 
 ```
 n8n package import [flags]
@@ -44,10 +48,10 @@ n8n package import [flags]
       --bindings string                     explicit credential bindings as JSON, e.g. '{"credentials":{"pkg-id":"target-id"}}' (default: server default {})
       --context string                      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
       --credential-matching-mode string     how package credential references match: id-only, name-and-type, or type-only (default: server default id-only)
-      --credential-missing-mode string      unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders (default: server default create-stub)
+      --credential-missing-mode string      unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders, create-with-values seeds them from the package's expression values (needs credential:create; unconfirmed data lands in credentials.incomplete and blocks publishing) (default: server default create-stub)
       --data-table-matching-mode string     data-table matching: by-id, the only mode (default: server default by-id)
       --data-table-missing-mode string      missing data-table handling: create, must-preexist, or do-nothing (default: server default create)
-      --data-table-schema-policy string     matched table schema strictness: keep-existing or fail (default: server default keep-existing)
+      --data-table-schema-policy string     matched table schema handling: keep-existing accepts extra target columns, fail rejects any difference, overwrite reshapes the table to the package and permanently drops values in removed or retyped columns for every workflow using it, overwrite-non-destructive applies the same changes but rejects removals and retypes; rows are kept (default: server default keep-existing)
       --file string                         package archive (.n8np) to import: a file path, or - for stdin (required; stdin requires --yes)
       --folder-conflict-policy string       existing folder handling: merge, fail, or overwrite; empty follows --project-conflict-policy on project packages, merge otherwise (default: follow)
       --folder-id string                    folder within the target project, from 'n8n folder list PROJECT_ID' (default: the project root)

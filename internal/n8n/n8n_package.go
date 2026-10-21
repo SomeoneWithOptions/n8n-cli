@@ -30,27 +30,28 @@ const (
 
 // ExportCountsHeader carries the JSON-serialized per-entity counts of what
 // actually ended up in an exported package, e.g.
-// {"workflows":2,"folders":1,"credentials":0,"dataTables":0,"variables":0}.
+// {"agents":1,"workflows":2,"folders":1,"credentials":0,"dataTables":0,"variables":0,"tags":0}.
 const ExportCountsHeader = "X-N8n-Export-Counts"
 
 // DefaultImportPackageFilename is the multipart filename sent when the caller
 // supplies no better name for the archive.
 const DefaultImportPackageFilename = "package.n8np"
 
-// Missing-workflow-dependency policies for an export.
+// Dependency policies for an export: how workflow and agent dependencies
+// outside the selection are handled.
 const (
-	ExportMissingFail             = "fail"
-	ExportMissingReferenceOnly    = "reference-only"
-	ExportMissingIncludeInPackage = "include-in-package"
+	ExportDependencyFail             = "fail"
+	ExportDependencyReferenceOnly    = "reference-only"
+	ExportDependencyIncludeInPackage = "include-in-package"
 )
 
-var exportMissingPolicies = []string{
-	ExportMissingFail,
-	ExportMissingReferenceOnly,
-	ExportMissingIncludeInPackage,
+var exportDependencyPolicies = []string{
+	ExportDependencyFail,
+	ExportDependencyReferenceOnly,
+	ExportDependencyIncludeInPackage,
 }
 
-// Workflow-version policies for an export.
+// Version policies for an export: which workflow and agent version travels.
 const (
 	ExportVersionPublishedStrict   = "published-strict"
 	ExportVersionPreferPublished   = "prefer-published"
@@ -77,70 +78,72 @@ var exportCredentialPolicies = []string{
 	ExportCredentialNoValues,
 }
 
-// maxExportIDs is the per-list limit the schema declares for workflow and
-// folder selections.
+// maxExportIDs is the per-list limit the schema declares for agent, workflow,
+// folder, and project selections.
 const maxExportIDs = 300
 
-// ExportPackageRequest selects what to export. Provide workflow and/or folder
-// IDs to export loose workflows and folders, or project IDs to export whole
+// ExportPackageRequest selects what to export. Provide agent, workflow, and/or
+// folder IDs to export loose entities, or project IDs to export whole
 // projects, but not both groups in the same request. At least one ID must be
 // supplied. Pointer booleans distinguish an omitted value (the server default
 // applies) from an explicit false; use [Bool] when setting them directly.
 type ExportPackageRequest struct {
-	WorkflowIDs             []string `json:"workflowIds,omitempty"`
-	FolderIDs               []string `json:"folderIds,omitempty"`
-	ProjectIDs              []string `json:"projectIds,omitempty"`
-	IncludeVariableValues   *bool    `json:"includeVariableValues,omitempty"`
-	IncludeTags             *bool    `json:"includeTags,omitempty"`
-	MissingDependencyPolicy string   `json:"missingWorkflowDependencyPolicy,omitempty"`
-	WorkflowVersionPolicy   string   `json:"workflowVersionPolicy,omitempty"`
-	CredentialExportPolicy  string   `json:"credentialExportPolicy,omitempty"`
-	IncludeArchived         *bool    `json:"includeArchivedWorkflows,omitempty"`
+	AgentIDs               []string `json:"agentIds,omitempty"`
+	WorkflowIDs            []string `json:"workflowIds,omitempty"`
+	FolderIDs              []string `json:"folderIds,omitempty"`
+	ProjectIDs             []string `json:"projectIds,omitempty"`
+	IncludeVariableValues  *bool    `json:"includeVariableValues,omitempty"`
+	IncludeTags            *bool    `json:"includeTags,omitempty"`
+	DependencyPolicy       string   `json:"dependencyPolicy,omitempty"`
+	VersionPolicy          string   `json:"versionPolicy,omitempty"`
+	CredentialExportPolicy string   `json:"credentialExportPolicy,omitempty"`
+	IncludeArchived        *bool    `json:"includeArchivedWorkflows,omitempty"`
+}
+
+// RenamedExportFields maps export fields older instances accepted to the
+// names the schema uses now. The body rejects unknown properties, so a
+// document still carrying an old name would fail with a 400.
+var RenamedExportFields = map[string]string{
+	"missingWorkflowDependencyPolicy": "dependencyPolicy",
+	"workflowVersionPolicy":           "versionPolicy",
 }
 
 // Validate rejects an export document the API would reject before transport.
 func (r ExportPackageRequest) Validate() error {
-	if len(r.WorkflowIDs) == 0 && len(r.FolderIDs) == 0 && len(r.ProjectIDs) == 0 {
-		return fmt.Errorf("at least one workflow, folder, or project ID is required")
+	loose := len(r.AgentIDs) > 0 || len(r.WorkflowIDs) > 0 || len(r.FolderIDs) > 0
+	if !loose && len(r.ProjectIDs) == 0 {
+		return fmt.Errorf("at least one agent, workflow, folder, or project ID is required")
 	}
-	if len(r.ProjectIDs) > 0 && (len(r.WorkflowIDs) > 0 || len(r.FolderIDs) > 0) {
-		return fmt.Errorf("projectIds cannot be combined with workflowIds or folderIds: export loose workflows and folders, or whole projects, not both")
+	if loose && len(r.ProjectIDs) > 0 {
+		return fmt.Errorf("projectIds cannot be combined with agentIds, workflowIds, or folderIds: export loose agents, workflows, and folders, or whole projects, not both")
 	}
-	for i, id := range r.WorkflowIDs {
-		if strings.TrimSpace(id) == "" {
-			return fmt.Errorf("workflowIds[%d] is required and must not be blank", i)
+	lists := []struct {
+		name string
+		ids  []string
+	}{
+		{"agentIds", r.AgentIDs},
+		{"workflowIds", r.WorkflowIDs},
+		{"folderIds", r.FolderIDs},
+		{"projectIds", r.ProjectIDs},
+	}
+	for _, list := range lists {
+		for i, id := range list.ids {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("%s[%d] is required and must not be blank", list.name, i)
+			}
+			if id != strings.TrimSpace(id) {
+				return fmt.Errorf("%s[%d] must not start or end with whitespace", list.name, i)
+			}
 		}
-		if id != strings.TrimSpace(id) {
-			return fmt.Errorf("workflowIds[%d] must not start or end with whitespace", i)
+		if len(list.ids) > maxExportIDs {
+			return fmt.Errorf("%s holds %d IDs, want at most %d", list.name, len(list.ids), maxExportIDs)
 		}
 	}
-	for i, id := range r.FolderIDs {
-		if strings.TrimSpace(id) == "" {
-			return fmt.Errorf("folderIds[%d] is required and must not be blank", i)
-		}
-		if id != strings.TrimSpace(id) {
-			return fmt.Errorf("folderIds[%d] must not start or end with whitespace", i)
-		}
+	if r.DependencyPolicy != "" && !slices.Contains(exportDependencyPolicies, r.DependencyPolicy) {
+		return fmt.Errorf("unknown dependency policy %q: use %s", r.DependencyPolicy, strings.Join(exportDependencyPolicies, ", "))
 	}
-	for i, id := range r.ProjectIDs {
-		if strings.TrimSpace(id) == "" {
-			return fmt.Errorf("projectIds[%d] is required and must not be blank", i)
-		}
-		if id != strings.TrimSpace(id) {
-			return fmt.Errorf("projectIds[%d] must not start or end with whitespace", i)
-		}
-	}
-	if len(r.WorkflowIDs) > maxExportIDs {
-		return fmt.Errorf("workflowIds holds %d IDs, want at most %d", len(r.WorkflowIDs), maxExportIDs)
-	}
-	if len(r.FolderIDs) > maxExportIDs {
-		return fmt.Errorf("folderIds holds %d IDs, want at most %d", len(r.FolderIDs), maxExportIDs)
-	}
-	if r.MissingDependencyPolicy != "" && !slices.Contains(exportMissingPolicies, r.MissingDependencyPolicy) {
-		return fmt.Errorf("unknown missing-workflow-dependency policy %q: use %s", r.MissingDependencyPolicy, strings.Join(exportMissingPolicies, ", "))
-	}
-	if r.WorkflowVersionPolicy != "" && !slices.Contains(exportVersionPolicies, r.WorkflowVersionPolicy) {
-		return fmt.Errorf("unknown workflow-version policy %q: use %s", r.WorkflowVersionPolicy, strings.Join(exportVersionPolicies, ", "))
+	if r.VersionPolicy != "" && !slices.Contains(exportVersionPolicies, r.VersionPolicy) {
+		return fmt.Errorf("unknown version policy %q: use %s", r.VersionPolicy, strings.Join(exportVersionPolicies, ", "))
 	}
 	if r.CredentialExportPolicy != "" && !slices.Contains(exportCredentialPolicies, r.CredentialExportPolicy) {
 		return fmt.Errorf("unknown credential-export policy %q: use %s", r.CredentialExportPolicy, strings.Join(exportCredentialPolicies, ", "))
@@ -151,7 +154,8 @@ func (r ExportPackageRequest) Validate() error {
 // ExportPackageResult describes the archive streamed to the caller's writer.
 type ExportPackageResult struct {
 	// Counts holds the per-entity counts from the X-N8n-Export-Counts response
-	// header, e.g. workflows, folders, credentials, dataTables, variables.
+	// header, e.g. agents, workflows, folders, credentials, dataTables,
+	// variables, tags.
 	Counts map[string]int `json:"counts"`
 	// Filename is the attachment name from Content-Disposition, when sent.
 	Filename string `json:"filename,omitempty"`
@@ -283,15 +287,16 @@ func exportFilename(header string) string {
 
 // Import conflict and mode values. Every optional mode takes its default when
 // omitted; the CLI sends a field only when its flag is set, except
-// WorkflowIDPolicy, which is always sent because the prose default (new) and
-// the schema default (source) conflict.
+// WorkflowIDPolicy, which is always sent so the ID behavior is stated rather
+// than inherited from a server default (source).
 const (
 	ImportCredentialMatchIDOnly      = "id-only"
 	ImportCredentialMatchNameAndType = "name-and-type"
 	ImportCredentialMatchTypeOnly    = "type-only"
 
-	ImportCredentialMissingMustPreexist = "must-preexist"
-	ImportCredentialMissingCreateStub   = "create-stub"
+	ImportCredentialMissingMustPreexist     = "must-preexist"
+	ImportCredentialMissingCreateStub       = "create-stub"
+	ImportCredentialMissingCreateWithValues = "create-with-values"
 
 	ImportWorkflowConflictNewVersion = "new-version"
 	ImportWorkflowConflictFail       = "fail"
@@ -325,8 +330,10 @@ const (
 	ImportDataTableMissingMustPreexist = "must-preexist"
 	ImportDataTableMissingDoNothing    = "do-nothing"
 
-	ImportDataTableSchemaKeepExisting = "keep-existing"
-	ImportDataTableSchemaFail         = "fail"
+	ImportDataTableSchemaKeepExisting            = "keep-existing"
+	ImportDataTableSchemaFail                    = "fail"
+	ImportDataTableSchemaOverwrite               = "overwrite"
+	ImportDataTableSchemaOverwriteNonDestructive = "overwrite-non-destructive"
 
 	ImportVariableMissingDoNothing     = "do-nothing"
 	ImportVariableMissingMustPreexist  = "must-preexist"
@@ -350,7 +357,7 @@ const (
 
 var (
 	importCredentialMatchModes   = []string{ImportCredentialMatchIDOnly, ImportCredentialMatchNameAndType, ImportCredentialMatchTypeOnly}
-	importCredentialMissingModes = []string{ImportCredentialMissingMustPreexist, ImportCredentialMissingCreateStub}
+	importCredentialMissingModes = []string{ImportCredentialMissingMustPreexist, ImportCredentialMissingCreateStub, ImportCredentialMissingCreateWithValues}
 	importWorkflowConflicts      = []string{ImportWorkflowConflictNewVersion, ImportWorkflowConflictFail, ImportWorkflowConflictSkip}
 	importWorkflowIDPolicies     = []string{ImportWorkflowIDNew, ImportWorkflowIDSource}
 	importMissingNodeModes       = []string{ImportMissingNodeFail, ImportMissingNodeImportAnyway}
@@ -360,7 +367,7 @@ var (
 	importDeletionPolicies       = []string{ImportDeletionArchive, ImportDeletionHardDelete}
 	importDataTableMatchModes    = []string{ImportDataTableMatchByID}
 	importDataTableMissingModes  = []string{ImportDataTableMissingCreate, ImportDataTableMissingMustPreexist, ImportDataTableMissingDoNothing}
-	importDataTableSchemaModes   = []string{ImportDataTableSchemaKeepExisting, ImportDataTableSchemaFail}
+	importDataTableSchemaModes   = []string{ImportDataTableSchemaKeepExisting, ImportDataTableSchemaFail, ImportDataTableSchemaOverwrite, ImportDataTableSchemaOverwriteNonDestructive}
 	importVariableMissingModes   = []string{ImportVariableMissingDoNothing, ImportVariableMissingMustPreexist, ImportVariableMissingCreateStub, ImportVariableMissingCreateWithVal}
 	importVariableConflictModes  = []string{ImportVariableConflictKeep, ImportVariableConflictOverwrite, ImportVariableConflictFail}
 	importVariableParentModes    = []string{ImportVariableParentProject, ImportVariableParentGlobal}
@@ -370,9 +377,9 @@ var (
 
 // ImportPackageRequest is the routing and conflict policy for one package
 // import. Empty optional fields are omitted so the server default applies,
-// except WorkflowIDPolicy, which is always sent because the prose default
-// (new) and the schema default (source) conflict. Bindings, when set, must be
-// a JSON object; only credentials bindings are supported today.
+// except WorkflowIDPolicy, which is always sent so the ID behavior is explicit
+// (the server default is source). Bindings, when set, must be a JSON object;
+// only credentials bindings are supported today.
 type ImportPackageRequest struct {
 	ProjectID                string `json:"-"`
 	FolderID                 string `json:"-"`
@@ -483,6 +490,10 @@ func (r ImportPackageRequest) fields() map[string]string {
 // ImportPackageResult is the import outcome: what was written, removed, and
 // how every referenced entity resolved. Names only travel for variables and
 // tags; values never travel in the response.
+//
+// Raw keeps the response verbatim so fields this type does not name yet,
+// nested ones included, survive --output json. It is a read model: MarshalJSON
+// re-emits Raw when present, so edits to the typed fields are not reflected.
 type ImportPackageResult struct {
 	Package          ImportedPackage    `json:"package"`
 	Workflows        []ImportedWorkflow `json:"workflows"`
@@ -495,6 +506,28 @@ type ImportPackageResult struct {
 	DataTables       ImportDataTables   `json:"dataTables"`
 	Variables        ImportVariables    `json:"variables"`
 	Tags             ImportTags         `json:"tags"`
+	Raw              json.RawMessage    `json:"-"`
+}
+
+// UnmarshalJSON decodes the named fields and keeps the verbatim document.
+func (r *ImportPackageResult) UnmarshalJSON(data []byte) error {
+	type plain ImportPackageResult
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = ImportPackageResult(decoded)
+	r.Raw = append(json.RawMessage(nil), data...)
+	return nil
+}
+
+// MarshalJSON re-emits the verbatim document when present.
+func (r ImportPackageResult) MarshalJSON() ([]byte, error) {
+	if len(r.Raw) > 0 {
+		return r.Raw, nil
+	}
+	type plain ImportPackageResult
+	return json.Marshal(plain(r))
 }
 
 // ImportedPackage identifies the package the result came from.
@@ -570,17 +603,24 @@ type ImportBindings struct {
 	Credentials map[string]string `json:"credentials"`
 }
 
-// ImportCredentials groups source credential IDs by whether they matched or
-// were created as stubs.
+// ImportCredentials groups source credential IDs by outcome: matched an
+// existing credential, created as an empty stub, created with all source data
+// (seeded), or created from bundled values the package does not confirm are
+// complete. Incomplete credentials need input and block publishing of the
+// workflows that use them (incomplete-credential). Target IDs are in
+// [ImportBindings.Credentials].
 type ImportCredentials struct {
-	Matched []string `json:"matched"`
-	Stubbed []string `json:"stubbed"`
+	Matched    []string `json:"matched"`
+	Stubbed    []string `json:"stubbed"`
+	Seeded     []string `json:"seeded"`
+	Incomplete []string `json:"incomplete"`
 }
 
-// ImportDataTables counts matched and created data tables.
+// ImportDataTables counts matched, created, and schema-updated data tables.
 type ImportDataTables struct {
 	Matched int `json:"matched"`
 	Created int `json:"created"`
+	Updated int `json:"updated"`
 }
 
 // ImportVariables holds the referenced variable names by outcome.
@@ -782,7 +822,7 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 		if err != nil {
 			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", N8nPackageImportPath, err)
 		}
-		return nil, newImportBlockedError(resp, raw)
+		return nil, newImportBlockedError(resp, N8nPackageImportPath, raw)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		raw, truncated, err := readLimited(resp.Body, maxErrorBody)
@@ -835,14 +875,15 @@ func writeMultipartImport(multipartWriter *multipart.Writer, request ImportPacka
 	return nil
 }
 
-// newImportBlockedError decodes a 409 or 422 body, preserving every issue.
-// A body that does not decode still yields the status and request ID.
-func newImportBlockedError(resp *http.Response, raw []byte) *ImportBlockedError {
+// newImportBlockedError decodes a 409 or 422 body from the import endpoint at
+// path, preserving every issue. A body that does not decode still yields the
+// status and request ID.
+func newImportBlockedError(resp *http.Response, path string, raw []byte) *ImportBlockedError {
 	blocked := &ImportBlockedError{
 		StatusCode: resp.StatusCode,
 		Status:     resp.Status,
 		Method:     http.MethodPost,
-		Path:       N8nPackageImportPath,
+		Path:       path,
 		RequestID:  requestID(resp.Header),
 	}
 	var decoded struct {

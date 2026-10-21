@@ -4,7 +4,7 @@ Export and import n8n packages (beta)
 
 ### Synopsis
 
-Move workflows, folders, and projects between instances as gzipped tar
+Move agents, workflows, folders, and projects between instances as gzipped tar
 packages (.n8np). Start with 'export' to write a package file from this
 instance, then 'import' to read one back into a project.
 
@@ -36,6 +36,6 @@ n8n package [flags]
 ### SEE ALSO
 
 * [n8n](n8n.md)	 - Command-line client for the n8n API
-* [n8n package export](n8n_package_export.md)	 - Export workflows, folders, or projects as an n8n package (beta)
+* [n8n package export](n8n_package_export.md)	 - Export agents, workflows, folders, or projects as an n8n package (beta)
 * [n8n package import](n8n_package_import.md)	 - Import an n8n package into a project (beta)
 
