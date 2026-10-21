@@ -12,6 +12,10 @@ config {"settings":{"schemaVersion":1,"branchName":"main"}} and
 the promote config {"settings":{"schemaVersion":1,
 "baseBranchName":"main","createBranchOnPromotion":false}}.
 
+On a gitlab provider the remote URL must belong to the provider: the
+connection stores only the repository path (reported read-only as
+target.repositoryPath, never sent) and derives remoteUrl from the
+provider base URL. Only one instance-scope connection can exist.
 Unknown fields and trailing JSON documents are refused before
 transport. Requires gitConnection:create. Follow with
 'n8n promotion config apply set' and 'n8n promotion config promote

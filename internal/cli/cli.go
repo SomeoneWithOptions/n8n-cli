@@ -26,7 +26,13 @@ const (
 	ExitError   = 1
 	// ExitDiffError distinguishes a failed comparison from detected differences.
 	ExitDiffError = 2
-	ExitCanceled  = 130
+	// ExitPromotionBlocked is a promotion apply the server stopped at
+	// preflight: the result was printed and nothing was written.
+	ExitPromotionBlocked = 3
+	// ExitPromotionSourceChanged is a promotion apply whose branch moved since
+	// the review: the result was printed and nothing was written.
+	ExitPromotionSourceChanged = 4
+	ExitCanceled               = 130
 )
 
 // Streams are the three standard streams a command tree reads and writes.
@@ -158,6 +164,13 @@ func Run(ctx context.Context, args []string, opts Options) int {
 		// so say why without the usage hint a real error gets.
 		fmt.Fprintf(opts.Streams.Err, "n8n: %v\n", err)
 		return ExitError
+	}
+	var stoppedApply *promotionApplyStoppedError
+	if errors.As(err, &stoppedApply) {
+		// The result and the next step were printed; say why the exit code is
+		// not zero without the usage hint a real error gets.
+		fmt.Fprintf(opts.Streams.Err, "n8n: %v\n", err)
+		return stoppedApply.exitCode()
 	}
 	code := report(opts.Streams.Err, err)
 	if code == ExitError && cmd != nil && cmd.Annotations["diffExitCodes"] == "true" {

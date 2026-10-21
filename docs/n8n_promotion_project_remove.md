@@ -6,7 +6,8 @@ Remove a project from a promotion connection
 
 Unlink one project from one promotion connection. The project itself
 and its instance content are untouched; only the sync link goes away,
-so later promotes and applies skip it. Re-add it later with 'n8n
+so project-level sync falls back to the instance connection. Re-add it
+later with 'n8n
 promotion project add'.
 
 Interactive runs ask for confirmation; non-interactive runs require

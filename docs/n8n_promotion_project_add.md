@@ -4,8 +4,9 @@ Add a project to a promotion connection
 
 ### Synopsis
 
-Add one team project to one promotion connection so promote and apply
-include it. A project can belong to only one connection: adding a
+Link one team project to one projects-scope promotion connection, so
+project-level sync uses that connection instead of the instance
+connection. A project can belong to only one connection: adding a
 project that is already linked elsewhere answers 409. The checkout
 must be cloned first. Requires gitConnection:manageProjects.
 

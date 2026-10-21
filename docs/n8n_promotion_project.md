@@ -4,7 +4,9 @@ Manage projects linked to a promotion connection
 
 ### Synopsis
 
-Manage which team projects one promotion connection syncs. Start with
+Manage which team projects a projects-scope promotion connection
+syncs; a project's own connection takes precedence over the instance
+connection for project-level sync. Start with
 'list' to see the linked project IDs, then 'add' a project or
 'remove' one.
 

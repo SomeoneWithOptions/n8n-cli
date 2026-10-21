@@ -650,11 +650,13 @@ func TestPromotionDenialsAreReported(t *testing.T) {
 		t.Errorf("403 result = %+v, want scope and discover hint", got)
 	}
 
-	f.status = http.StatusNotFound
+	// A bare 404 on an ID route names both causes: missing ID or module.
+	f.route = func(*http.Request, int) (int, string) { return http.StatusNotFound, `{"message":"not found"}` }
 	got = f.run("promotion", "apply", "conn-1", "--yes")
 	if got.code != ExitError || !strings.Contains(got.stderr, "does not serve promotions") || !strings.Contains(got.stderr, "n8n discover --resource promotions") {
 		t.Errorf("404 result = %+v, want the availability hint", got)
 	}
+	f.route = nil
 
 	f.status = http.StatusServiceUnavailable
 	got = f.run("promotion", "provider", "get", "prov-1")
