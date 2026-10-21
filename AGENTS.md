@@ -71,12 +71,12 @@ docs/                 generated from help; never hand-edit prose that duplicates
 
 ### Track A: spec-backed command (default when an OpenAPI operation exists)
 
-Source of truth is the union contract: `openapi.yml` (target instance) + `openapi.upstream.yml` (docs instance). Both are gitignored. Committed artifact is `internal/coverage/manifest.json` with `availability: both | target-only | upstream-only`.
+Source of truth is the union contract: `openapi.yml` (target instance) + `openapi.upstream.yml` (docs instance). Both are gitignored. Committed artifact is `internal/coverage/manifest.json` with `availability: both | target-only | upstream-only | retired` (`retired` = declared by no current document, kept because older instances still serve it).
 
 Rules:
 
 - Confirm method, path, scope, params, body, response codes, schemas against whichever document declares the operation.
-- Match operations by method + path with `{param}` normalized. Read `operationId` first, fall back to `x-eov-operation-id`. Never assume one server is a superset of the other. Never delete an implemented operation because one instance stopped serving it.
+- Match operations by method + path with `{param}` normalized. Read `operationId` first, fall back to `x-eov-operation-id`. Never assume one server is a superset of the other. Never delete an implemented operation because one instance stopped serving it; when no document declares it any more, mark it `retired` (precedent: `/git-connections*`, replaced by `/promotions/*`).
 - Add one typed client method in `internal/n8n/<resource>.go` + one Cobra command in `internal/cli/<resource>.go`.
 - Update `manifest.json` (`command`, `availability`, phase). Coverage test cross-checks manifest against each document that declares the operation and skips cleanly when a document is absent.
 - Upstream-only / target-only commands ship unconditionally. An instance lacking the module answers 404/503, which the CLI reports as "not available to you" with a `discover` pointer. Integration tests for such groups run by default and skip on 404/503.
@@ -146,7 +146,9 @@ Allowed direct requires live in `internal/deps/deps.go:Allowed`: `cobra`, `pflag
 - Audit returns `[]` when clean (not `{}`) and has no `{"data": ...}` envelope; accept empty array, reject populated array rather than dropping it.
 - Tag names cap at ~24 chars and report overlong as 409 "already exists" — help + 409 message must name both causes.
 - Workflow create answers 200 (not 201); sending a read `id` back is `400 request/body/id is read-only`; `description: null` on read cannot be replayed — drop nulls the schema does not type as nullable.
-- Data-table insert `returnType=count|id` answers `{"success":true,"insertedRows":n}` / `[{"id":n}]`, not the documented shapes; upsert with `returnData` answers a one-row array. Column type `json` is documented but refused by some instances — still accept, warn in help.
+- Data-table insert `returnType=count|id` answers `{"success":true,"insertedRows":n}` / `[{"id":n}]`, not the documented shapes; upsert with `returnData` answers a one-row array. Column type `json` was removed from the spec in 1.1.1; the CLI no longer accepts it.
 - Folder list is offset (`skip`/`take`, `{count, data}`), not cursor; `sortBy` must be percent-encoded; only `create` accepts the literal project ID `personal`; `select: project|tags|parentFolder` 500s on some instances.
 - `discoverHint` keys are the lowercase tag names the instance reports (`tags`, `datatable`, `sourcecontrol`, ...), not the CLI group spellings.
 - `Promotions` and `GitConnections` share the `gitConnection:*` scope namespace — distinguish by served paths in `/discover`, not by scopes.
+- Target instance `/api/v1/openapi.yml` can sit behind an auth proxy; when `make spec` returns HTML, use `n8n discover --output json` endpoints as availability evidence. Discover is scope-filtered, so "not listed" may mean "not visible to this key".
+- `TestPhaseCounts` forbids adding ops to delivered phases; new upstream ops go into new phases as `planned`.

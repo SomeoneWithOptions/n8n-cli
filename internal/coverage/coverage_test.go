@@ -27,7 +27,8 @@ const (
 )
 
 // specs pairs a document with the availability values whose operations it must
-// declare.
+// declare. Neither lists [coverage.AvailabilityRetired]: no current document
+// declares a retired operation.
 var specs = []struct {
 	name       string
 	path       string
@@ -89,7 +90,7 @@ func TestManifestIsWellFormed(t *testing.T) {
 			t.Errorf("%s: phase = %d, want the PLAN.md phase that owns it", op.Key(), op.Phase)
 		}
 		switch op.Availability {
-		case coverage.AvailabilityBoth, coverage.AvailabilityTargetOnly, coverage.AvailabilityUpstreamOnly:
+		case coverage.AvailabilityBoth, coverage.AvailabilityTargetOnly, coverage.AvailabilityUpstreamOnly, coverage.AvailabilityRetired:
 		default:
 			t.Errorf("%s: unknown availability %q", op.Key(), op.Availability)
 		}
@@ -226,8 +227,14 @@ func TestManifestMatchesSpec(t *testing.T) {
 		}
 		checked++
 		t.Run(spec.name, func(t *testing.T) {
-			var removed, added []string
+			var removed, added, revived []string
 			for _, op := range m.Operations {
+				if op.Availability == coverage.AvailabilityRetired {
+					if _, ok := ops[normalizeKey(op.Method, op.Path)]; ok {
+						revived = append(revived, op.Key()+" ("+op.OperationID+", phase "+strconv.Itoa(op.Phase)+")")
+					}
+					continue
+				}
 				if !slices.Contains(spec.availables, op.Availability) {
 					continue
 				}
@@ -242,6 +249,7 @@ func TestManifestMatchesSpec(t *testing.T) {
 			}
 			slices.Sort(removed)
 			slices.Sort(added)
+			slices.Sort(revived)
 
 			if len(removed) > 0 {
 				t.Errorf("the %s document no longer describes %d manifest operation(s); update the manifest, its availability, and the owning phase:\n  %s",
@@ -250,6 +258,10 @@ func TestManifestMatchesSpec(t *testing.T) {
 			if len(added) > 0 {
 				t.Errorf("the %s document describes %d operation(s) the manifest does not list; add them to the manifest and to a phase:\n  %s",
 					spec.name, len(added), strings.Join(added, "\n  "))
+			}
+			if len(revived) > 0 {
+				t.Errorf("the %s document declares %d retired operation(s) again; record the availability it now has:\n  %s",
+					spec.name, len(revived), strings.Join(revived, "\n  "))
 			}
 
 			for key, ids := range ops {
@@ -302,7 +314,7 @@ func TestAvailabilityMatchesSpecs(t *testing.T) {
 		case inUpstream:
 			want = coverage.AvailabilityUpstreamOnly
 		default:
-			continue // reported by TestManifestMatchesSpec
+			continue // retired, or reported by TestManifestMatchesSpec
 		}
 		if op.Availability != want {
 			t.Errorf("%s: availability = %q, want %q", op.Key(), op.Availability, want)
