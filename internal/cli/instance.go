@@ -57,7 +57,7 @@ func apiError(err error, resolution config.Resolution, resource string) error {
 		return fmt.Errorf("%s rejected the credential (401): it is missing, expired or revoked; run %s", resolution.URL, loginHint(resolution))
 	case n8n.IsForbidden(err):
 		return forbiddenScopeError(err, resolution, "the request", scopeNeed{},
-			"a 403 can also mean the instance is not licensed for the feature.", resource)
+			alternativeCause+"the instance is not licensed for the feature.", resource)
 	default:
 		return err
 	}
@@ -83,17 +83,19 @@ func anyOf(scopes ...string) scopeNeed { return scopeNeed{scopes: scopes, any: t
 func (n scopeNeed) known() bool { return len(n.scopes) > 0 }
 
 // block renders the scope section of a 403: one scope per line, under a heading
-// that says whether all of them are needed or only one.
-func (n scopeNeed) block() string {
+// that says whether all of them are needed or only one. label is "missing" when
+// the scope is the suspected cause, "required" when the server named another
+// cause (a license) and the credential may already hold the scope.
+func (n scopeNeed) block(label string) string {
 	if !n.known() {
-		return "  missing scope: the CLI has no scope recorded for this call"
+		return "  " + label + " scope: the CLI has no scope recorded for this call"
 	}
-	head := "  missing scope:"
+	head := "  " + label + " scope:"
 	switch {
 	case len(n.scopes) > 1 && n.any:
-		head = "  missing scope (either one):"
+		head = "  " + label + " scope (either one):"
 	case len(n.scopes) > 1:
-		head = "  missing scopes (all required):"
+		head = "  " + label + " scopes (all required):"
 	}
 	var b strings.Builder
 	b.WriteString(head)
@@ -104,6 +106,11 @@ func (n scopeNeed) block() string {
 	return b.String()
 }
 
+// alternativeCause opens the extra sentences that only guess at other reasons
+// for a 403. A server that names the missing license settles the cause, so
+// those guesses are dropped from the license report.
+const alternativeCause = "a 403 can also mean "
+
 // forbiddenScopeError is the shared 403 report: what was denied, the exact
 // scopes the API requires for it on their own lines, what the server itself
 // said, the other causes a status code cannot rule out, and where to inspect
@@ -111,12 +118,23 @@ func (n scopeNeed) block() string {
 // one sentence about those other causes (license, project access, role), empty
 // when the scope is the only one.
 //
+// When the server says the license lacks a feature, the headline names the
+// feature instead of blaming the scope, which is then listed as required, not
+// missing.
+//
 // The server error is wrapped, not copied, so its status, code, hint and
 // request ID stay reachable through [errors.As] for anything that inspects the
 // failure instead of printing it.
 func forbiddenScopeError(err error, resolution config.Resolution, subject string, need scopeNeed, extra, resource string) error {
 	format := "%s denied %s (403)\n\n%s\n\n"
-	args := []any{resolution.URL, subject, need.block()}
+	args := []any{resolution.URL, subject, need.block("missing")}
+	if feature, ok := n8n.LicenseFeature(err); ok {
+		format = "%s is not licensed for %s (403): %s needs a license that includes it\n\n%s\n\n"
+		args = []any{resolution.URL, feature, subject, need.block("required")}
+		if strings.HasPrefix(extra, alternativeCause) {
+			extra = ""
+		}
+	}
 	if err != nil {
 		format += "  server said: %w\n"
 		args = append(args, err)

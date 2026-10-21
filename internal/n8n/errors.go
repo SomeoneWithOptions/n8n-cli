@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -97,6 +98,26 @@ func IsConflict(err error) bool { return IsStatus(err, http.StatusConflict) }
 
 // IsRateLimited reports a 429.
 func IsRateLimited(err error) bool { return IsStatus(err, http.StatusTooManyRequests) }
+
+// licenseFeaturePattern matches the message n8n sends when a feature is missing
+// from the instance license, e.g. "Your license does not allow for
+// feat:variables. To enable feat:variables, ...".
+var licenseFeaturePattern = regexp.MustCompile(`Your license does not allow for (feat:[A-Za-z0-9:_-]+)`)
+
+// LicenseFeature reports the license feature an [APIError] says the instance
+// lacks, e.g. "feat:variables". A 403 with this message is a license denial, not
+// a scope one: the credential may well hold every scope the call needs.
+func LicenseFeature(err error) (string, bool) {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok {
+		return "", false
+	}
+	match := licenseFeaturePattern.FindStringSubmatch(apiErr.Message)
+	if match == nil {
+		return "", false
+	}
+	return match[1], true
+}
 
 // errorBody covers the shapes the API uses for failures. Every field is raw
 // because message and code arrive as string, number, array or nested object
