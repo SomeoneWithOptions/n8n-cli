@@ -293,3 +293,34 @@ func TestVariableScopeAndNotFoundErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestVariableForbiddenByLicense(t *testing.T) {
+	body := `{"message":"Your license does not allow for feat:variables. To enable feat:variables, please upgrade to a license that supports this feature."}`
+	f := variableFixture(t, "")
+	f.route = func(*http.Request, int) (int, string) { return http.StatusForbidden, body }
+	got := f.run("variable", "list")
+	if got.code != ExitError || got.stdout != "" {
+		t.Fatalf("result = %+v, want failure with empty stdout", got)
+	}
+	for _, want := range []string{"not licensed for feat:variables (403)", "required scope:\n    variable:list", "server said:", "discover --resource variables"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr = %q, want %q", got.stderr, want)
+		}
+	}
+	for _, unwanted := range []string{"missing scope", "a 403 can also mean"} {
+		if strings.Contains(got.stderr, unwanted) {
+			t.Errorf("stderr = %q, should not contain %q", got.stderr, unwanted)
+		}
+	}
+
+	body = `{"message":"Forbidden"}`
+	got = f.run("variable", "list")
+	if got.code != ExitError {
+		t.Errorf("generic 403 exit = %d, want %d", got.code, ExitError)
+	}
+	for _, want := range []string{"denied variable list (403)", "missing scope:\n    variable:list", "a 403 can also mean the instance is not licensed for variables."} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("generic 403 stderr = %q, want %q", got.stderr, want)
+		}
+	}
+}

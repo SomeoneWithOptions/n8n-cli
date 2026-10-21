@@ -220,3 +220,30 @@ func TestStatusHelpers(t *testing.T) {
 		t.Errorf("StatusCodeOf(nil) = %d, want 0", got)
 	}
 }
+
+func TestLicenseFeature(t *testing.T) {
+	license := decodeError(t, http.StatusForbidden, nil,
+		`{"message":"Your license does not allow for feat:variables. To enable feat:variables, please upgrade to a license that supports this feature."}`)
+	tests := []struct {
+		name        string
+		err         error
+		wantFeature string
+		wantOK      bool
+	}{
+		{name: "license message", err: license, wantFeature: "feat:variables", wantOK: true},
+		{name: "wrapped license message", err: fmt.Errorf("listing: %w", license), wantFeature: "feat:variables", wantOK: true},
+		{name: "nested feature name", err: &APIError{StatusCode: http.StatusForbidden, Message: "Your license does not allow for feat:projectRole:admin."}, wantFeature: "feat:projectRole:admin", wantOK: true},
+		{name: "generic 403", err: decodeError(t, http.StatusForbidden, nil, `{"message":"Forbidden"}`)},
+		{name: "license text in another case", err: &APIError{StatusCode: http.StatusForbidden, Message: "your license does not allow for feat:variables"}},
+		{name: "nil", err: nil},
+		{name: "not an API error", err: errors.New("Your license does not allow for feat:variables")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			feature, ok := LicenseFeature(tt.err)
+			if feature != tt.wantFeature || ok != tt.wantOK {
+				t.Errorf("LicenseFeature() = %q, %v, want %q, %v", feature, ok, tt.wantFeature, tt.wantOK)
+			}
+		})
+	}
+}

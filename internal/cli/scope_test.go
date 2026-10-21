@@ -203,3 +203,36 @@ func TestForbiddenScopeErrorKeepsServerDetail(t *testing.T) {
 		t.Error("the API error no longer survives wrapping")
 	}
 }
+
+// TestForbiddenScopeErrorNamesLicense checks that a 403 the server blames on the
+// license leads with the license, lists the scope as required rather than
+// missing, and drops the guess about other causes.
+func TestForbiddenScopeErrorNamesLicense(t *testing.T) {
+	apiErr := &n8n.APIError{
+		StatusCode: http.StatusForbidden,
+		Status:     "403 Forbidden",
+		Method:     http.MethodGet,
+		Path:       "/variables",
+		Message:    "Your license does not allow for feat:variables. To enable feat:variables, please upgrade to a license that supports this feature.",
+	}
+	err := forbiddenScopeError(apiErr, config.Resolution{URL: "https://n8n.example.com"},
+		"variable list", allOf("variable:list"), alternativeCause+"the instance is not licensed for variables.", "variables")
+
+	want := "https://n8n.example.com is not licensed for feat:variables (403): variable list needs a license that includes it\n\n" +
+		"  required scope:\n    variable:list\n\n" +
+		"  server said: GET /variables: 403 Forbidden: " + apiErr.Message + "\n" +
+		"  run 'n8n discover --resource variables' to inspect access"
+	if got := err.Error(); got != want {
+		t.Errorf("error =\n%s\nwant\n%s", got, want)
+	}
+	if !n8n.IsForbidden(err) {
+		t.Error("the API error no longer survives wrapping")
+	}
+
+	// Extras that state a further requirement, not a guess, stay.
+	err = forbiddenScopeError(apiErr, config.Resolution{URL: "https://n8n.example.com"},
+		"SAML configuration get", allOf("saml:manage"), "the instance also needs the SAML license.", "sso")
+	if !strings.Contains(err.Error(), "the instance also needs the SAML license.") {
+		t.Errorf("requirement extra dropped:\n%s", err)
+	}
+}
