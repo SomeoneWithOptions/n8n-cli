@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -432,13 +433,20 @@ func writeEvaluationCaseList(opts Options, resolution config.Resolution, workflo
 		fmt.Fprintln(tw, "\nID\tSTATUS\tEXECUTION\tSTARTED\tCOMPLETED\tERROR")
 		for _, testCase := range page.Data {
 			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", emptyDash(testCase.ID), emptyDash(testCase.Status),
-				optionalText(testCase.ExecutionID), optionalText(testCase.RunAt), optionalText(testCase.CompletedAt), optionalText(testCase.ErrorCode))
+				optionalNumber(testCase.ExecutionID), optionalText(testCase.RunAt), optionalText(testCase.CompletedAt), optionalText(testCase.ErrorCode))
 		}
 	}
 	if page.HasMore() {
 		fmt.Fprintf(tw, "\nNext cursor:\t%s\n", page.NextCursor)
 	}
 	return tw.Flush()
+}
+
+func optionalNumber(value *json.Number) string {
+	if value == nil {
+		return "-"
+	}
+	return emptyDash(value.String())
 }
 
 func validateEvaluationArguments(workflowID, runID string) error {
