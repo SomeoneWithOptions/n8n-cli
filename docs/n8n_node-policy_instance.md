@@ -9,7 +9,8 @@ only scope that accepts the delegate action, which hands a decision down to the
 project policy instead of settling it.
 
 An instance that was never configured reports no rules, an allow default, and
-version 0; writing to it creates the policy document.
+version 0; writing to it creates the policy document. Preview API: n8n may
+change it without notice.
 
 ```
 n8n node-policy instance [flags]

@@ -73,15 +73,29 @@ type NodeTypePolicy struct {
 // scope allows every node type.
 func (p NodeTypePolicy) Configured() bool { return p.ScopeID != nil }
 
-// NodeTypePolicyWarning reports a rule that can never match because an earlier
-// rule already decides the same node types.
+// NodeTypePolicyWarningKind is why the server flagged a rule after a write.
+type NodeTypePolicyWarningKind string
+
+const (
+	// NodeTypePolicyWarningShadowed marks a rule that can never match because
+	// an earlier rule already decides the same node types.
+	NodeTypePolicyWarningShadowed NodeTypePolicyWarningKind = "shadowed"
+	// NodeTypePolicyWarningNotLoaded marks a rule whose selector names node
+	// types this instance has not loaded, so it decides nothing yet.
+	NodeTypePolicyWarningNotLoaded NodeTypePolicyWarningKind = "notLoaded"
+)
+
+// NodeTypePolicyWarning flags one rule of a stored policy. Kind decides which
+// other fields are set: ShadowedByRuleID only accompanies a shadowed warning.
+// Kind is kept as sent, so a kind added by a newer server still round trips.
 type NodeTypePolicyWarning struct {
-	RuleID           string `json:"ruleId"`
-	ShadowedByRuleID string `json:"shadowedByRuleId"`
+	Kind             NodeTypePolicyWarningKind `json:"kind"`
+	RuleID           string                    `json:"ruleId"`
+	ShadowedByRuleID string                    `json:"shadowedByRuleId,omitempty"`
 }
 
 // NodeTypePolicyWriteResult is the policy as stored after a replacement, plus
-// the shadowing warnings the server found. Warnings do not fail the write.
+// the warnings the server found. Warnings do not fail the write.
 type NodeTypePolicyWriteResult struct {
 	NodeTypePolicy
 	Warnings []NodeTypePolicyWarning `json:"warnings"`

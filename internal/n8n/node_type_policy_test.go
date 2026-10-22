@@ -30,7 +30,10 @@ const nodeTypePolicyWriteResponse = `{
   "rules":[{"id":"deny-http","action":"deny","selector":{"kind":"name","value":"n8n-nodes-base.httpRequest"}}],
   "defaultAction":"deny",
   "version":8,
-  "warnings":[{"ruleId":"deny-http-again","shadowedByRuleId":"deny-http"}]
+  "warnings":[
+    {"kind":"shadowed","ruleId":"deny-http-again","shadowedByRuleId":"deny-http"},
+    {"kind":"notLoaded","ruleId":"deny-weather"}
+  ]
 }`
 
 func action(a NodeTypePolicyAction) *NodeTypePolicyAction { return &a }
@@ -141,8 +144,43 @@ func TestReplaceInstanceNodeTypePolicy(t *testing.T) {
 	if result.Version != 8 || result.DefaultAction != NodeTypePolicyDeny {
 		t.Errorf("result = %+v, want the stored version and default action", result)
 	}
-	if len(result.Warnings) != 1 || result.Warnings[0].RuleID != "deny-http-again" || result.Warnings[0].ShadowedByRuleID != "deny-http" {
-		t.Errorf("warnings = %+v", result.Warnings)
+	want := []NodeTypePolicyWarning{
+		{Kind: NodeTypePolicyWarningShadowed, RuleID: "deny-http-again", ShadowedByRuleID: "deny-http"},
+		{Kind: NodeTypePolicyWarningNotLoaded, RuleID: "deny-weather"},
+	}
+	if len(result.Warnings) != len(want) {
+		t.Fatalf("warnings = %+v, want %+v", result.Warnings, want)
+	}
+	for i := range want {
+		if result.Warnings[i] != want[i] {
+			t.Errorf("warnings[%d] = %+v, want %+v", i, result.Warnings[i], want[i])
+		}
+	}
+}
+
+func TestNodeTypePolicyWarningKeepsKindOnEncode(t *testing.T) {
+	tests := []struct {
+		name    string
+		warning string
+	}{
+		{name: "shadowed", warning: `{"kind":"shadowed","ruleId":"b","shadowedByRuleId":"a"}`},
+		{name: "not loaded omits shadowing rule", warning: `{"kind":"notLoaded","ruleId":"b"}`},
+		{name: "unknown kind survives", warning: `{"kind":"futureKind","ruleId":"b"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var warning NodeTypePolicyWarning
+			if err := json.Unmarshal([]byte(tt.warning), &warning); err != nil {
+				t.Fatalf("Unmarshal: %v", err)
+			}
+			encoded, err := json.Marshal(warning)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if string(encoded) != tt.warning {
+				t.Errorf("encoded = %s, want %s", encoded, tt.warning)
+			}
+		})
 	}
 }
 

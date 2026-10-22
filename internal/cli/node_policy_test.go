@@ -28,7 +28,10 @@ const cliNodePolicyWriteResult = `{
   "rules":[{"id":"deny-http","action":"deny","selector":{"kind":"name","value":"n8n-nodes-base.httpRequest"}}],
   "defaultAction":"deny",
   "version":8,
-  "warnings":[{"ruleId":"deny-http-copy","shadowedByRuleId":"deny-http"}]
+  "warnings":[
+    {"kind":"shadowed","ruleId":"deny-http-copy","shadowedByRuleId":"deny-http"},
+    {"kind":"notLoaded","ruleId":"deny-weather"}
+  ]
 }`
 
 const cliNodePolicyInput = `{
@@ -63,7 +66,7 @@ func TestNodePolicyInstanceGetTextShowsRulesInEvaluationOrder(t *testing.T) {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 	}
 	for _, want := range []string{
-		"Instance node type policy:", f.server.URL, "Scope document:", "instance-1",
+		"Instance node type policy:", f.server.URL, "Scope ID:", "instance-1",
 		"Default action:", "allow", "Version:", "7", "Rules:", "2",
 		"ORDER", "deny-http", "name=n8n-nodes-base.httpRequest",
 		"delegate", "package=n8n-nodes-weather",
@@ -170,10 +173,91 @@ func TestNodePolicySetSendsReplacementWithoutServerOwnedFields(t *testing.T) {
 	if rules, ok := sent["rules"].([]any); !ok || len(rules) != 1 {
 		t.Errorf("rules = %#v, want the one edited rule", sent["rules"])
 	}
-	for _, want := range []string{"Replaced instance node type policy:", "Version:", "8", "never matches", "deny-http-copy", "deny-http"} {
+	for _, want := range []string{
+		"Replaced instance node type policy:", "Version:", "8",
+		"Warning: rule deny-http-copy never matches; rule deny-http already decides those node types.",
+		"Warning: rule deny-weather selects node types this instance has not loaded; it has no effect until they are installed.",
+	} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
 		}
+	}
+	if strings.Contains(got.stdout, "rule deny-weather never matches") || strings.Contains(got.stdout, "rule  already") {
+		t.Errorf("notLoaded warning rendered as shadowed:\n%s", got.stdout)
+	}
+}
+
+func TestNodePolicySetJSONKeepsWarningKind(t *testing.T) {
+	f := nodePolicyFixture(t, cliNodePolicyWriteResult)
+	path := writeNodePolicyInput(t, cliNodePolicyInput)
+	got := f.run("node-policy", "instance", "set", "--input", path, "--yes", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var result struct {
+		Warnings []map[string]any `json:"warnings"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &result); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, got.stdout)
+	}
+	if len(result.Warnings) != 2 {
+		t.Fatalf("warnings = %#v, want both", result.Warnings)
+	}
+	if result.Warnings[0]["kind"] != "shadowed" || result.Warnings[0]["shadowedByRuleId"] != "deny-http" {
+		t.Errorf("warnings[0] = %#v, want kind shadowed with its shadowing rule", result.Warnings[0])
+	}
+	if result.Warnings[1]["kind"] != "notLoaded" || result.Warnings[1]["ruleId"] != "deny-weather" {
+		t.Errorf("warnings[1] = %#v, want kind notLoaded", result.Warnings[1])
+	}
+	if _, ok := result.Warnings[1]["shadowedByRuleId"]; ok {
+		t.Errorf("notLoaded warning carries shadowedByRuleId: %#v", result.Warnings[1])
+	}
+}
+
+func TestNodePolicySetRendersUnknownWarningKind(t *testing.T) {
+	f := nodePolicyFixture(t, `{"scopeId":"instance-1","rules":[],"defaultAction":"allow","version":2,
+		"warnings":[{"kind":"futureKind","ruleId":"deny-http"}]}`)
+	path := writeNodePolicyInput(t, cliNodePolicyInput)
+	got := f.run("node-policy", "instance", "set", "--input", path, "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "Warning: rule deny-http: futureKind.") {
+		t.Errorf("stdout lacks the generic warning:\n%s", got.stdout)
+	}
+}
+
+func TestNodePolicySetAcceptsPreviousResponseAsInput(t *testing.T) {
+	f := nodePolicyFixture(t, cliNodePolicyWriteResult)
+	first := f.run("node-policy", "instance", "set", "--input", writeNodePolicyInput(t, cliNodePolicyInput), "--yes", "--output", "json")
+	if first.code != ExitSuccess {
+		t.Fatalf("first set exit = %d, stderr: %s", first.code, first.stderr)
+	}
+	for name, input := range map[string]string{
+		"previous set output": first.stdout,
+		"raw API response":    cliNodePolicyWriteResult,
+		"unknown warning shape": `{"scopeId":"instance-1","rules":[],"defaultAction":"allow","version":8,
+			"warnings":[{"kind":"futureKind","ruleId":"a","detail":{"x":1}}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := f.run("node-policy", "instance", "set", "--input", writeNodePolicyInput(t, input), "--yes")
+			if got.code != ExitSuccess {
+				t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+			}
+			var sent map[string]any
+			if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+				t.Fatalf("request body is not JSON: %v\n%s", err, f.lastBody())
+			}
+			if _, ok := sent["warnings"]; ok {
+				t.Errorf("server-owned warnings were sent back: %#v", sent)
+			}
+			if _, ok := sent["scopeId"]; ok {
+				t.Errorf("server-owned scopeId was sent back: %#v", sent)
+			}
+			if sent["version"] != float64(8) {
+				t.Errorf("version = %v, want the version the response reported", sent["version"])
+			}
+		})
 	}
 }
 
@@ -297,13 +381,13 @@ func TestNodePolicyAPIErrorsExplainAvailabilityAndConflict(t *testing.T) {
 			name:   "stale version",
 			status: http.StatusConflict,
 			args:   []string{"node-policy", "instance", "set", "--yes"},
-			want:   []string{"(409)", "changed by someone else", "n8n node-policy instance get"},
+			want:   []string{"(409)", "version changed since it was read", "attachment change", "n8n node-policy instance get"},
 		},
 		{
 			name:   "project conflict names shared documents",
 			status: http.StatusConflict,
 			args:   []string{"node-policy", "project", "set", "proj-1", "--yes"},
-			want:   []string{"(409)", "shared with another scope", "n8n node-policy project get"},
+			want:   []string{"(409)", "shared with another scope", "attached shared document", "n8n node-policy project get"},
 		},
 		{
 			name:   "bad request",
