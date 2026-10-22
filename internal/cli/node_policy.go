@@ -32,12 +32,18 @@ func newNodePolicyCommand(opts Options) *cobra.Command {
 		Use:   "node-policy",
 		Short: "Manage node type availability policies",
 		Long: "Read and replace the policies that decide which node types may be used, at\n" +
-			"instance scope and per project. A policy is a default action plus an ordered\n" +
-			"rule list; the first matching rule wins and the default applies to the rest.\n\n" +
-			"Every action is a full replacement, so the workflow is get, edit, set: start\n" +
-			"from 'get --output json', change the rules, and pass the whole document back.\n" +
-			"The version field carries that round trip and a stale value is rejected with\n" +
-			"409, which means someone else changed the policy first.\n\n" +
+			"instance scope and per project. Preview API: n8n may change it without notice.\n\n" +
+			"A scope has a default action and one or more attached policy documents, each an\n" +
+			"ordered rule list; the first matching rule wins and the default applies to the\n" +
+			"rest. 'get' reports the composed view: the rules of every attached document in\n" +
+			"evaluation order. 'set' replaces only the scope's own document.\n\n" +
+			"Start with 'instance get'. Writes are full replacements, so the workflow is get,\n" +
+			"edit, set: start from 'get --output json', change the rules, and pass the whole\n" +
+			"document back. The version field carries that round trip and a stale value is\n" +
+			"rejected with 409, which means the policy or one of its attachments changed\n" +
+			"first. Once a scope has more than its own document attached, a get-edit-set\n" +
+			"round trip copies the rules of the shared documents into the scope's own\n" +
+			"document; check the scope's attachments before editing one that has them.\n\n" +
 			"Requires nodeTypePolicy:manage, n8n 2.40.0 or later, and the licensed\n" +
 			"type-availability-policies module. Instances without it answer 404 or 503.",
 		Example: "  n8n node-policy instance get\n" +
@@ -62,7 +68,8 @@ func newNodePolicyInstanceCommand(opts Options) *cobra.Command {
 			"only scope that accepts the delegate action, which hands a decision down to the\n" +
 			"project policy instead of settling it.\n\n" +
 			"An instance that was never configured reports no rules, an allow default, and\n" +
-			"version 0; writing to it creates the policy document.",
+			"version 0; writing to it creates the policy document. Preview API: n8n may\n" +
+			"change it without notice.",
 		Example: "  n8n node-policy instance get\n" +
 			"  n8n node-policy instance get --output json > policy.json\n" +
 			"  n8n node-policy instance set --input policy.json",
@@ -84,7 +91,8 @@ func newNodePolicyProjectCommand(opts Options) *cobra.Command {
 			"the project's own document, not the result of combining it with the instance\n" +
 			"policy, so a node type can still be blocked by instance scope.\n\n" +
 			"Project scope accepts allow and deny only; delegate is instance-scope. A project\n" +
-			"that was never configured reports no rules, an allow default, and version 0.",
+			"that was never configured reports no rules, an allow default, and version 0.\n" +
+			"Preview API: n8n may change it without notice.",
 		Example: "  n8n node-policy project get L5fcpzBVjoU2PKFP\n" +
 			"  n8n node-policy project get L5fcpzBVjoU2PKFP --output json > project-policy.json\n" +
 			"  n8n node-policy project set L5fcpzBVjoU2PKFP --input project-policy.json",
@@ -111,9 +119,11 @@ func newNodePolicyInstanceGetCommand(opts Options) *cobra.Command {
 		Long: "Get the composed instance node type policy: its default action and the rules of\n" +
 			"every attached policy document, in evaluation order. Use --output json as the\n" +
 			"starting point for a get-edit-set workflow; the version it reports is what 'set'\n" +
-			"must send back.\n\n" +
-			"A scope that was never configured reports no rules, defaultAction allow, and\n" +
-			"version 0. Requires nodeTypePolicy:manage.",
+			"must send back. 'set' writes those rules into the instance's own document, so\n" +
+			"with shared documents attached the round trip copies their rules too.\n\n" +
+			"scopeId identifies the scope's attachments and is null until the scope is first\n" +
+			"written. A scope that was never configured reports no rules, defaultAction allow,\n" +
+			"and version 0. Requires nodeTypePolicy:manage.",
 		Example: "  n8n node-policy instance get\n" +
 			"  n8n node-policy instance get --output json\n" +
 			"  n8n node-policy instance get --output json > policy.json",
@@ -133,11 +143,13 @@ func newNodePolicyProjectGetCommand(opts Options) *cobra.Command {
 		Use:   "get <project-id>",
 		Short: "Get a project's node type policy",
 		Long: "Get one project's own composed node type policy: its default action and the rules\n" +
-			"of its policy document, in evaluation order. This is not the effective decision\n" +
-			"for the project, because the instance policy is applied on top at evaluation.\n\n" +
-			"A project that was never configured reports no rules, defaultAction allow, and\n" +
-			"version 0. Use --output json as the input for 'set'. Requires\n" +
-			"nodeTypePolicy:manage. Find project IDs with 'n8n project list'.",
+			"of every policy document attached to the project, in evaluation order. This is\n" +
+			"not the effective decision for the project, because the instance policy is\n" +
+			"applied on top at evaluation.\n\n" +
+			"scopeId identifies the scope's attachments and is null until the project policy\n" +
+			"is first written. A project that was never configured reports no rules,\n" +
+			"defaultAction allow, and version 0. Use --output json as the input for 'set'.\n" +
+			"Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.",
 		Example: "  n8n node-policy project get L5fcpzBVjoU2PKFP\n" +
 			"  n8n node-policy project get L5fcpzBVjoU2PKFP --output json > project-policy.json",
 		Args: cobra.ExactArgs(1),
@@ -186,18 +198,25 @@ func newNodePolicyInstanceSetCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set",
 		Short: "Fully replace the instance node type policy",
-		Long: "Replace the instance default action and every rule of its policy document from\n" +
-			"strict JSON. This is a PUT, not a patch: rules, defaultAction, and version are\n" +
-			"all required, and any rule left out is deleted. Start from\n" +
+		Long: "Replace the instance default action and every rule of its own policy document\n" +
+			"from strict JSON. This is a PUT, not a patch: rules, defaultAction, and version\n" +
+			"are all required, and any rule left out is deleted. Start from\n" +
 			"'n8n node-policy instance get --output json'.\n\n" +
+			"'get' reports the rules of every attached document, but 'set' writes only the\n" +
+			"instance's own document. When shared documents are attached, remove their\n" +
+			"rules from the input or they are copied into the own document; the attached\n" +
+			"documents themselves are not changed.\n\n" +
 			"Actions are allow, deny, or delegate. Selectors are {\"kind\":\"name\"} for one node\n" +
 			"type or {\"kind\":\"package\"} for every node type in a package. Rule ids must be\n" +
 			"unique and rules are evaluated in list order.\n\n" +
 			"version must equal the version last read; a stale value is rejected with 409 and\n" +
 			"nothing changes. Blocking a node type stops workflows that use it, so\n" +
 			"interactive runs ask for confirmation and non-interactive runs require --yes.\n" +
-			"scopeId and warnings from a previous response are accepted and ignored.\n" +
-			"Requires nodeTypePolicy:manage.",
+			"scopeId and warnings from a previous response are accepted and ignored.\n\n" +
+			"The response lists warnings that do not fail the write: kind shadowed means an\n" +
+			"earlier rule already decides the rule's node types, and kind notLoaded means the\n" +
+			"rule selects node types this instance has not loaded. Preview API: n8n may\n" +
+			"change it without notice. Requires nodeTypePolicy:manage.",
 		Example: "  n8n node-policy instance get --output json > policy.json\n" +
 			"  n8n node-policy instance set --input policy.json\n" +
 			"  n8n node-policy instance set --input policy.json --yes --output json\n" +
@@ -216,19 +235,26 @@ func newNodePolicyProjectSetCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <project-id>",
 		Short: "Fully replace a project's node type policy",
-		Long: "Replace one project's default action and every rule of its policy document from\n" +
-			"strict JSON. This is a PUT, not a patch: rules, defaultAction, and version are\n" +
-			"all required, and any rule left out is deleted. Start from\n" +
+		Long: "Replace one project's default action and every rule of its own policy document\n" +
+			"from strict JSON. This is a PUT, not a patch: rules, defaultAction, and version\n" +
+			"are all required, and any rule left out is deleted. Start from\n" +
 			"'n8n node-policy project get <project-id> --output json'.\n\n" +
+			"'get' reports the rules of every attached document, but 'set' writes only the\n" +
+			"project's own document. When shared documents are attached, remove their rules\n" +
+			"from the input or they are copied into the own document.\n\n" +
 			"Project scope accepts allow and deny only; delegate belongs to the instance\n" +
 			"policy and is rejected before the request is sent. Selectors are\n" +
 			"{\"kind\":\"name\"} or {\"kind\":\"package\"}, rule ids must be unique, and rules are\n" +
 			"evaluated in list order.\n\n" +
-			"version must equal the version last read; a stale value, or a policy document\n" +
-			"shared with another scope, is rejected with 409 and nothing changes. Blocking a\n" +
-			"node type stops workflows in the project that use it, so interactive runs ask\n" +
-			"for confirmation and non-interactive runs require --yes. Requires\n" +
-			"nodeTypePolicy:manage.",
+			"version must equal the version last read; a stale value, or a project document\n" +
+			"that is shared with another scope, is rejected with 409 and nothing changes.\n" +
+			"Blocking a node type stops workflows in the project that use it, so interactive\n" +
+			"runs ask for confirmation and non-interactive runs require --yes. scopeId and\n" +
+			"warnings from a previous response are accepted and ignored.\n\n" +
+			"The response lists warnings that do not fail the write: kind shadowed means an\n" +
+			"earlier rule already decides the rule's node types, and kind notLoaded means the\n" +
+			"rule selects node types this instance has not loaded. Preview API: n8n may\n" +
+			"change it without notice. Requires nodeTypePolicy:manage.",
 		Example: "  n8n node-policy project get L5fcpzBVjoU2PKFP --output json > project-policy.json\n" +
 			"  n8n node-policy project set L5fcpzBVjoU2PKFP --input project-policy.json\n" +
 			"  n8n node-policy project set L5fcpzBVjoU2PKFP --input - --yes < project-policy.json",
@@ -245,7 +271,7 @@ func registerNodePolicySetFlags(cmd *cobra.Command, f *nodePolicySetFlags) {
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.input, "input", "", "full node type policy JSON file path, or - for stdin (required; maximum 1 MiB)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm the full replacement without prompting (required when stdin is not interactive)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the stored policy plus shadowed-rule warnings)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the stored policy plus warnings, each with a kind)")
 }
 
 func runNodePolicySet(ctx context.Context, opts Options, f nodePolicySetFlags, projectID string, scope n8n.NodeTypePolicyScope) error {
@@ -296,13 +322,14 @@ func runNodePolicySet(ctx context.Context, opts Options, f nodePolicySetFlags, p
 
 // nodePolicyDocument is the input shape of 'set'. It accepts the document 'get'
 // and a previous 'set' print, so scopeId and warnings round trip without being
-// sent: both are server-owned.
+// sent: both are server-owned. Warnings stay raw so a warning shape this CLI
+// does not know yet cannot make a previous response unreadable.
 type nodePolicyDocument struct {
-	ScopeID       *string                     `json:"scopeId"`
-	Rules         []n8n.NodeTypePolicyRule    `json:"rules"`
-	DefaultAction *n8n.NodeTypePolicyAction   `json:"defaultAction"`
-	Version       *int                        `json:"version"`
-	Warnings      []n8n.NodeTypePolicyWarning `json:"warnings"`
+	ScopeID       *string                   `json:"scopeId"`
+	Rules         []n8n.NodeTypePolicyRule  `json:"rules"`
+	DefaultAction *n8n.NodeTypePolicyAction `json:"defaultAction"`
+	Version       *int                      `json:"version"`
+	Warnings      json.RawMessage           `json:"warnings"`
 }
 
 func readNodePolicyDocument(opts Options, path string) (n8n.ReplaceNodeTypePolicyRequest, error) {
@@ -353,9 +380,9 @@ func writeNodePolicy(opts Options, resolution config.Resolution, heading string,
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "%s:\t%s\n", heading, resolution.URL)
 	if policy.Configured() {
-		fmt.Fprintf(tw, "Scope document:\t%s\n", *policy.ScopeID)
+		fmt.Fprintf(tw, "Scope ID:\t%s\n", *policy.ScopeID)
 	} else {
-		fmt.Fprintf(tw, "Scope document:\tnone (never configured; every node type is allowed)\n")
+		fmt.Fprintf(tw, "Scope ID:\tnone (never configured; every node type is allowed)\n")
 	}
 	fmt.Fprintf(tw, "Default action:\t%s\n", policy.DefaultAction)
 	fmt.Fprintf(tw, "Version:\t%d\n", policy.Version)
@@ -367,9 +394,22 @@ func writeNodePolicy(opts Options, resolution config.Resolution, heading string,
 		}
 	}
 	for _, warning := range warnings {
-		fmt.Fprintf(tw, "\nWarning: rule %s never matches; rule %s already decides those node types.\n", warning.RuleID, warning.ShadowedByRuleID)
+		fmt.Fprintf(tw, "\nWarning: %s\n", nodePolicyWarningText(warning))
 	}
 	return tw.Flush()
+}
+
+// nodePolicyWarningText renders one write warning by kind. An unknown kind is
+// still shown, so a newer server's warning is never silently dropped.
+func nodePolicyWarningText(warning n8n.NodeTypePolicyWarning) string {
+	switch warning.Kind {
+	case n8n.NodeTypePolicyWarningShadowed:
+		return fmt.Sprintf("rule %s never matches; rule %s already decides those node types.", warning.RuleID, warning.ShadowedByRuleID)
+	case n8n.NodeTypePolicyWarningNotLoaded:
+		return fmt.Sprintf("rule %s selects node types this instance has not loaded; it has no effect until they are installed.", warning.RuleID)
+	default:
+		return fmt.Sprintf("rule %s: %s.", warning.RuleID, warning.Kind)
+	}
 }
 
 func nodePolicyRuleCount(rules int) string {
@@ -387,10 +427,10 @@ func nodePolicyAPIError(err error, resolution config.Resolution, action string, 
 	case n8n.IsForbidden(err):
 		return forbiddenScopeError(err, resolution, "node type policy "+action, allOf("nodeTypePolicy:manage"), "", nodePolicyResource)
 	case n8n.IsConflict(err) && scope == n8n.NodeTypePolicyScopeProject:
-		return fmt.Errorf("%s refused the node type policy replacement (409): the version was changed by someone else since it was read, or the policy document is shared with another scope, so nothing changed; run 'n8n node-policy project get' again and re-apply the edit",
+		return fmt.Errorf("%s refused the node type policy replacement (409): the version changed since it was read (an edit, an attachment change, or an update to an attached shared document), or the project document is shared with another scope, so nothing changed; run 'n8n node-policy project get' again and re-apply the edit, or edit the shared document instead",
 			resolution.URL)
 	case n8n.IsConflict(err):
-		return fmt.Errorf("%s refused the node type policy replacement (409): the version was changed by someone else since it was read, so nothing changed; run 'n8n node-policy instance get' again and re-apply the edit",
+		return fmt.Errorf("%s refused the node type policy replacement (409): the version changed since it was read (an edit, an attachment change, or an update to an attached shared document), so nothing changed; run 'n8n node-policy instance get' again and re-apply the edit",
 			resolution.URL)
 	case n8n.IsStatus(err, http.StatusBadRequest):
 		return fmt.Errorf("%s rejected the node type policy replacement (400): send rules, defaultAction, and version together, use unique rule ids, and select node types with {\"kind\":\"name\"} or {\"kind\":\"package\"}",

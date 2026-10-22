@@ -10,6 +10,7 @@ policy, so a node type can still be blocked by instance scope.
 
 Project scope accepts allow and deny only; delegate is instance-scope. A project
 that was never configured reports no rules, an allow default, and version 0.
+Preview API: n8n may change it without notice.
 
 ```
 n8n node-policy project [flags]

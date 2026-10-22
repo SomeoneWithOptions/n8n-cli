@@ -7,10 +7,12 @@ Get the instance node type policy
 Get the composed instance node type policy: its default action and the rules of
 every attached policy document, in evaluation order. Use --output json as the
 starting point for a get-edit-set workflow; the version it reports is what 'set'
-must send back.
+must send back. 'set' writes those rules into the instance's own document, so
+with shared documents attached the round trip copies their rules too.
 
-A scope that was never configured reports no rules, defaultAction allow, and
-version 0. Requires nodeTypePolicy:manage.
+scopeId identifies the scope's attachments and is null until the scope is first
+written. A scope that was never configured reports no rules, defaultAction allow,
+and version 0. Requires nodeTypePolicy:manage.
 
 ```
 n8n node-policy instance get [flags]

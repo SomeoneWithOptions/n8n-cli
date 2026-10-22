@@ -5,12 +5,14 @@ Get a project's node type policy
 ### Synopsis
 
 Get one project's own composed node type policy: its default action and the rules
-of its policy document, in evaluation order. This is not the effective decision
-for the project, because the instance policy is applied on top at evaluation.
+of every policy document attached to the project, in evaluation order. This is
+not the effective decision for the project, because the instance policy is
+applied on top at evaluation.
 
-A project that was never configured reports no rules, defaultAction allow, and
-version 0. Use --output json as the input for 'set'. Requires
-nodeTypePolicy:manage. Find project IDs with 'n8n project list'.
+scopeId identifies the scope's attachments and is null until the project policy
+is first written. A project that was never configured reports no rules,
+defaultAction allow, and version 0. Use --output json as the input for 'set'.
+Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.
 
 ```
 n8n node-policy project get <project-id> [flags]
