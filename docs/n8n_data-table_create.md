@@ -7,11 +7,13 @@ Create a data table
 Create one data table with its columns. Pass --column once per column as
 NAME:TYPE; at least one is required, and the column order is the order given.
 
-Documented types are string, number, boolean, date and json, though instances
-can reject json with a 400. Without --project-id the table is created in the
-caller's personal project. The system columns id, createdAt and updatedAt are
-added by n8n; do not declare them. Add more columns later with
-'n8n data-table column create'. Requires dataTable:create.
+Types are string, number, boolean, date; the API no longer accepts json,
+so store JSON in a string column. Column names start with a letter, use only
+letters, digits and underscores, and are at most 63 characters. Without
+--project-id the table is created in the caller's personal project. The
+system columns id, createdAt and updatedAt are added by n8n; do not declare
+them. Add more columns later with 'n8n data-table column create'. Requires
+dataTable:create.
 
 ```
 n8n data-table create <name> [flags]
@@ -28,7 +30,7 @@ n8n data-table create <name> [flags]
 ### Options
 
 ```
-      --column stringArray   column as NAME:TYPE, repeatable and required, e.g. email:string (types: string, number, boolean, date, json)
+      --column stringArray   column as NAME:TYPE, repeatable and required, e.g. email:string (types: string, number, boolean, date)
       --context string       saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                 help for create
       --output string        output format: text or json (JSON is the created table) (default "text")

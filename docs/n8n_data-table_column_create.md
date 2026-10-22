@@ -5,7 +5,9 @@ Add a column to a data table
 ### Synopsis
 
 Add one column to an existing data table. The type is one of string, number, boolean, date
-and cannot be changed afterwards; recreate the column to change it.
+and cannot be changed afterwards; recreate the column to change it. The name
+starts with a letter, uses only letters, digits and underscores, and is at
+most 63 characters.
 
 Without --index the column is appended after the existing ones. Existing rows
 get an empty value in the new column. A name already used in the table comes

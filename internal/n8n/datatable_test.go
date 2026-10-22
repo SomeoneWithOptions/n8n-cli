@@ -502,6 +502,26 @@ func TestDataTableValidationBeforeRequest(t *testing.T) {
 			_, err := client.ListDataTables(ctx, ListDataTablesOptions{SortBy: "name"})
 			return err
 		},
+		"unsortable field": func() error {
+			_, err := client.ListDataTables(ctx, ListDataTablesOptions{SortBy: "projectId:asc"})
+			return err
+		},
+		"create json column": func() error {
+			_, err := client.CreateDataTable(ctx, CreateDataTableRequest{Name: "t", Columns: []DataTableColumnDefinition{{Name: "meta", Type: "json"}}})
+			return err
+		},
+		"create invalid column name": func() error {
+			_, err := client.CreateDataTable(ctx, CreateDataTableRequest{Name: "t", Columns: []DataTableColumnDefinition{{Name: "_meta", Type: "string"}}})
+			return err
+		},
+		"create long column name": func() error {
+			_, err := client.CreateDataTable(ctx, CreateDataTableRequest{Name: "t", Columns: []DataTableColumnDefinition{{Name: strings.Repeat("a", 64), Type: "string"}}})
+			return err
+		},
+		"filter invalid column name": func() error {
+			_, err := client.ListDataTableRows(ctx, "dt-1", ListRowsOptions{Filter: RowFilter{Filters: []RowCondition{{ColumnName: "a b", Condition: "eq", Value: json.RawMessage(`1`)}}}})
+			return err
+		},
 		"blank create name": func() error {
 			_, err := client.CreateDataTable(ctx, CreateDataTableRequest{Name: " ", Columns: []DataTableColumnDefinition{{Name: "a", Type: "string"}}})
 			return err
@@ -576,8 +596,12 @@ func TestDataTableValidationBeforeRequest(t *testing.T) {
 			_, err := client.ClearDataTableRows(ctx, "")
 			return err
 		},
-		"column create unknown type": func() error {
+		"column create json type": func() error {
 			_, err := client.CreateDataTableColumn(ctx, "dt-1", CreateColumnRequest{Name: "a", Type: "json"})
+			return err
+		},
+		"column rename invalid": func() error {
+			_, err := client.UpdateDataTableColumn(ctx, "dt-1", "co-1", UpdateColumnRequest{Name: "9lives"})
 			return err
 		},
 		"column create negative index": func() error {

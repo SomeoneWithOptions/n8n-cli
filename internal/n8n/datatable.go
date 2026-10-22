@@ -22,12 +22,23 @@ const maxDataTablePageSize = 250
 // maxDataTableNameLength is the documented name limit for a table.
 const maxDataTableNameLength = 128
 
-// DataTableColumnTypes are the column types an existing table accepts.
+// maxDataTableColumnNameLength is the documented column name limit.
+const maxDataTableColumnNameLength = 63
+
+// DataTableColumnTypes are the column types table creation and column
+// creation accept. Older contracts also listed "json"; the API no longer
+// does.
 var DataTableColumnTypes = []string{"string", "number", "boolean", "date"}
 
-// DataTableCreateColumnTypes are the column types the create-table request
-// documents. It adds "json", which some instances reject with a 400.
-var DataTableCreateColumnTypes = []string{"string", "number", "boolean", "date", "json"}
+// DataTableSortOrders are the sort orders the table list accepts.
+var DataTableSortOrders = []string{
+	"name:asc", "name:desc", "createdAt:asc", "createdAt:desc",
+	"updatedAt:asc", "updatedAt:desc", "size:asc", "size:desc",
+}
+
+// dataTableColumnNamePattern is the documented column name shape: a letter,
+// then letters, digits and underscores.
+var dataTableColumnNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 
 // DataTableRowConditions are the comparison operators of a row filter.
 var DataTableRowConditions = []string{"eq", "neq", "like", "ilike", "gt", "gte", "lt", "lte"}
@@ -46,10 +57,10 @@ const (
 // [InsertReturnAll].
 var DataTableInsertReturnTypes = []string{InsertReturnCount, InsertReturnID, InsertReturnAll}
 
-// sortByPattern is the documented sort format, field:asc or field:desc. The
-// API does not document which fields are sortable, so only the shape is
-// checked here and an unknown field comes back as a 400.
-var sortByPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*:(asc|desc)$`)
+// rowSortByPattern is the row sort format, columnName:asc or columnName:desc.
+// Sortable fields are the table's own columns, so only the shape is checked
+// here and an unknown column comes back as a 400.
+var rowSortByPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*:(asc|desc)$`)
 
 // DataTable is one data table with its column definitions.
 type DataTable struct {
@@ -145,7 +156,7 @@ type ListDataTablesOptions struct {
 	ListOptions
 	// Filter narrows the tables returned. The zero value sends no filter.
 	Filter DataTableFilter
-	// SortBy is "field:asc" or "field:desc", e.g. "name:asc" or "size:desc".
+	// SortBy is one of [DataTableSortOrders], e.g. "name:asc" or "size:desc".
 	SortBy string
 }
 
@@ -154,8 +165,8 @@ func (o ListDataTablesOptions) Validate() error {
 	if err := validateDataTablePagination(o.ListOptions); err != nil {
 		return err
 	}
-	if err := validateSortBy(o.SortBy); err != nil {
-		return err
+	if o.SortBy != "" && !slices.Contains(DataTableSortOrders, o.SortBy) {
+		return fmt.Errorf("unknown data table sort order %q: use one of %s", o.SortBy, strings.Join(DataTableSortOrders, ", "))
 	}
 	return validateDataTableText("filter name", o.Filter.Name, false)
 }
@@ -184,7 +195,7 @@ type RowCondition struct {
 
 // Validate rejects a malformed condition before transport.
 func (c RowCondition) Validate() error {
-	if err := validateDataTableText("filter column name", c.ColumnName, true); err != nil {
+	if err := validateDataTableColumnName("filter column name", c.ColumnName); err != nil {
 		return err
 	}
 	if !slices.Contains(DataTableRowConditions, c.Condition) {
@@ -243,7 +254,7 @@ func (o ListRowsOptions) Validate() error {
 	if err := validateDataTablePagination(o.ListOptions); err != nil {
 		return err
 	}
-	if err := validateSortBy(o.SortBy); err != nil {
+	if err := validateRowSortBy(o.SortBy); err != nil {
 		return err
 	}
 	if !o.Filter.IsZero() {
@@ -295,11 +306,11 @@ func (r CreateDataTableRequest) Validate() error {
 		return fmt.Errorf("a data table needs at least one column")
 	}
 	for i, column := range r.Columns {
-		if err := validateDataTableText("column name", column.Name, true); err != nil {
+		if err := validateDataTableColumnName("column name", column.Name); err != nil {
 			return fmt.Errorf("column %d: %w", i+1, err)
 		}
-		if !slices.Contains(DataTableCreateColumnTypes, column.Type) {
-			return fmt.Errorf("column %d: unknown column type %q: the API defines %s", i+1, column.Type, strings.Join(DataTableCreateColumnTypes, ", "))
+		if err := validateDataTableColumnType(column.Type); err != nil {
+			return fmt.Errorf("column %d: %w", i+1, err)
 		}
 	}
 	return validateDataTableText("project ID", r.ProjectID, false)
@@ -406,11 +417,11 @@ type CreateColumnRequest struct {
 
 // Validate rejects a malformed column before transport.
 func (r CreateColumnRequest) Validate() error {
-	if err := validateDataTableText("column name", r.Name, true); err != nil {
+	if err := validateDataTableColumnName("column name", r.Name); err != nil {
 		return err
 	}
-	if !slices.Contains(DataTableColumnTypes, r.Type) {
-		return fmt.Errorf("unknown column type %q: this endpoint defines %s", r.Type, strings.Join(DataTableColumnTypes, ", "))
+	if err := validateDataTableColumnType(r.Type); err != nil {
+		return err
 	}
 	if r.Index != nil && *r.Index < 0 {
 		return fmt.Errorf("column index must not be negative, got %d", *r.Index)
@@ -430,8 +441,10 @@ func (r UpdateColumnRequest) Validate() error {
 	if r.Name == "" && r.Index == nil {
 		return fmt.Errorf("a column update needs a new name or a new index")
 	}
-	if err := validateDataTableText("column name", r.Name, false); err != nil {
-		return err
+	if r.Name != "" {
+		if err := validateDataTableColumnName("column name", r.Name); err != nil {
+			return err
+		}
 	}
 	if r.Index != nil && *r.Index < 0 {
 		return fmt.Errorf("column index must not be negative, got %d", *r.Index)
@@ -814,12 +827,37 @@ func validateDataTablePagination(opts ListOptions) error {
 	return nil
 }
 
-func validateSortBy(sortBy string) error {
+func validateRowSortBy(sortBy string) error {
 	if sortBy == "" {
 		return nil
 	}
-	if !sortByPattern.MatchString(sortBy) {
-		return fmt.Errorf("sort order %q is not field:asc or field:desc", sortBy)
+	if !rowSortByPattern.MatchString(sortBy) {
+		return fmt.Errorf("sort order %q is not columnName:asc or columnName:desc", sortBy)
+	}
+	return nil
+}
+
+// validateDataTableColumnType rejects a type outside the contract, naming
+// json specifically because older contracts and CLI versions offered it.
+func validateDataTableColumnType(columnType string) error {
+	if columnType == "json" {
+		return fmt.Errorf("json columns are no longer supported by the n8n API; use string and store the JSON as text")
+	}
+	if !slices.Contains(DataTableColumnTypes, columnType) {
+		return fmt.Errorf("unknown column type %q: the API defines %s", columnType, strings.Join(DataTableColumnTypes, ", "))
+	}
+	return nil
+}
+
+func validateDataTableColumnName(field, name string) error {
+	if err := validateDataTableText(field, name, true); err != nil {
+		return err
+	}
+	if len(name) > maxDataTableColumnNameLength {
+		return fmt.Errorf("data table %s %q is %d characters; the API accepts at most %d", field, name, len(name), maxDataTableColumnNameLength)
+	}
+	if !dataTableColumnNamePattern.MatchString(name) {
+		return fmt.Errorf("data table %s %q is invalid: start with a letter, then use only letters, digits and underscores", field, name)
 	}
 	return nil
 }
