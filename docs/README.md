@@ -126,6 +126,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n project user role`](n8n_project_user_role.md) | Manage members' project roles |
 | [`n8n project user`](n8n_project_user.md) | Manage project members |
 | [`n8n project`](n8n_project.md) | Manage projects and their members |
+| [`n8n promotion apply-continue`](n8n_promotion_apply-continue.md) | Continue a reviewed connection apply after binding setup |
 | [`n8n promotion apply`](n8n_promotion_apply.md) | Apply the Git remote into this instance |
 | [`n8n promotion checkout clone`](n8n_promotion_checkout_clone.md) | Clone one promotion checkout locally |
 | [`n8n promotion checkout disconnect`](n8n_promotion_checkout_disconnect.md) | Remove one promotion checkout |
@@ -143,14 +144,20 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion connection update`](n8n_promotion_connection_update.md) | Update a promotion connection |
 | [`n8n promotion connection`](n8n_promotion_connection.md) | Manage promotion connections |
 | [`n8n promotion project add`](n8n_promotion_project_add.md) | Add a project to a promotion connection |
+| [`n8n promotion project apply-continue`](n8n_promotion_project_apply-continue.md) | Continue a reviewed project apply after binding setup |
+| [`n8n promotion project apply`](n8n_promotion_project_apply.md) | Apply selected workflow changes from a project's branch |
+| [`n8n promotion project changes`](n8n_promotion_project_changes.md) | List workflow changes for a project's promotion branch |
 | [`n8n promotion project list`](n8n_promotion_project_list.md) | List projects linked to a promotion connection |
+| [`n8n promotion project promote`](n8n_promotion_project_promote.md) | Promote selected project workflows to the remote branch |
 | [`n8n promotion project remove`](n8n_promotion_project_remove.md) | Remove a project from a promotion connection |
 | [`n8n promotion project`](n8n_promotion_project.md) | Manage projects linked to a promotion connection |
 | [`n8n promotion promote`](n8n_promotion_promote.md) | Promote team projects to the Git remote |
+| [`n8n promotion provider branches`](n8n_promotion_provider_branches.md) | List branches of a GitLab repository |
 | [`n8n promotion provider create`](n8n_promotion_provider_create.md) | Create a promotion provider |
 | [`n8n promotion provider delete`](n8n_promotion_provider_delete.md) | Permanently delete a promotion provider |
 | [`n8n promotion provider get`](n8n_promotion_provider_get.md) | Show one promotion provider |
 | [`n8n promotion provider list`](n8n_promotion_provider_list.md) | List promotion providers |
+| [`n8n promotion provider repositories`](n8n_promotion_provider_repositories.md) | List repositories available to a GitLab provider |
 | [`n8n promotion provider update`](n8n_promotion_provider_update.md) | Update a promotion provider |
 | [`n8n promotion provider`](n8n_promotion_provider.md) | Manage promotion providers |
 | [`n8n promotion`](n8n_promotion.md) | Manage promotion providers, connections, and apply/promote sync |
