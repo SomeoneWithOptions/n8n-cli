@@ -12,6 +12,10 @@ The inserted row is built from the values given, not from the filter, so
 include the matched column in --set when the new row should carry it. Use
 --dry-run to see what would happen first. Requires dataTableRow:upsert.
 
+--idempotency-key KEY makes a retry after a timeout or lost response safe:
+the same request with the same key returns the first result instead of
+running again (auto generates a key and prints it on stderr).
+
 ```
 n8n data-table row upsert <table-id> [flags]
 ```
@@ -27,17 +31,18 @@ n8n data-table row upsert <table-id> [flags]
 ### Options
 
 ```
-      --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
-      --dry-run             ask the server to report the change without persisting it (implies --return-data)
-      --filter string       whole filter object as JSON, e.g. '{"type":"and","filters":[{"columnName":"status","condition":"eq","value":"active"}]}' (cannot combine with --where)
-  -h, --help                help for upsert
-      --input string        column values as a JSON object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)
-      --match string        how several --where expressions combine: and or or (default "and")
-      --output string       output format: text or json (JSON contains the acknowledgement and any returned rows) (default "text")
-      --return-data         ask the API for the affected rows instead of a bare acknowledgement
-      --set stringArray     column value to write as COLUMN=VALUE, repeatable (cannot combine with --input)
-      --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
-      --where stringArray   row condition as COLUMN=VALUE or COLUMN=CONDITION=VALUE, repeatable, conditions: eq, neq, like, ilike, gt, gte, lt, lte (required unless --filter is given)
+      --context string           saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
+      --dry-run                  ask the server to report the change without persisting it (implies --return-data)
+      --filter string            whole filter object as JSON, e.g. '{"type":"and","filters":[{"columnName":"status","condition":"eq","value":"active"}]}' (cannot combine with --where)
+  -h, --help                     help for upsert
+      --idempotency-key string   retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
+      --input string             column values as a JSON object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)
+      --match string             how several --where expressions combine: and or or (default "and")
+      --output string            output format: text or json (JSON contains the acknowledgement and any returned rows) (default "text")
+      --return-data              ask the API for the affected rows instead of a bare acknowledgement
+      --set stringArray          column value to write as COLUMN=VALUE, repeatable (cannot combine with --input)
+      --url string               instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
+      --where stringArray        row condition as COLUMN=VALUE or COLUMN=CONDITION=VALUE, repeatable, conditions: eq, neq, like, ilike, gt, gte, lt, lte (required unless --filter is given)
 ```
 
 ### SEE ALSO

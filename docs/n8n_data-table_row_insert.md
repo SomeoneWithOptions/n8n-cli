@@ -15,6 +15,10 @@ selects what comes back: count, the inserted ids, or the full rows. The whole
 batch is one request, so the API accepts or rejects it as a whole. Requires
 dataTableRow:create.
 
+--idempotency-key KEY makes a retry after a timeout or lost response safe:
+the same request with the same key returns the first result instead of
+running again (auto generates a key and prints it on stderr).
+
 ```
 n8n data-table row insert <table-id> [flags]
 ```
@@ -24,20 +28,21 @@ n8n data-table row insert <table-id> [flags]
 ```
   n8n data-table row insert TABLE_ID --set email=a@example.com --set age=30
   n8n data-table row insert TABLE_ID --set email=b@example.com --return all --output json
-  n8n data-table row insert TABLE_ID --input rows.json --return id
+  n8n data-table row insert TABLE_ID --input rows.json --return id --idempotency-key auto
   printf '%s\n' '[{"email":"c@example.com"}]' | n8n data-table row insert TABLE_ID --input -
 ```
 
 ### Options
 
 ```
-      --context string    saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
-  -h, --help              help for insert
-      --input string      row JSON array or object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)
-      --output string     output format: text or json (JSON preserves the count, ids and rows the API sent) (default "text")
-      --return string     what the API returns: count, id or all (default: the server default of count)
-      --set stringArray   column value as COLUMN=VALUE for one row, repeatable (cannot combine with --input)
-      --url string        instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
+      --context string           saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
+  -h, --help                     help for insert
+      --idempotency-key string   retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
+      --input string             row JSON array or object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)
+      --output string            output format: text or json (JSON preserves the count, ids and rows the API sent) (default "text")
+      --return string            what the API returns: count, id or all (default: the server default of count)
+      --set stringArray          column value as COLUMN=VALUE for one row, repeatable (cannot combine with --input)
+      --url string               instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

@@ -262,48 +262,54 @@ func validatePromotionWorkflowIDs(ids []string) error {
 }
 
 // ContinueApplyPackage rechecks bindings and applies the reviewed full package.
-func (c *Client) ContinueApplyPackage(ctx context.Context, id string, request ContinueApplyPromotionRequest) (*ApplyPromotionResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) ContinueApplyPackage(ctx context.Context, id string, request ContinueApplyPromotionRequest, opts ...CallOption) (*ApplyPromotionResult, error) {
 	if err := validatePromotionID(id, "promotion connection ID"); err != nil {
 		return nil, err
 	}
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return c.applyPromotionSelection(ctx, PathJoin("promotions", "connections", id, "apply", "continue"), request)
+	return c.applyPromotionSelection(ctx, PathJoin("promotions", "connections", id, "apply", "continue"), request, opts)
 }
 
 // ApplyProjectSelection imports or removes selected workflow IDs from the branch.
-func (c *Client) ApplyProjectSelection(ctx context.Context, id string, request ApplyProjectSelectionRequest) (*ApplyPromotionResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) ApplyProjectSelection(ctx context.Context, id string, request ApplyProjectSelectionRequest, opts ...CallOption) (*ApplyPromotionResult, error) {
 	if err := validatePromotionID(id, "project ID"); err != nil {
 		return nil, err
 	}
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return c.applyPromotionSelection(ctx, PathJoin("promotions", "projects", id, "apply"), request)
+	return c.applyPromotionSelection(ctx, PathJoin("promotions", "projects", id, "apply"), request, opts)
 }
 
 // ContinueApplyProjectSelection rechecks the reviewed source and full selection.
-func (c *Client) ContinueApplyProjectSelection(ctx context.Context, id string, request ContinueApplyProjectSelectionRequest) (*ApplyPromotionResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) ContinueApplyProjectSelection(ctx context.Context, id string, request ContinueApplyProjectSelectionRequest, opts ...CallOption) (*ApplyPromotionResult, error) {
 	if err := validatePromotionID(id, "project ID"); err != nil {
 		return nil, err
 	}
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return c.applyPromotionSelection(ctx, PathJoin("promotions", "projects", id, "apply", "continue"), request)
+	return c.applyPromotionSelection(ctx, PathJoin("promotions", "projects", id, "apply", "continue"), request, opts)
 }
 
-func (c *Client) applyPromotionSelection(ctx context.Context, path string, request any) (*ApplyPromotionResult, error) {
+func (c *Client) applyPromotionSelection(ctx context.Context, path string, request any, opts []CallOption) (*ApplyPromotionResult, error) {
 	var result ApplyPromotionResult
-	if _, err := c.Do(ctx, Request{Method: http.MethodPost, Path: path, Body: request}, &result); err != nil {
+	req := Request{Method: http.MethodPost, Path: path, Body: request}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
 // PromoteProjectSelection exports selected workflow states and pushes the branch.
-func (c *Client) PromoteProjectSelection(ctx context.Context, id string, request PromoteProjectSelectionRequest) (*PromotePromotionResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) PromoteProjectSelection(ctx context.Context, id string, request PromoteProjectSelectionRequest, opts ...CallOption) (*PromotePromotionResult, error) {
 	if err := validatePromotionID(id, "project ID"); err != nil {
 		return nil, err
 	}
@@ -311,7 +317,9 @@ func (c *Client) PromoteProjectSelection(ctx context.Context, id string, request
 		return nil, err
 	}
 	var result PromotePromotionResult
-	if _, err := c.Do(ctx, Request{Method: http.MethodPost, Path: PathJoin("promotions", "projects", id, "promote"), Body: request}, &result); err != nil {
+	req := Request{Method: http.MethodPost, Path: PathJoin("promotions", "projects", id, "promote"), Body: request}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

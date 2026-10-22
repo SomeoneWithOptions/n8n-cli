@@ -19,6 +19,10 @@ mutually exclusive. Interactive runs ask for confirmation; non-interactive
 runs and stdin input require --yes. JSON returns the server result; text
 shows counts and the commit after success.
 
+--idempotency-key KEY makes a retry after a timeout or lost response safe:
+the same request with the same key returns the first result instead of
+running again (auto generates a key and prints it on stderr).
+
 ```
 n8n promotion project promote <project-id> [flags]
 ```
@@ -36,6 +40,7 @@ n8n promotion project promote <project-id> [flags]
       --commit-message string     commit message, 1 to 1000 characters (default: server-generated message)
       --context string            saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                      help for promote
+      --idempotency-key string    retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
       --input string              request JSON file path or - for stdin, maximum 1 MiB (default: use document flags; stdin requires --yes)
       --output string             output format: text or json (default: text; JSON is the full server result) (default "text")
       --url string                instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)

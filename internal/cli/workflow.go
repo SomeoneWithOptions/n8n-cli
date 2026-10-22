@@ -334,12 +334,13 @@ func writeWorkflowDetail(opts Options, resolution config.Resolution, workflow *n
 }
 
 type workflowCreateFlags struct {
-	instance  instanceFlags
-	input     string
-	name      string
-	projectID string
-	folderID  string
-	output    string
+	instance    instanceFlags
+	input       string
+	name        string
+	projectID   string
+	folderID    string
+	output      string
+	idempotency idempotencyFlag
 }
 
 func newWorkflowCreateCommand(opts Options) *cobra.Command {
@@ -357,12 +358,14 @@ func newWorkflowCreateCommand(opts Options) *cobra.Command {
 			"null settings is sent as {}. --name, --project-id and --parent-folder-id\n" +
 			"override what the document says.\n\n" +
 			"A created workflow is never published: publish it with 'n8n workflow publish'.\n" +
-			"Requires workflow:create.",
+			"Requires workflow:create.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n workflow create --name \"Invoice sync\"\n" +
 			"  n8n workflow create --input workflow.json\n" +
 			"  n8n workflow create --input - < workflow.json\n" +
 			"  n8n workflow create --input workflow.json --name \"Invoice sync copy\" --project-id PROJECT_ID\n" +
-			"  n8n workflow create --name Scratch --output json",
+			"  n8n workflow create --name Scratch --output json\n" +
+			"  n8n workflow create --input workflow.json --idempotency-key deploy-invoice-sync-v3",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runWorkflowCreate(cmd.Context(), opts, f)
@@ -374,6 +377,7 @@ func newWorkflowCreateCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "project to create the workflow in, from 'n8n project list' (default: the caller's personal project)")
 	cmd.Flags().StringVar(&f.folderID, "parent-folder-id", "", "folder to create the workflow in, from 'n8n folder list PROJECT_ID' (default: the project root)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the created workflow)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -388,12 +392,18 @@ func runWorkflowCreate(ctx context.Context, opts Options, f workflowCreateFlags)
 	if err := doc.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
 	}
-	created, err := client.CreateWorkflow(ctx, doc)
+	created, err := client.CreateWorkflow(ctx, doc, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return workflowAPIError(err, resolution, "create")
 	}
 	return writeWorkflowResult(opts, resolution, "Created", created, f.output)

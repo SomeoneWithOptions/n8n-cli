@@ -684,11 +684,12 @@ func writeDataTableRows(w io.Writer, rows []n8n.DataTableRow) error {
 }
 
 type dataTableRowInsertFlags struct {
-	instance   instanceFlags
-	set        []string
-	input      string
-	returnType string
-	output     string
+	instance    instanceFlags
+	set         []string
+	input       string
+	returnType  string
+	output      string
+	idempotency idempotencyFlag
 }
 
 func newDataTableRowInsertCommand(opts Options) *cobra.Command {
@@ -704,10 +705,11 @@ func newDataTableRowInsertCommand(opts Options) *cobra.Command {
 			"must already exist; add them with 'n8n data-table column create'. --return\n" +
 			"selects what comes back: count, the inserted ids, or the full rows. The whole\n" +
 			"batch is one request, so the API accepts or rejects it as a whole. Requires\n" +
-			"dataTableRow:create.",
+			"dataTableRow:create.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n data-table row insert TABLE_ID --set email=a@example.com --set age=30\n" +
 			"  n8n data-table row insert TABLE_ID --set email=b@example.com --return all --output json\n" +
-			"  n8n data-table row insert TABLE_ID --input rows.json --return id\n" +
+			"  n8n data-table row insert TABLE_ID --input rows.json --return id --idempotency-key auto\n" +
 			"  printf '%s\\n' '[{\"email\":\"c@example.com\"}]' | n8n data-table row insert TABLE_ID --input -",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -719,6 +721,7 @@ func newDataTableRowInsertCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.input, "input", "", "row JSON array or object, from a file path or - for stdin (cannot combine with --set; maximum 1 MiB)")
 	cmd.Flags().StringVar(&f.returnType, "return", "", "what the API returns: count, id or all (default: the server default of count)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON preserves the count, ids and rows the API sent)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -737,12 +740,18 @@ func runDataTableRowInsert(ctx context.Context, opts Options, tableID string, f 
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.dataTableClient(f.instance)
 	if err != nil {
 		return err
 	}
-	result, err := client.InsertDataTableRows(ctx, tableID, request)
+	result, err := client.InsertDataTableRows(ctx, tableID, request, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return dataTableAPIError(err, resolution, "row insert")
 	}
 	if f.output == outputJSON {
@@ -812,6 +821,9 @@ type rowWriteFlags struct {
 	returnData bool
 	dryRun     bool
 	output     string
+	// idempotency is registered by upsert only: update is a PATCH, which the
+	// API does not deduplicate.
+	idempotency idempotencyFlag
 }
 
 func (f *rowWriteFlags) register(cmd *cobra.Command) {
@@ -918,7 +930,8 @@ func newDataTableRowUpsertCommand(opts Options) *cobra.Command {
 			"with repeatable --set COLUMN=VALUE or a JSON object through --input.\n\n" +
 			"The inserted row is built from the values given, not from the filter, so\n" +
 			"include the matched column in --set when the new row should carry it. Use\n" +
-			"--dry-run to see what would happen first. Requires dataTableRow:upsert.",
+			"--dry-run to see what would happen first. Requires dataTableRow:upsert.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n data-table row upsert TABLE_ID --where email=a@example.com --set email=a@example.com --set name=Jane\n" +
 			"  n8n data-table row upsert TABLE_ID --where email=a@example.com --set name=Jane --return-data\n" +
 			"  n8n data-table row upsert TABLE_ID --where email=a@example.com --set name=Jane --dry-run --output json",
@@ -928,6 +941,7 @@ func newDataTableRowUpsertCommand(opts Options) *cobra.Command {
 		},
 	}
 	f.register(cmd)
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -955,12 +969,18 @@ func runDataTableRowUpsert(ctx context.Context, opts Options, tableID string, f 
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.dataTableClient(f.instance)
 	if err != nil {
 		return err
 	}
-	result, err := client.UpsertDataTableRow(ctx, tableID, request)
+	result, err := client.UpsertDataTableRow(ctx, tableID, request, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return dataTableAPIError(err, resolution, "row upsert")
 	}
 	return writeRowMutation(opts, resolution, tableID, "row upserted", f.dryRun, result, f.output)

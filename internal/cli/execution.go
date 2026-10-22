@@ -449,6 +449,7 @@ type executionStopManyFlags struct {
 	startedBefore string
 	yes           bool
 	output        string
+	idempotency   idempotencyFlag
 }
 
 func newExecutionStopManyCommand(opts Options) *cobra.Command {
@@ -463,7 +464,8 @@ func newExecutionStopManyCommand(opts Options) *cobra.Command {
 			"workflows globally by accident; the literal workflow ID 'all' is rejected, use\n" +
 			"--all instead. Stopping is irreversible for each matched run, though a failed\n" +
 			"or canceled run may later be retried. Interactive runs ask for confirmation and\n" +
-			"non-interactive runs require --yes. Requires execution:stop.",
+			"non-interactive runs require --yes. Requires execution:stop.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n execution stop-many --status running --workflow-id WORKFLOW_ID\n" +
 			"  n8n execution stop-many --status queued --status waiting --all --yes\n" +
 			"  n8n execution stop-many --status running --workflow-id WORKFLOW_ID --started-after 2026-09-17T00:00:00Z --yes --output json",
@@ -480,6 +482,7 @@ func newExecutionStopManyCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.startedBefore, "started-before", "", "only executions started before this RFC3339 timestamp, e.g. 2026-09-18T00:00:00Z (default: no upper bound)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm stopping every match without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON contains the number stopped)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -505,6 +508,9 @@ func runExecutionStopMany(ctx context.Context, opts Options, f executionStopMany
 	if !f.all && strings.TrimSpace(f.workflowID) == "" {
 		return fmt.Errorf("--workflow-id or --all is required: pass the workflow ID to scope the stop, or --all to stop across every accessible workflow")
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	if f.all {
 		request.WorkflowID = ""
 	}
@@ -520,8 +526,11 @@ func runExecutionStopMany(ctx context.Context, opts Options, f executionStopMany
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
-	result, err := client.StopManyExecutions(ctx, request)
+	result, err := client.StopManyExecutions(ctx, request, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return executionAPIError(err, resolution, "", "stop")
 	}
 	if f.output == outputJSON {
@@ -534,8 +543,15 @@ func runExecutionStopMany(ctx context.Context, opts Options, f executionStopMany
 	return tw.Flush()
 }
 
+type executionStopFlags struct {
+	instance    instanceFlags
+	yes         bool
+	output      string
+	idempotency idempotencyFlag
+}
+
 func newExecutionStopCommand(opts Options) *cobra.Command {
-	var f executionConfirmedFlags
+	var f executionStopFlags
 	cmd := &cobra.Command{
 		Use:   "stop <execution-id>",
 		Short: "Stop one queued, running, or waiting execution",
@@ -543,7 +559,8 @@ func newExecutionStopCommand(opts Options) *cobra.Command {
 			"use 'n8n execution retry ID' afterwards when it should run again as a new\n" +
 			"execution. A run already finished or otherwise not stoppable returns a conflict.\n\n" +
 			"Interactive runs ask for confirmation and non-interactive runs require --yes.\n" +
-			"The workflow definition is untouched. Requires execution:stop.",
+			"The workflow definition is untouched. Requires execution:stop.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n execution stop EXECUTION_ID\n" +
 			"  n8n execution stop EXECUTION_ID --yes\n" +
 			"  n8n execution stop EXECUTION_ID --yes --output json",
@@ -555,14 +572,18 @@ func newExecutionStopCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm canceling the execution without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the resulting stop state)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
-func runExecutionStop(ctx context.Context, opts Options, id string, f executionConfirmedFlags) error {
+func runExecutionStop(ctx context.Context, opts Options, id string, f executionStopFlags) error {
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
 	if err := validateExecutionArgument(id); err != nil {
+		return err
+	}
+	if err := f.idempotency.validate(); err != nil {
 		return err
 	}
 	client, resolution, err := opts.apiClient(f.instance)
@@ -573,8 +594,11 @@ func runExecutionStop(ctx context.Context, opts Options, id string, f executionC
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
-	result, err := client.StopExecution(ctx, id)
+	result, err := client.StopExecution(ctx, id, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		if n8n.IsConflict(err) {
 			return fmt.Errorf("%s cannot stop execution %q (409): it is already finished or is not in a stoppable state", resolution.URL, id)
 		}
@@ -597,6 +621,7 @@ type executionRetryFlags struct {
 	instance       instanceFlags
 	latestWorkflow bool
 	output         string
+	idempotency    idempotencyFlag
 }
 
 func newExecutionRetryCommand(opts Options) *cobra.Command {
@@ -610,10 +635,11 @@ func newExecutionRetryCommand(opts Options) *cobra.Command {
 			"the instance.\n\n" +
 			"The original execution is retained and the response identifies the new run. A\n" +
 			"run that cannot be retried returns a conflict. This starts workflow work and may\n" +
-			"repeat its external side effects. Requires execution:retry.",
+			"repeat its external side effects. Requires execution:retry.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n execution retry EXECUTION_ID\n" +
 			"  n8n execution retry EXECUTION_ID --latest-workflow\n" +
-			"  n8n execution retry EXECUTION_ID --output json",
+			"  n8n execution retry EXECUTION_ID --idempotency-key auto --output json",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runExecutionRetry(cmd.Context(), opts, args[0], f)
@@ -622,6 +648,7 @@ func newExecutionRetryCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().BoolVar(&f.latestWorkflow, "latest-workflow", false, "run the workflow currently saved instead of the definition stored with the original execution (default: stored definition)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the newly started execution)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -632,12 +659,18 @@ func runExecutionRetry(ctx context.Context, opts Options, id string, f execution
 	if err := validateExecutionArgument(id); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
 	}
-	execution, err := client.RetryExecution(ctx, id, n8n.RetryExecutionOptions{LoadWorkflow: f.latestWorkflow})
+	execution, err := client.RetryExecution(ctx, id, n8n.RetryExecutionOptions{LoadWorkflow: f.latestWorkflow}, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		if n8n.IsConflict(err) {
 			return fmt.Errorf("%s cannot retry execution %q (409): its state or stored data does not permit a retry", resolution.URL, id)
 		}
