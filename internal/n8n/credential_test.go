@@ -217,6 +217,98 @@ func TestCredentialMutationErrorRedaction(t *testing.T) {
 	}
 }
 
+func TestCredentialDescriptionUsageScopeAndCustomID(t *testing.T) {
+	for name, tt := range map[string]struct {
+		field string
+		want  Nullable[string]
+		json  string
+	}{
+		"value":  {field: `"description":"Read-only key",`, want: SetValue("Read-only key"), json: `"description":"Read-only key"`},
+		"null":   {field: `"description":null,`, want: SetNull[string](), json: `"description":null`},
+		"absent": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := strings.Replace(credentialResponse, `"id":"cred/one?x=1",`, `"id":"cred/one?x=1",`+tt.field+`"usageScope":"project",`, 1)
+			server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+			deleted, err := server.client(t).DeleteCredential(context.Background(), "cred-1")
+			if err != nil {
+				t.Fatalf("DeleteCredential: %v", err)
+			}
+			if deleted.Description != tt.want || deleted.UsageScope != "project" {
+				t.Errorf("credential = %+v", deleted)
+			}
+			encoded, err := json.Marshal(deleted)
+			if err != nil {
+				t.Fatalf("encode: %v", err)
+			}
+			if tt.json == "" && strings.Contains(string(encoded), "description") {
+				t.Errorf("encoded = %s, want description omitted", encoded)
+			}
+			if tt.json != "" && !strings.Contains(string(encoded), tt.json) {
+				t.Errorf("encoded = %s, want %s", encoded, tt.json)
+			}
+			if strings.Contains(string(encoded), "server-secret") {
+				t.Errorf("encoded leaked data: %s", encoded)
+			}
+		})
+	}
+
+	t.Run("create sends id and description", func(t *testing.T) {
+		server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, credentialResponse))
+		description := "Read-only key"
+		_, err := server.client(t).CreateCredential(context.Background(), CreateCredentialRequest{
+			ID: "gh_prod-1", Name: "GitHub", Description: &description, Type: "githubApi",
+			Data: mustCredentialData(t, `{"accessToken":"x"}`),
+		})
+		if err != nil {
+			t.Fatalf("CreateCredential: %v", err)
+		}
+		_, body := server.last(t)
+		assertJSONEqual(t, `{"id":"gh_prod-1","name":"GitHub","description":"Read-only key","type":"githubApi","data":{"accessToken":"x"}}`, body)
+	})
+
+	for name, tt := range map[string]struct {
+		request UpdateCredentialRequest
+		body    string
+	}{
+		"update sets description":  {request: UpdateCredentialRequest{Description: SetValue("new")}, body: `{"description":"new"}`},
+		"update clears with null":  {request: UpdateCredentialRequest{Description: SetNull[string]()}, body: `{"description":null}`},
+		"update omits description": {request: UpdateCredentialRequest{Name: new("renamed")}, body: `{"name":"renamed"}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, credentialResponse))
+			if _, err := server.client(t).UpdateCredential(context.Background(), "cred-1", tt.request); err != nil {
+				t.Fatalf("UpdateCredential: %v", err)
+			}
+			_, body := server.last(t)
+			assertJSONEqual(t, tt.body, body)
+		})
+	}
+}
+
+func TestCredentialDescriptionAndIDLimits(t *testing.T) {
+	data := mustCredentialData(t, `{"accessToken":"x"}`)
+	atLimit := strings.Repeat("é", MaxCredentialDescription)
+	overLimit := atLimit + "x"
+	valid := CreateCredentialRequest{Name: "n", Type: "t", Data: data, Description: &atLimit, ID: "abcDEF0123_-xyzQ"}
+	if err := valid.Validate(); err != nil {
+		t.Errorf("512-character description and 16-character id: %v", err)
+	}
+	for name, request := range map[string]CreateCredentialRequest{
+		"long description": {Name: "n", Type: "t", Data: data, Description: &overLimit},
+		"long id":          {Name: "n", Type: "t", Data: data, ID: "abcdefghijklmnopq"},
+		"id with slash":    {Name: "n", Type: "t", Data: data, ID: "a/b"},
+		"id with space":    {Name: "n", Type: "t", Data: data, ID: "a b"},
+	} {
+		if err := request.Validate(); err == nil {
+			t.Errorf("%s: want a validation error", name)
+		}
+	}
+	if err := (UpdateCredentialRequest{Description: SetValue(overLimit)}).Validate(); err == nil {
+		t.Error("update with a 513-character description: want a validation error")
+	}
+}
+
 func TestCredentialValidationBeforeRequest(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, credentialResponse))
 	client := server.client(t)

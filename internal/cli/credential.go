@@ -217,8 +217,11 @@ func newCredentialCreateCommand(opts Options) *cobra.Command {
 		Use:   "create",
 		Short: "Create a credential from secret JSON",
 		Long: "Create a credential from one JSON document. Required fields are name, type and\n" +
-			"data; optional fields are projectId and isResolvable. Because data contains\n" +
-			"secrets, JSON is accepted only through --file or piped --stdin, never argv.\n\n" +
+			"data; optional fields are projectId, isResolvable, description (plain text, at\n" +
+			"most 512 characters; ignored when the instance has descriptions disabled) and\n" +
+			"id (1 to 16 letters, digits, underscores or hyphens, kept exactly; omit it to\n" +
+			"have one generated). Because data contains secrets, JSON is accepted only\n" +
+			"through --file or piped --stdin, never argv.\n\n" +
 			"The request body is excluded from debug logs. Output contains metadata only.\n" +
 			"Requires credential:create; project creation can have additional role restrictions.",
 		Example: "  n8n credential create --file credential.json\n" +
@@ -259,10 +262,12 @@ func newCredentialUpdateCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <credential-id>",
 		Short: "Update a credential from secret JSON",
-		Long: "Update an owned credential from one JSON document. Accepted fields are name, type,\n" +
-			"data, isGlobal, isResolvable and isPartialData. Set isPartialData=true to merge\n" +
-			"provided data with stored data; false replaces the full data object. Changing type\n" +
-			"requires data. Managed credentials cannot be edited.\n\n" +
+		Long: "Update an owned credential from one JSON document. Accepted fields are name,\n" +
+			"description, type, data, isGlobal, isResolvable and isPartialData. Set\n" +
+			"isPartialData=true to merge provided data with stored data; false replaces the\n" +
+			"full data object. Changing type requires data. description is at most 512\n" +
+			"characters; null or \"\" clears it and omitting it keeps it. Managed credentials\n" +
+			"cannot be edited.\n\n" +
 			"Secret JSON is accepted only through --file or piped --stdin and is excluded from\n" +
 			"debug logs and output. Requires credential:update and ownership.",
 		Example: "  n8n credential update CREDENTIAL_ID --file update.json\n" +
@@ -362,6 +367,12 @@ func writeCredentialResult(opts Options, resolution config.Resolution, action st
 	fmt.Fprintf(tw, "%s:\t%s\n", action, credential.ID)
 	fmt.Fprintf(tw, "Name:\t%s\n", credential.Name)
 	fmt.Fprintf(tw, "Type:\t%s\n", credential.Type)
+	if credential.Description.Set {
+		fmt.Fprintf(tw, "Description:\t%s\n", emptyDash(credential.Description.Value))
+	}
+	if credential.UsageScope != "" {
+		fmt.Fprintf(tw, "Usage scope:\t%s\n", credential.UsageScope)
+	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	if credential.UpdatedAt != "" {
 		fmt.Fprintf(tw, "Updated:\t%s\n", credential.UpdatedAt)

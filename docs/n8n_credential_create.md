@@ -5,8 +5,11 @@ Create a credential from secret JSON
 ### Synopsis
 
 Create a credential from one JSON document. Required fields are name, type and
-data; optional fields are projectId and isResolvable. Because data contains
-secrets, JSON is accepted only through --file or piped --stdin, never argv.
+data; optional fields are projectId, isResolvable, description (plain text, at
+most 512 characters; ignored when the instance has descriptions disabled) and
+id (1 to 16 letters, digits, underscores or hyphens, kept exactly; omit it to
+have one generated). Because data contains secrets, JSON is accepted only
+through --file or piped --stdin, never argv.
 
 The request body is excluded from debug logs. Output contains metadata only.
 Requires credential:create; project creation can have additional role restrictions.
