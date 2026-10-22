@@ -54,4 +54,4 @@ After publish, curate release notes to drop internal chore PRs and keep only use
 gh release edit vX.Y.Z --notes-file /tmp/notes.md
 ```
 
-See `AGENTS.md` or `.github/release-notes/README.md` for full runbook.
+See `.github/release-notes/README.md` for full runbook.
