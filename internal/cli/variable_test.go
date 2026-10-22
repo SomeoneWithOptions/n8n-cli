@@ -246,6 +246,9 @@ func TestVariableValidationBeforeRequest(t *testing.T) {
 		{name: "missing update value", args: []string{"variable", "update", "id", "--key", "KEY"}, want: "--value is required"},
 		{name: "blank delete ID", args: []string{"variable", "delete", " ", "--yes"}, want: "variable ID is required"},
 		{name: "missing create argument", args: []string{"variable", "create", "--value", "value"}, want: "accepts 1 arg"},
+		{name: "create key with leading digit", args: []string{"variable", "create", "1KEY", "--value", "value"}, want: "start with a letter or underscore"},
+		{name: "update key with dash", args: []string{"variable", "update", "id", "--key", "API-HOST", "--value", "value"}, want: "only letters, digits and underscores"},
+		{name: "long value", args: []string{"variable", "create", "KEY", "--value", strings.Repeat("v", 1001)}, want: "at most 1000"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

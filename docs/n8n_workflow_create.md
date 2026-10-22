@@ -9,10 +9,11 @@ from stdin ('--input -'); without it, --name creates an empty workflow with no
 nodes, ready to be edited in the UI or filled in by a later update.
 
 The input may be a document produced by 'n8n workflow get --output json': the
-read-only fields (id, versionId, active, timestamps, tags, sharing) are dropped
-before sending, because the API answers a read-only field with 400, and the
-dropped names are reported on stderr. --name, --project-id and
---parent-folder-id override what the document says.
+read-only fields (id, versionId, active, timestamps, tags, sharing, node
+timestamps) and settings set to "DEFAULT" are dropped before sending, because
+the API answers them with 400, and the dropped names are reported on stderr. A
+null settings is sent as {}. --name, --project-id and --parent-folder-id
+override what the document says.
 
 A created workflow is never published: publish it with 'n8n workflow publish'.
 Requires workflow:create.

@@ -30,6 +30,16 @@ type APIError struct {
 	Hint       string // remediation hint, when sent
 	Body       string // truncated raw body, set when it was not decodable JSON
 	Truncated  bool   // body was longer than maxErrorBody
+
+	// Reason is the machine-readable cause some endpoints add, e.g.
+	// review_pending on a 409 from workflow publish.
+	Reason string
+	// VersionID names the draft a workflow update saved before its
+	// republication was refused (403).
+	VersionID string
+	// ReviewRequestID names the open workflow review that blocked a
+	// publication (409).
+	ReviewRequestID string
 }
 
 func (e *APIError) Error() string {
@@ -40,6 +50,9 @@ func (e *APIError) Error() string {
 	b.WriteString(e.statusText())
 	if e.Code != "" {
 		fmt.Fprintf(&b, " [%s]", e.Code)
+	}
+	if e.Reason != "" && e.Reason != e.Code {
+		fmt.Fprintf(&b, " [%s]", e.Reason)
 	}
 	switch {
 	case e.Message != "":
@@ -128,6 +141,10 @@ type errorBody struct {
 	Code        json.RawMessage `json:"code"`
 	Hint        json.RawMessage `json:"hint"`
 	Description json.RawMessage `json:"description"`
+
+	Reason                  json.RawMessage `json:"reason"`
+	VersionID               json.RawMessage `json:"versionId"`
+	WorkflowReviewRequestID json.RawMessage `json:"workflowReviewRequestId"`
 }
 
 // newAPIError builds an error from a response body that has already been read
@@ -151,6 +168,9 @@ func newAPIError(resp *http.Response, method, path string, body []byte, truncate
 	apiErr.Message = firstText(decoded.Message, decoded.Error, decoded.Description)
 	apiErr.Code = firstText(decoded.Code)
 	apiErr.Hint = firstText(decoded.Hint)
+	apiErr.Reason = firstText(decoded.Reason)
+	apiErr.VersionID = firstText(decoded.VersionID)
+	apiErr.ReviewRequestID = firstText(decoded.WorkflowReviewRequestID)
 	if apiErr.Message == "" && apiErr.Code == "" {
 		// Valid JSON in a shape we do not know: keep it rather than drop it.
 		apiErr.Body = truncateText(strings.TrimSpace(string(body)), 512)

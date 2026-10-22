@@ -131,6 +131,23 @@ func TestAPIErrorMessage(t *testing.T) {
 	}
 }
 
+func TestAPIErrorWorkflowReviewDetails(t *testing.T) {
+	conflict := decodeError(t, http.StatusConflict, nil,
+		`{"message":"Workflow has a pending review","reason":"review_pending","workflowReviewRequestId":"rev-1"}`)
+	if conflict.Reason != "review_pending" || conflict.ReviewRequestID != "rev-1" || conflict.Message == "" {
+		t.Errorf("conflict = %+v", conflict)
+	}
+	if !strings.Contains(conflict.Error(), "[review_pending]") {
+		t.Errorf("Error() = %q, want the reason", conflict)
+	}
+
+	draft := decodeError(t, http.StatusForbidden, nil,
+		`{"message":"missing workflow:activate","reason":"insufficient_api_key_scope","versionId":"ver-9"}`)
+	if draft.Reason != "insufficient_api_key_scope" || draft.VersionID != "ver-9" {
+		t.Errorf("draft = %+v", draft)
+	}
+}
+
 func TestAPIErrorMessageWithoutStatusText(t *testing.T) {
 	err := &APIError{StatusCode: 599}
 	if got := err.Error(); got != "HTTP 599" {

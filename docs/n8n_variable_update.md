@@ -5,12 +5,15 @@ Fully replace a variable
 ### Synopsis
 
 Fully replace one variable by ID. This is a PUT, so --key and --value are both
-required even when one is unchanged. Omitting --project-id replaces the current
-scope with global scope; pass its project ID to keep or select project scope.
+required even when one is unchanged. The API contract makes projectId optional
+and nullable here without saying what omitting it does to the current scope,
+so pass --project-id to keep or select project scope, and check the result
+with 'n8n variable list'.
 
-A key already used in the resulting scope fails with a conflict. An explicitly
-empty value is valid. Submitted values never appear in diagnostics or success
-acknowledgements. Requires variable:update.
+Keys use letters, digits and underscores, at most 50; values are at most 1000
+characters. A key already used in the resulting scope fails with a conflict.
+An explicitly empty value is valid. Submitted values never appear in
+diagnostics or success acknowledgements. Requires variable:update.
 
 ```
 n8n variable update <variable-id> [flags]
@@ -31,7 +34,7 @@ n8n variable update <variable-id> [flags]
   -h, --help                help for update
       --key string          complete replacement key (required, even when unchanged)
       --output string       output format: text or json (acknowledgement excludes the submitted value) (default "text")
-      --project-id string   project scope ID (default: global scope; on update this replaces current scope)
+      --project-id string   project scope ID, at most 36 characters (default: global scope on create; on update see the command help)
       --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --value string        complete variable value; pass an empty string to store an empty value (required, not repeated in diagnostics)
 ```

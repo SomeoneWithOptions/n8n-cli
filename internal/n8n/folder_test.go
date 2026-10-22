@@ -293,6 +293,21 @@ func TestFolderValidationBeforeRequest(t *testing.T) {
 			_, err := client.ListFolders(context.Background(), " ", ListFoldersOptions{})
 			return err
 		},
+		"long create name": func() error {
+			_, err := client.CreateFolder(context.Background(), "pr-1", CreateFolderRequest{Name: strings.Repeat("n", 129)})
+			return err
+		},
+		"long create parent": func() error {
+			_, err := client.CreateFolder(context.Background(), "pr-1", CreateFolderRequest{Name: "n", ParentFolderID: strings.Repeat("p", 37)})
+			return err
+		},
+		"long update name": func() error {
+			_, err := client.UpdateFolder(context.Background(), "pr-1", "fo-1", UpdateFolderRequest{Name: strings.Repeat("n", 129)})
+			return err
+		},
+		"long transfer target": func() error {
+			return client.DeleteFolder(context.Background(), "pr-1", "fo-1", strings.Repeat("t", 37))
+		},
 		"negative skip": func() error {
 			_, err := client.ListFolders(context.Background(), "pr-1", ListFoldersOptions{Skip: -1})
 			return err

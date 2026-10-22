@@ -50,7 +50,7 @@ func TestProjectLifecycle(t *testing.T) {
 	ctx := context.Background()
 	name := fmt.Sprintf("%sproject-%d", integration.ResourcePrefix, time.Now().UnixNano())
 
-	created, err := client.CreateProject(ctx, name)
+	created, err := client.CreateProject(ctx, n8n.CreateProjectRequest{Name: name})
 	if err != nil {
 		skipUnlicensed(t, err)
 		t.Fatalf("CreateProject(%q): %v", name, err)

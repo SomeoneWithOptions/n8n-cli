@@ -168,6 +168,32 @@ func TestProjectCreateUpdateAndDelete(t *testing.T) {
 	})
 }
 
+func TestProjectCreateOptionalFields(t *testing.T) {
+	f := projectFixture(t, `{"id":"ops","name":"Ops","type":"team","icon":{"type":"icon","value":"server","color":"#ff6d5a"},`+
+		`"description":"Runbooks","customTelemetryTags":[{"key":"team","value":"ops"}],"creatorId":"us-1",`+
+		`"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z","role":"project:admin","scopes":["project:read"]}`)
+	got := f.run("project", "create", "Ops", "--id", "ops", "--description", "Runbooks", "--icon", "icon:server",
+		"--icon-color", "#ff6d5a", "--telemetry-tag", "team=ops", "--telemetry-tag", "tier=")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	assertCLIJSON(t, `{"name":"Ops","id":"ops","icon":{"type":"icon","value":"server","color":"#ff6d5a"},"description":"Runbooks",`+
+		`"customTelemetryTags":[{"key":"team","value":"ops"},{"key":"tier","value":""}]}`, f.lastBody())
+	for _, want := range []string{"Created:", "Ops", "Description:", "Runbooks", "Icon:", "icon:server", "Your role:", "project:admin"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+		}
+	}
+
+	got = f.run("project", "create", "Ops", "--output", "json")
+	for _, want := range []string{`"scopes": [`, `"creatorId": "us-1"`, `"customTelemetryTags": [`} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("JSON missing %q:\n%s", want, got.stdout)
+		}
+	}
+	assertCLIJSON(t, `{"name":"Ops"}`, f.lastBody())
+}
+
 func TestProjectUserListTextAndJSON(t *testing.T) {
 	f := projectFixture(t, `{"data":[`+cliProjectMember+`],"nextCursor":"next"}`)
 	got := f.run("project", "user", "list", "pr/one?x=1", "--limit", "10")
@@ -289,6 +315,11 @@ func TestProjectValidationBeforeRequest(t *testing.T) {
 		{name: "large limit", args: []string{"project", "list", "--limit", "251"}, want: "must not exceed 250"},
 		{name: "unknown output", args: []string{"project", "list", "--output", "yaml"}, want: "unknown output format"},
 		{name: "blank create name", args: []string{"project", "create", " "}, want: "project name is required"},
+		{name: "malformed icon", args: []string{"project", "create", "Ops", "--icon", "rocket"}, want: "TYPE:VALUE"},
+		{name: "unknown icon type", args: []string{"project", "create", "Ops", "--icon", "image:x"}, want: "use emoji or icon"},
+		{name: "icon color without icon", args: []string{"project", "create", "Ops", "--icon-color", "#fff"}, want: "--icon-color needs --icon"},
+		{name: "malformed telemetry tag", args: []string{"project", "create", "Ops", "--telemetry-tag", "team"}, want: "KEY=VALUE"},
+		{name: "long description", args: []string{"project", "create", "Ops", "--description", strings.Repeat("d", 513)}, want: "at most 512"},
 		{name: "missing update name", args: []string{"project", "update", "pr-1"}, want: "--name is required"},
 		{name: "padded update name", args: []string{"project", "update", "pr-1", "--name", " Billing"}, want: "whitespace"},
 		{name: "padded delete ID", args: []string{"project", "delete", " pr-1", "--yes"}, want: "whitespace"},

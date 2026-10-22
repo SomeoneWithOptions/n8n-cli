@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // VariablesPath is the collection endpoint for instance and project variables.
@@ -23,12 +25,9 @@ type Variable struct {
 	Project *VariableProject `json:"project,omitempty"`
 }
 
-// VariableProject identifies the project scope attached to a variable.
-type VariableProject struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"`
-}
+// VariableProject is the project scope attached to a variable. The API
+// returns the full project there, so it is the same model as [Project].
+type VariableProject = Project
 
 // VariableState is an optional server-side list filter.
 type VariableState string
@@ -72,22 +71,65 @@ func (o ListVariablesOptions) apply() url.Values {
 	return query
 }
 
+// Variable field limits from the contract.
+const (
+	MaxVariableKey       = 50
+	MaxVariableValue     = 1000
+	MaxVariableProjectID = 36
+)
+
+var (
+	// variableCreateKeyPattern is the key shape create accepts: no leading
+	// digit.
+	variableCreateKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	// variableUpdateKeyPattern is the looser key shape update accepts.
+	variableUpdateKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+)
+
 // VariableRequest is the complete create or replacement document. ProjectID is
-// optional; omitting it addresses global scope. Value is required by the API
-// but may be the empty string.
+// optional; omitting it on create addresses global scope. Value is required
+// by the API but may be the empty string.
 type VariableRequest struct {
 	Key       string `json:"key"`
 	Value     string `json:"value"`
 	ProjectID string `json:"projectId,omitempty"`
 }
 
-// Validate rejects malformed documents before transport without including the
-// value in any diagnostic.
+// Validate rejects malformed replacement documents before transport without
+// including the value in any diagnostic. Create is stricter about the key;
+// see [VariableRequest.ValidateCreate].
 func (r VariableRequest) Validate() error {
 	if err := validateVariableText("key", r.Key, true); err != nil {
 		return err
 	}
-	return validateVariableText("project ID", r.ProjectID, false)
+	if len(r.Key) > MaxVariableKey {
+		return fmt.Errorf("variable key is %d characters; the API accepts at most %d", len(r.Key), MaxVariableKey)
+	}
+	if !variableUpdateKeyPattern.MatchString(r.Key) {
+		return fmt.Errorf("variable key %q is invalid: use only letters, digits and underscores", r.Key)
+	}
+	if n := utf8.RuneCountInString(r.Value); n > MaxVariableValue {
+		return fmt.Errorf("variable value is %d characters; the API accepts at most %d", n, MaxVariableValue)
+	}
+	if err := validateVariableText("project ID", r.ProjectID, false); err != nil {
+		return err
+	}
+	if len(r.ProjectID) > MaxVariableProjectID {
+		return fmt.Errorf("variable project ID is %d characters; the API accepts at most %d", len(r.ProjectID), MaxVariableProjectID)
+	}
+	return nil
+}
+
+// ValidateCreate is [VariableRequest.Validate] plus the create-only rule
+// that a key must not start with a digit.
+func (r VariableRequest) ValidateCreate() error {
+	if err := r.Validate(); err != nil {
+		return err
+	}
+	if !variableCreateKeyPattern.MatchString(r.Key) {
+		return fmt.Errorf("variable key %q is invalid: start with a letter or underscore, then use only letters, digits and underscores", r.Key)
+	}
+	return nil
 }
 
 // ListVariables returns one cursor-paginated page. Returned values are API
@@ -106,7 +148,7 @@ func (c *Client) ListVariables(ctx context.Context, opts ListVariablesOptions) (
 // CreateVariable creates a global or project-scoped variable. The documented
 // 201 response has no body.
 func (c *Client) CreateVariable(ctx context.Context, request VariableRequest) error {
-	if err := request.Validate(); err != nil {
+	if err := request.ValidateCreate(); err != nil {
 		return err
 	}
 	_, err := c.Do(ctx, Request{Method: http.MethodPost, Path: VariablesPath, Body: request}, nil)

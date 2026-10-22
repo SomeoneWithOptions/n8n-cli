@@ -164,7 +164,8 @@ func TestWorkflowCopyRefusesOneInstance(t *testing.T) {
 
 func TestWorkflowCopyCreatesMissingTarget(t *testing.T) {
 	from, to := copyFixtures(t)
-	stageSource(from, `{"data":[{"id":"AAA","name":"Invoice sync"}]}`, from.body)
+	source := strings.Replace(from.body, `"description":null`, `"description":"Syncs invoices"`, 1)
+	stageSource(from, `{"data":[{"id":"AAA","name":"Invoice sync"}]}`, source)
 	stageTarget(to, `{"data":[]}`, "", to.body)
 
 	got := from.run(copyArgs("--name", "Invoice sync", "--to-project-id", "PROD", "--to-parent-folder-id", "FLD")...)
@@ -184,7 +185,7 @@ func TestWorkflowCopyCreatesMissingTarget(t *testing.T) {
 			t.Errorf("create body carries %q: %s", absent, body)
 		}
 	}
-	for field, want := range map[string]string{"name": `"Invoice sync"`, "projectId": `"PROD"`, "parentFolderId": `"FLD"`} {
+	for field, want := range map[string]string{"name": `"Invoice sync"`, "description": `"Syncs invoices"`, "projectId": `"PROD"`, "parentFolderId": `"FLD"`} {
 		if string(doc[field]) != want {
 			t.Errorf("create body %s = %s, want %s", field, doc[field], want)
 		}

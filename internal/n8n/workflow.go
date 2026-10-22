@@ -24,7 +24,7 @@ const WorkflowsPath = "/workflows"
 var (
 	// CreateWorkflowFields are the fields POST /workflows accepts.
 	CreateWorkflowFields = []string{
-		"name", "nodes", "connections", "settings",
+		"name", "description", "nodes", "connections", "settings",
 		"nodeGroups", "staticData", "pinData", "projectId", "parentFolderId",
 	}
 	// UpdateWorkflowFields are the fields PUT /workflows/{id} accepts. The
@@ -36,11 +36,20 @@ var (
 	}
 	// RequiredWorkflowFields must be present in every write document.
 	RequiredWorkflowFields = []string{"name", "nodes", "connections", "settings"}
-	// nullableWorkflowFields may be sent as JSON null. Any other field read
-	// back as null (description is, on a workflow that has none) is dropped
-	// rather than sent, because the schema types it as a string.
-	nullableWorkflowFields = []string{"staticData", "pinData"}
+	// nullableWorkflowFields may be sent as JSON null. A null parentFolderId
+	// moves the workflow to the project root. Any other field read back as
+	// null (description is, on a workflow that has none) is dropped rather
+	// than sent, because the schema types it as a string.
+	nullableWorkflowFields = []string{"staticData", "pinData", "parentFolderId"}
+	// readOnlyNodeFields are server-owned timestamps a node may carry on
+	// read; the write schema marks them read-only.
+	readOnlyNodeFields = []string{"createdAt", "updatedAt"}
 )
+
+// workflowSettingDefault is the read-side value that means "use the instance
+// default". The write schema does not accept it; omitting the key means the
+// same thing.
+const workflowSettingDefault = "DEFAULT"
 
 // WorkflowDocument is a workflow definition as raw JSON, keyed by field name.
 //
@@ -78,6 +87,11 @@ func (d WorkflowDocument) Set(field string, value any) error {
 // plus the names of the fields it dropped, sorted. Callers report the dropped
 // names: silently discarding part of a user's document would be worse than the
 // 400 it prevents.
+//
+// Within the kept fields, settings whose value is "DEFAULT" (reported as
+// settings.NAME) and node timestamps (reported as nodes[].createdAt and
+// nodes[].updatedAt) are removed too, and a null settings becomes {}: reads
+// may carry all three, writes reject them.
 func (d WorkflowDocument) ForCreate() (WorkflowDocument, []string) {
 	return d.forWrite(CreateWorkflowFields)
 }
@@ -95,14 +109,84 @@ func (d WorkflowDocument) forWrite(allowed []string) (WorkflowDocument, []string
 		switch {
 		case !slices.Contains(allowed, field):
 			dropped = append(dropped, field)
+		case field == "settings" && isJSONNull(raw):
+			// Settings are nullable on read but required on write; an empty
+			// object keeps every setting at the instance default.
+			kept[field] = json.RawMessage(`{}`)
 		case isJSONNull(raw) && !slices.Contains(nullableWorkflowFields, field):
 			dropped = append(dropped, field)
+		case field == "settings":
+			settings, removed := withoutDefaultSettings(raw)
+			kept[field] = settings
+			dropped = append(dropped, removed...)
+		case field == "nodes":
+			nodes, removed := withoutNodeTimestamps(raw)
+			kept[field] = nodes
+			dropped = append(dropped, removed...)
 		default:
 			kept[field] = raw
 		}
 	}
 	slices.Sort(dropped)
 	return kept, dropped
+}
+
+// withoutDefaultSettings removes settings whose value is the read-only
+// "DEFAULT" marker and returns the removed names as settings.NAME. Settings
+// that are not an object are returned unchanged for the server to judge; so
+// are settings with nothing to remove, byte for byte.
+func withoutDefaultSettings(raw json.RawMessage) (json.RawMessage, []string) {
+	var settings map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return raw, nil
+	}
+	var removed []string
+	for name, value := range settings {
+		var text string
+		if json.Unmarshal(value, &text) == nil && text == workflowSettingDefault {
+			delete(settings, name)
+			removed = append(removed, "settings."+name)
+		}
+	}
+	if len(removed) == 0 {
+		return raw, nil
+	}
+	encoded, err := json.Marshal(settings)
+	if err != nil {
+		return raw, nil
+	}
+	return encoded, removed
+}
+
+// withoutNodeTimestamps removes the read-only timestamps from every node and
+// returns the removed names once each, as nodes[].NAME. Nodes are decoded
+// one level deep only; anything that is not an array of objects, and any
+// array with nothing to remove, is returned unchanged.
+func withoutNodeTimestamps(raw json.RawMessage) (json.RawMessage, []string) {
+	var nodes []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &nodes); err != nil {
+		return raw, nil
+	}
+	var removed []string
+	for _, node := range nodes {
+		for _, field := range readOnlyNodeFields {
+			if _, ok := node[field]; !ok {
+				continue
+			}
+			delete(node, field)
+			if name := "nodes[]." + field; !slices.Contains(removed, name) {
+				removed = append(removed, name)
+			}
+		}
+	}
+	if len(removed) == 0 {
+		return raw, nil
+	}
+	encoded, err := json.Marshal(nodes)
+	if err != nil {
+		return raw, nil
+	}
+	return encoded, removed
 }
 
 // Validate rejects a write document the API would reject.
@@ -245,6 +329,23 @@ func (w Workflow) Document() (WorkflowDocument, error) {
 	return doc, nil
 }
 
+// ParentFolderID returns the id of the folder holding the workflow, from the
+// parentFolder field a list with includeParentFolder adds. It is empty at the
+// project root, and ok is false when the response has no parentFolder field.
+func (w Workflow) ParentFolderID() (id string, ok bool) {
+	raw, ok := w.Extra["parentFolder"]
+	if !ok {
+		return "", false
+	}
+	var folder *struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &folder); err != nil || folder == nil {
+		return "", true
+	}
+	return folder.ID, true
+}
+
 // WorkflowNode is the part of a node every node type has, which is what list
 // and summary output needs. The full node, including its parameters, stays in
 // [Workflow.Nodes].
@@ -319,6 +420,10 @@ type ListWorkflowsOptions struct {
 	// ExcludePinnedData drops pinned sample data from the response, which is
 	// the bulk of it on workflows that carry any.
 	ExcludePinnedData bool
+	// IncludeParentFolder adds parentFolder to each workflow: {"id": ...} for
+	// the containing folder, or null at the project root. It is kept in
+	// [Workflow.Extra]; read it with [Workflow.ParentFolderID].
+	IncludeParentFolder bool
 }
 
 // Validate rejects options the API would reject or that indicate a bug.
@@ -360,6 +465,9 @@ func (o ListWorkflowsOptions) apply() url.Values {
 	}
 	if o.ExcludePinnedData {
 		query.Set("excludePinnedData", "true")
+	}
+	if o.IncludeParentFolder {
+		query.Set("includeParentFolder", "true")
 	}
 	return query
 }

@@ -9,9 +9,9 @@ Update one folder. This is a partial update: --name renames the folder,
 and passing both does both. At least one of them is required; anything left out
 stays as it is.
 
-The API has no way to clear a parent, so a folder cannot be moved back to the
-project root with this command, and the target folder must be in the same
-project. Requires folder:update.
+--parent-folder-id 0 moves the folder back to the project root. Otherwise the
+target folder must be in the same project. Names are at most 128 characters.
+Requires folder:update.
 
 ```
 n8n folder update <project-id> <folder-id> [flags]
@@ -22,6 +22,7 @@ n8n folder update <project-id> <folder-id> [flags]
 ```
   n8n folder update PROJECT_ID FOLDER_ID --name "Paid invoices"
   n8n folder update PROJECT_ID FOLDER_ID --parent-folder-id OTHER_FOLDER_ID
+  n8n folder update PROJECT_ID FOLDER_ID --parent-folder-id 0
   n8n folder update PROJECT_ID FOLDER_ID --name Archive --parent-folder-id OTHER_FOLDER_ID --output json
 ```
 
@@ -32,7 +33,7 @@ n8n folder update <project-id> <folder-id> [flags]
   -h, --help                      help for update
       --name string               new folder name (required unless --parent-folder-id is given)
       --output string             output format: text or json (JSON is the updated folder) (default "text")
-      --parent-folder-id string   move the folder inside this folder (required unless --name is given)
+      --parent-folder-id string   move the folder inside this folder, or 0 for the project root (required unless --name is given)
       --url string                instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 

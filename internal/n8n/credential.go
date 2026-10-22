@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // CredentialsPath is the collection endpoint for credentials.
@@ -29,6 +31,13 @@ type Credential struct {
 	CreatedAt               string            `json:"createdAt,omitempty"`
 	UpdatedAt               string            `json:"updatedAt,omitempty"`
 	Shared                  []CredentialShare `json:"shared,omitempty"`
+	// Description is absent when the instance has credential descriptions
+	// disabled and null when the credential has none.
+	Description Nullable[string] `json:"description,omitzero"`
+	// UsageScope is project or instance; delete reports it.
+	UsageScope string `json:"usageScope,omitempty"`
+	// No Extra map here, unlike other read models: an unknown field may be
+	// secret-bearing, so anything not named above is discarded.
 }
 
 // CredentialShare identifies a project with which a credential is shared.
@@ -84,10 +93,20 @@ func (d CredentialData) LogValue() slog.Value    { return slog.StringValue(Redac
 func (d CredentialData) valid() bool             { return len(d.raw) != 0 }
 func (d CredentialData) reveal() json.RawMessage { return append(json.RawMessage(nil), d.raw...) }
 
+// MaxCredentialDescription is the longest description the API accepts, in
+// characters.
+const MaxCredentialDescription = 512
+
+// credentialIDPattern is the shape of a caller-chosen credential ID.
+var credentialIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,16}$`)
+
 // CreateCredentialRequest is the secret-bearing document used to create one
 // credential. Data is required; optional booleans retain omitted-vs-false.
+// ID is optional: omit it and the instance generates one.
 type CreateCredentialRequest struct {
+	ID           string         `json:"id,omitempty"`
 	Name         string         `json:"name"`
+	Description  *string        `json:"description,omitempty"`
 	Type         string         `json:"type"`
 	Data         CredentialData `json:"data"`
 	IsResolvable *bool          `json:"isResolvable,omitempty"`
@@ -96,8 +115,16 @@ type CreateCredentialRequest struct {
 
 // Validate rejects malformed create documents before transport.
 func (r CreateCredentialRequest) Validate() error {
+	if r.ID != "" && !credentialIDPattern.MatchString(r.ID) {
+		return fmt.Errorf("credential id %q is invalid: use 1 to 16 letters, digits, underscores or hyphens, or omit it to have one generated", r.ID)
+	}
 	if err := validateCredentialText("name", r.Name, true); err != nil {
 		return err
+	}
+	if r.Description != nil {
+		if err := validateCredentialDescription(*r.Description); err != nil {
+			return err
+		}
 	}
 	if err := validateCredentialText("type", r.Type, true); err != nil {
 		return err
@@ -113,13 +140,17 @@ func (r CreateCredentialRequest) Validate() error {
 
 // UpdateCredentialRequest contains fields accepted by PATCH /credentials/{id}.
 // Pointers preserve omitted values, especially false booleans and empty data.
+//
+// Description is tri-state: omitted keeps the stored value, null or blank
+// clears it.
 type UpdateCredentialRequest struct {
-	Name          *string         `json:"name,omitempty"`
-	Type          *string         `json:"type,omitempty"`
-	Data          *CredentialData `json:"data,omitempty"`
-	IsGlobal      *bool           `json:"isGlobal,omitempty"`
-	IsResolvable  *bool           `json:"isResolvable,omitempty"`
-	IsPartialData *bool           `json:"isPartialData,omitempty"`
+	Name          *string          `json:"name,omitempty"`
+	Description   Nullable[string] `json:"description,omitzero"`
+	Type          *string          `json:"type,omitempty"`
+	Data          *CredentialData  `json:"data,omitempty"`
+	IsGlobal      *bool            `json:"isGlobal,omitempty"`
+	IsResolvable  *bool            `json:"isResolvable,omitempty"`
+	IsPartialData *bool            `json:"isPartialData,omitempty"`
 }
 
 // Validate rejects invalid text and an invalid programmatically-built data
@@ -127,6 +158,11 @@ type UpdateCredentialRequest struct {
 func (r UpdateCredentialRequest) Validate() error {
 	if r.Name != nil {
 		if err := validateCredentialText("name", *r.Name, true); err != nil {
+			return err
+		}
+	}
+	if r.Description.Set && !r.Description.Null {
+		if err := validateCredentialDescription(r.Description.Value); err != nil {
 			return err
 		}
 	}
@@ -168,12 +204,14 @@ func (c *Client) CreateCredential(ctx context.Context, request CreateCredentialR
 		return nil, err
 	}
 	wire := struct {
+		ID           string          `json:"id,omitempty"`
 		Name         string          `json:"name"`
+		Description  *string         `json:"description,omitempty"`
 		Type         string          `json:"type"`
 		Data         json.RawMessage `json:"data"`
 		IsResolvable *bool           `json:"isResolvable,omitempty"`
 		ProjectID    string          `json:"projectId,omitempty"`
-	}{request.Name, request.Type, request.Data.reveal(), request.IsResolvable, request.ProjectID}
+	}{request.ID, request.Name, request.Description, request.Type, request.Data.reveal(), request.IsResolvable, request.ProjectID}
 	var created Credential
 	if _, err := c.Do(ctx, Request{Method: http.MethodPost, Path: CredentialsPath, Body: wire}, &created); err != nil {
 		return nil, redactCredentialAPIError(err)
@@ -203,13 +241,14 @@ func (c *Client) UpdateCredential(ctx context.Context, id string, request Update
 		return nil, err
 	}
 	wire := struct {
-		Name          *string         `json:"name,omitempty"`
-		Type          *string         `json:"type,omitempty"`
-		Data          json.RawMessage `json:"data,omitempty"`
-		IsGlobal      *bool           `json:"isGlobal,omitempty"`
-		IsResolvable  *bool           `json:"isResolvable,omitempty"`
-		IsPartialData *bool           `json:"isPartialData,omitempty"`
-	}{Name: request.Name, Type: request.Type, IsGlobal: request.IsGlobal, IsResolvable: request.IsResolvable, IsPartialData: request.IsPartialData}
+		Name          *string          `json:"name,omitempty"`
+		Description   Nullable[string] `json:"description,omitzero"`
+		Type          *string          `json:"type,omitempty"`
+		Data          json.RawMessage  `json:"data,omitempty"`
+		IsGlobal      *bool            `json:"isGlobal,omitempty"`
+		IsResolvable  *bool            `json:"isResolvable,omitempty"`
+		IsPartialData *bool            `json:"isPartialData,omitempty"`
+	}{Name: request.Name, Description: request.Description, Type: request.Type, IsGlobal: request.IsGlobal, IsResolvable: request.IsResolvable, IsPartialData: request.IsPartialData}
 	if request.Data != nil {
 		wire.Data = request.Data.reveal()
 	}
@@ -277,6 +316,13 @@ func (c *Client) TransferCredential(ctx context.Context, id, destinationProjectI
 
 func validateCredentialID(id string) error {
 	return validateCredentialText("ID", id, true)
+}
+
+func validateCredentialDescription(value string) error {
+	if n := utf8.RuneCountInString(value); n > MaxCredentialDescription {
+		return fmt.Errorf("credential description is %d characters; the API accepts at most %d", n, MaxCredentialDescription)
+	}
+	return nil
 }
 
 func validateCredentialText(field, value string, required bool) error {

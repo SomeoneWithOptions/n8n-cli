@@ -61,7 +61,9 @@ type EvaluationCancelResult struct {
 }
 
 // EvaluationTestCase is one case within an evaluation run. Inputs, outputs,
-// metrics and errors remain raw workflow-defined JSON.
+// metrics and errors remain raw workflow-defined JSON. ExecutionID is a JSON
+// number in the contract; json.Number also accepts the numeric strings older
+// instances sent.
 type EvaluationTestCase struct {
 	ID           string          `json:"id"`
 	Status       string          `json:"status"`
@@ -72,7 +74,7 @@ type EvaluationTestCase struct {
 	ErrorDetails json.RawMessage `json:"errorDetails,omitempty"`
 	Inputs       json.RawMessage `json:"inputs,omitempty"`
 	Outputs      json.RawMessage `json:"outputs,omitempty"`
-	ExecutionID  *string         `json:"executionId"`
+	ExecutionID  *json.Number    `json:"executionId"`
 }
 
 // ListEvaluationRunsOptions controls run status filtering and cursor

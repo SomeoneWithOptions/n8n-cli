@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -62,7 +63,7 @@ func TestListProjectsDefaultQuery(t *testing.T) {
 func TestCreateProjectSendsNameAndToleratesEmptyBody(t *testing.T) {
 	t.Run("body returned", func(t *testing.T) {
 		server := newCommunityPackageServer(t, packageJSONHandler(http.StatusCreated, projectResponse))
-		project, err := server.client(t).CreateProject(context.Background(), "Billing automation")
+		project, err := server.client(t).CreateProject(context.Background(), CreateProjectRequest{Name: "Billing automation"})
 		if err != nil {
 			t.Fatalf("CreateProject: %v", err)
 		}
@@ -80,7 +81,7 @@ func TestCreateProjectSendsNameAndToleratesEmptyBody(t *testing.T) {
 		server := newCommunityPackageServer(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 		})
-		project, err := server.client(t).CreateProject(context.Background(), "Billing automation")
+		project, err := server.client(t).CreateProject(context.Background(), CreateProjectRequest{Name: "Billing automation"})
 		if err != nil {
 			t.Fatalf("CreateProject: %v", err)
 		}
@@ -88,6 +89,46 @@ func TestCreateProjectSendsNameAndToleratesEmptyBody(t *testing.T) {
 			t.Errorf("project = %+v, want empty project for an empty 201", project)
 		}
 	})
+}
+
+const fullProjectResponse = `{
+  "id":"pr-1",
+  "name":"Marketing",
+  "type":"team",
+  "icon":{"type":"emoji","value":"📣"},
+  "description":null,
+  "customTelemetryTags":[],
+  "creatorId":"us-1",
+  "createdAt":"2026-01-01T00:00:00.000Z",
+  "updatedAt":"2026-01-02T00:00:00.000Z",
+  "role":"project:admin",
+  "scopes":["project:read","project:update"],
+  "fieldAddedLater":{"keep":"me"}
+}`
+
+func TestCreateProjectSendsOptionalFieldsAndKeepsReadFields(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusCreated, fullProjectResponse))
+	project, err := server.client(t).CreateProject(context.Background(), CreateProjectRequest{
+		Name:                "Marketing",
+		ID:                  "marketing",
+		Icon:                &ProjectIcon{Type: ProjectIconEmoji, Value: "📣", Color: "#ff6d5a"},
+		Description:         "Workflows the marketing team owns.",
+		CustomTelemetryTags: []ProjectTelemetryTag{{Key: "team", Value: "growth"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	_, body := server.last(t)
+	assertJSONEqual(t, `{"name":"Marketing","id":"marketing","icon":{"type":"emoji","value":"📣","color":"#ff6d5a"},`+
+		`"description":"Workflows the marketing team owns.","customTelemetryTags":[{"key":"team","value":"growth"}]}`, body)
+	if project.Icon.Value.Value != "📣" || !project.Description.Null || project.CreatorID.Value != "us-1" || project.Role != "project:admin" || len(project.Scopes) != 2 {
+		t.Errorf("project = %+v", project)
+	}
+	encoded, err := json.Marshal(project)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	assertJSONEqual(t, fullProjectResponse, string(encoded))
 }
 
 func TestProjectAndMemberRequests(t *testing.T) {
@@ -205,7 +246,31 @@ func TestProjectValidationBeforeRequest(t *testing.T) {
 			return err
 		},
 		"blank create name": func() error {
-			_, err := client.CreateProject(context.Background(), " ")
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: " "})
+			return err
+		},
+		"long create name": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: strings.Repeat("n", 256)})
+			return err
+		},
+		"long create ID": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: "n", ID: strings.Repeat("i", 37)})
+			return err
+		},
+		"unknown icon type": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: "n", Icon: &ProjectIcon{Type: "image", Value: "x"}})
+			return err
+		},
+		"empty icon value": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: "n", Icon: &ProjectIcon{Type: "emoji"}})
+			return err
+		},
+		"long description": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: "n", Description: strings.Repeat("d", 513)})
+			return err
+		},
+		"empty telemetry key": func() error {
+			_, err := client.CreateProject(context.Background(), CreateProjectRequest{Name: "n", CustomTelemetryTags: []ProjectTelemetryTag{{Value: "v"}}})
 			return err
 		},
 		"padded update name": func() error {

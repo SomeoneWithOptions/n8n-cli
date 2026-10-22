@@ -11,7 +11,9 @@ every cursor, capped at 10,000 workflows.
 Use this to find the workflow ID every other command takes. Narrow the result
 set with --active, --name, --tag and --project-id. Each row carries the full
 definition, so on a large instance prefer --exclude-pinned-data, which drops
-the pinned sample data that dominates the response. Requires workflow:list.
+the pinned sample data that dominates the response. --include-parent-folder
+adds the containing folder: a FOLDER column in text, parentFolder in JSON
+({"id": ...}, or null at the project root). Requires workflow:list.
 
 Script views print rows only, with no header, count or blank lines, so stdout
 pipes cleanly; the next cursor and any empty-result hint go to stderr, and an
@@ -42,27 +44,29 @@ n8n workflow list [flags]
   n8n workflow list --active true --limit 50
   n8n workflow list --tag production --tag finance
   n8n workflow list --project-id PROJECT_ID --exclude-pinned-data
+  n8n workflow list --project-id PROJECT_ID --include-parent-folder
   n8n workflow list --all --output json
 ```
 
 ### Options
 
 ```
-      --active string         only published (true) or unpublished (false) workflows (default: both)
-      --all                   follow every page instead of one (maximum 10,000 workflows; hitting it warns and sets JSON collection.truncated)
-      --brief                 print only ID and name, tab-separated and escaped, with no header (default: full table)
-      --context string        saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
-      --cursor string         pagination cursor returned by a previous list (default: the first page)
-      --exclude-pinned-data   leave pinned sample data out of the response (default: include it)
-  -h, --help                  help for list
-      --limit int             workflows per API page, 1 to 250 (default: server default of 100)
-      --name string           only workflows with exactly this name (default: any name)
-      --offset int            number of workflows to skip before the page (default: start at the first workflow)
-      --output string         output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
-      --project-id string     only workflows in this project, from 'n8n project list' (default: every project)
-      --quiet                 print only workflow IDs, one per line, with no header (default: full table)
-      --tag stringArray       only workflows carrying this tag name, repeatable and combined with AND (default: any tag)
-      --url string            instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
+      --active string           only published (true) or unpublished (false) workflows (default: both)
+      --all                     follow every page instead of one (maximum 10,000 workflows; hitting it warns and sets JSON collection.truncated)
+      --brief                   print only ID and name, tab-separated and escaped, with no header (default: full table)
+      --context string          saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
+      --cursor string           pagination cursor returned by a previous list (default: the first page)
+      --exclude-pinned-data     leave pinned sample data out of the response (default: include it)
+  -h, --help                    help for list
+      --include-parent-folder   add each workflow's containing folder, null at the project root (default: omit it)
+      --limit int               workflows per API page, 1 to 250 (default: server default of 100)
+      --name string             only workflows with exactly this name (default: any name)
+      --offset int              number of workflows to skip before the page (default: start at the first workflow)
+      --output string           output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
+      --project-id string       only workflows in this project, from 'n8n project list' (default: every project)
+      --quiet                   print only workflow IDs, one per line, with no header (default: full table)
+      --tag stringArray         only workflows carrying this tag name, repeatable and combined with AND (default: any tag)
+      --url string              instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 
 ### SEE ALSO

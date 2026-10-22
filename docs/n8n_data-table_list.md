@@ -9,9 +9,9 @@ time. Pass a returned cursor to --cursor for the next page, or use --all to
 follow every cursor, capped at 10,000 tables.
 
 Use this to find the table ID every other command takes. --name is the only
-filter the API documents. --sort-by takes field:asc or field:desc, for example
-name:asc or size:desc, where size orders by the reported sizeBytes. Requires
-dataTable:list and API-key authentication.
+filter the API documents. --sort-by takes name, createdAt, updatedAt or size,
+then :asc or :desc, for example name:asc or size:desc, where size orders by
+the reported sizeBytes. Requires dataTable:list and API-key authentication.
 
 With --all, JSON output adds a collection object. Its truncated field is true,
 and a warning goes to stderr, when the walk stopped at the 10,000-item limit
@@ -43,7 +43,7 @@ n8n data-table list [flags]
       --limit int        tables per API page, 1 to 250 (default: server default of 100)
       --name string      only tables with this name (default: every table)
       --output string    output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all) (default "text")
-      --sort-by string   sort order as field:asc or field:desc, e.g. name:asc or size:desc (default: the server's order)
+      --sort-by string   sort order, one of name:asc, name:desc, createdAt:asc, createdAt:desc, updatedAt:asc, updatedAt:desc, size:asc, size:desc (default: the server's order)
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
 ```
 

@@ -125,6 +125,57 @@ func TestCredentialUpdateFromPipedStdin(t *testing.T) {
 	}
 }
 
+func TestCredentialDescriptionAndCustomID(t *testing.T) {
+	response := strings.Replace(cliCredential, `"id":"credential-id",`, `"id":"credential-id","description":"Read-only key","usageScope":"instance",`, 1)
+
+	t.Run("create", func(t *testing.T) {
+		f := credentialFixture(t, response)
+		f.interactive = false
+		f.stdin = `{"id":"gh_prod-1","name":"GitHub","description":"Read-only key","type":"githubApi","data":{"accessToken":"` + cliCredentialSecret + `"}}`
+		got := f.run("credential", "create", "--stdin")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		assertCLIJSON(t, f.stdin, f.lastBody())
+		for _, want := range []string{"Description:", "Read-only key", "Usage scope:", "instance"} {
+			if !strings.Contains(got.stdout, want) {
+				t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+			}
+		}
+		assertNoCredentialSecret(t, got)
+	})
+
+	t.Run("update clears with null", func(t *testing.T) {
+		f := credentialFixture(t, response)
+		f.interactive = false
+		f.stdin = `{"description":null}`
+		got := f.run("credential", "update", "credential-id", "--stdin", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		assertCLIJSON(t, `{"description":null}`, f.lastBody())
+		if !strings.Contains(got.stdout, `"usageScope": "instance"`) || !strings.Contains(got.stdout, `"description": "Read-only key"`) {
+			t.Errorf("stdout lost description or usageScope:\n%s", got.stdout)
+		}
+	})
+
+	for name, stdin := range map[string]string{
+		"invalid id":       `{"id":"has space","name":"x","type":"t","data":{}}`,
+		"long description": `{"name":"x","type":"t","data":{},"description":"` + strings.Repeat("a", 513) + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := credentialFixture(t, response)
+			f.interactive = false
+			f.stdin = stdin
+			before := f.requestCount()
+			got := f.run("credential", "create", "--stdin")
+			if got.code != ExitError || f.requestCount() != before {
+				t.Errorf("result = %+v, want a local validation error", got)
+			}
+		})
+	}
+}
+
 func TestCredentialGetDropsUnexpectedData(t *testing.T) {
 	f := credentialFixture(t, cliCredential)
 	got := f.run("credential", "get", "credential-id", "--output", "json")

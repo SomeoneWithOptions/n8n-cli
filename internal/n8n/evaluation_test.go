@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -31,7 +32,7 @@ const evaluationCaseResponse = `{
   "errorDetails":null,
   "inputs":{"question":"hello"},
   "outputs":{"answer":"world"},
-  "executionId":"1000"
+  "executionId":1000
 }`
 
 func TestListEvaluationRunsQueryAndDecoding(t *testing.T) {
@@ -100,7 +101,7 @@ func TestEvaluationRequests(t *testing.T) {
 		}, method: http.MethodPost, path: "/workflows/wf%2Fone%3Fx=1/test-runs/run%2Ftwo%3Fx=2/cancel", result: `{"id":"run-1","status":"cancelled"}`, status: http.StatusAccepted},
 		{name: "cases", call: func(c *Client) error {
 			page, err := c.ListEvaluationCases(context.Background(), workflowID, runID, ListEvaluationCasesOptions{ListOptions: ListOptions{Limit: 25, Cursor: "case/cursor?x=1"}})
-			if err == nil && (len(page.Data) != 1 || page.Data[0].ID != "case-1" || page.Data[0].ExecutionID == nil || *page.Data[0].ExecutionID != "1000") {
+			if err == nil && (len(page.Data) != 1 || page.Data[0].ID != "case-1" || page.Data[0].ExecutionID == nil || page.Data[0].ExecutionID.String() != "1000") {
 				t.Errorf("page = %+v", page)
 			}
 			return err
@@ -122,6 +123,40 @@ func TestEvaluationRequests(t *testing.T) {
 			}
 			if body != "" {
 				t.Errorf("body = %q, want empty", body)
+			}
+		})
+	}
+}
+
+func TestEvaluationCaseExecutionIDShapes(t *testing.T) {
+	for name, tt := range map[string]struct {
+		raw  string
+		want string
+	}{
+		"number":         {raw: `1000`, want: "1000"},
+		"numeric string": {raw: `"1000"`, want: "1000"},
+		"null":           {raw: `null`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK,
+				`{"data":[{"id":"case-1","status":"success","executionId":`+tt.raw+`}],"nextCursor":null}`))
+			page, err := server.client(t).ListEvaluationCases(context.Background(), "wf-1", "run-1", ListEvaluationCasesOptions{})
+			if err != nil {
+				t.Fatalf("ListEvaluationCases: %v", err)
+			}
+			got := page.Data[0].ExecutionID
+			if tt.want == "" {
+				if got != nil {
+					t.Errorf("executionId = %v, want nil", *got)
+				}
+				return
+			}
+			if got == nil || got.String() != tt.want {
+				t.Errorf("executionId = %v, want %s", got, tt.want)
+			}
+			encoded, err := json.Marshal(page.Data[0])
+			if err != nil || !strings.Contains(string(encoded), `"executionId":1000`) {
+				t.Errorf("encoded = %s (error: %v), want numeric executionId", encoded, err)
 			}
 		})
 	}

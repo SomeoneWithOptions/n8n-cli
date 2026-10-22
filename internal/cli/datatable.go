@@ -93,9 +93,9 @@ func newDataTableListCommand(opts Options) *cobra.Command {
 			"time. Pass a returned cursor to --cursor for the next page, or use --all to\n" +
 			"follow every cursor, capped at 10,000 tables.\n\n" +
 			"Use this to find the table ID every other command takes. --name is the only\n" +
-			"filter the API documents. --sort-by takes field:asc or field:desc, for example\n" +
-			"name:asc or size:desc, where size orders by the reported sizeBytes. Requires\n" +
-			"dataTable:list and API-key authentication.\n\n" + cursorCollectionHelp,
+			"filter the API documents. --sort-by takes name, createdAt, updatedAt or size,\n" +
+			"then :asc or :desc, for example name:asc or size:desc, where size orders by\n" +
+			"the reported sizeBytes. Requires dataTable:list and API-key authentication.\n\n" + cursorCollectionHelp,
 		Example: "  n8n data-table list\n" +
 			"  n8n data-table list --name customers\n" +
 			"  n8n data-table list --sort-by size:desc --limit 50 --output json\n" +
@@ -110,7 +110,7 @@ func newDataTableListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: the first page)")
 	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 tables; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().StringVar(&f.name, "name", "", "only tables with this name (default: every table)")
-	cmd.Flags().StringVar(&f.sortBy, "sort-by", "", "sort order as field:asc or field:desc, e.g. name:asc or size:desc (default: the server's order)")
+	cmd.Flags().StringVar(&f.sortBy, "sort-by", "", "sort order, one of "+strings.Join(n8n.DataTableSortOrders, ", ")+" (default: the server's order)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
 }
@@ -191,11 +191,13 @@ func newDataTableCreateCommand(opts Options) *cobra.Command {
 		Short: "Create a data table",
 		Long: "Create one data table with its columns. Pass --column once per column as\n" +
 			"NAME:TYPE; at least one is required, and the column order is the order given.\n\n" +
-			"Documented types are string, number, boolean, date and json, though instances\n" +
-			"can reject json with a 400. Without --project-id the table is created in the\n" +
-			"caller's personal project. The system columns id, createdAt and updatedAt are\n" +
-			"added by n8n; do not declare them. Add more columns later with\n" +
-			"'n8n data-table column create'. Requires dataTable:create.",
+			"Types are " + strings.Join(n8n.DataTableColumnTypes, ", ") + "; the API no longer accepts json,\n" +
+			"so store JSON in a string column. Column names start with a letter, use only\n" +
+			"letters, digits and underscores, and are at most 63 characters. Without\n" +
+			"--project-id the table is created in the caller's personal project. The\n" +
+			"system columns id, createdAt and updatedAt are added by n8n; do not declare\n" +
+			"them. Add more columns later with 'n8n data-table column create'. Requires\n" +
+			"dataTable:create.",
 		Example: "  n8n data-table create customers --column email:string --column age:number\n" +
 			"  n8n data-table create orders --column total:number --column paid:boolean --column placed:date\n" +
 			"  n8n data-table create customers --column email:string --project-id PROJECT_ID --output json",
@@ -205,7 +207,7 @@ func newDataTableCreateCommand(opts Options) *cobra.Command {
 		},
 	}
 	f.instance.register(cmd)
-	cmd.Flags().StringArrayVar(&f.columns, "column", nil, "column as NAME:TYPE, repeatable and required, e.g. email:string (types: "+strings.Join(n8n.DataTableCreateColumnTypes, ", ")+")")
+	cmd.Flags().StringArrayVar(&f.columns, "column", nil, "column as NAME:TYPE, repeatable and required, e.g. email:string (types: "+strings.Join(n8n.DataTableColumnTypes, ", ")+")")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "project to create the table in (default: the caller's personal project)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the created table)")
 	return cmd
@@ -244,7 +246,7 @@ func dataTableColumnDefinitions(values []string) ([]n8n.DataTableColumnDefinitio
 	for _, value := range values {
 		name, columnType, ok := strings.Cut(value, ":")
 		if !ok {
-			return nil, fmt.Errorf("--column %q is not NAME:TYPE: pass the column name, a colon, then one of %s", value, strings.Join(n8n.DataTableCreateColumnTypes, ", "))
+			return nil, fmt.Errorf("--column %q is not NAME:TYPE: pass the column name, a colon, then one of %s", value, strings.Join(n8n.DataTableColumnTypes, ", "))
 		}
 		if seen[name] {
 			return nil, fmt.Errorf("--column %q is given twice", name)
@@ -1241,7 +1243,9 @@ func newDataTableColumnCreateCommand(opts Options) *cobra.Command {
 		Short: "Add a column to a data table",
 		Long: "Add one column to an existing data table. The type is one of " +
 			strings.Join(n8n.DataTableColumnTypes, ", ") + "\n" +
-			"and cannot be changed afterwards; recreate the column to change it.\n\n" +
+			"and cannot be changed afterwards; recreate the column to change it. The name\n" +
+			"starts with a letter, uses only letters, digits and underscores, and is at\n" +
+			"most 63 characters.\n\n" +
 			"Without --index the column is appended after the existing ones. Existing rows\n" +
 			"get an empty value in the new column. A name already used in the table comes\n" +
 			"back as a 409. Requires dataTableColumn:create.",

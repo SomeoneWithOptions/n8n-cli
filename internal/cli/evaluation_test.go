@@ -20,7 +20,7 @@ const cliEvaluationCase = `{
   "id":"case-1","status":"success","runAt":"2026-09-18T10:00:00Z",
   "completedAt":"2026-09-18T10:00:10Z","metrics":{"quality":1},
   "errorCode":null,"errorDetails":null,"inputs":{"question":"hello"},
-  "outputs":{"answer":"world"},"executionId":"1000"
+  "outputs":{"answer":"world"},"executionId":1000
 }`
 
 func evaluationFixture(t *testing.T, body string) *fixture {
@@ -166,6 +166,9 @@ func TestEvaluationCaseListPaginationAndJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &page); err != nil || len(page.Data) != 2 || page.Data[0].ID != "case-1" || !strings.Contains(string(page.Data[0].Inputs), `"question"`) {
 		t.Errorf("stdout = %q (error: %v)", got.stdout, err)
 	}
+	if !strings.Contains(got.stdout, `"executionId": 1000`) && !strings.Contains(got.stdout, `"executionId":1000`) {
+		t.Errorf("stdout lost numeric executionId:\n%s", got.stdout)
+	}
 	first := f.requests[len(f.requests)-2]
 	if first.URL.EscapedPath() != n8n.BasePath+"/workflows/wf%2Fone%3Fx=1/test-runs/run%2Ftwo%3Fx=2/test-cases" || first.URL.Query().Get("limit") != "1" {
 		t.Errorf("first request = %s?%s", first.URL.EscapedPath(), first.URL.RawQuery)
@@ -173,6 +176,19 @@ func TestEvaluationCaseListPaginationAndJSON(t *testing.T) {
 	second := f.lastRequest()
 	if second.URL.Query().Get("cursor") != "next" || second.URL.Query().Get("limit") != "1" {
 		t.Errorf("second query = %q", second.URL.RawQuery)
+	}
+}
+
+func TestEvaluationCaseListTextShowsNumericExecution(t *testing.T) {
+	f := evaluationFixture(t, `{"data":[`+cliEvaluationCase+`],"nextCursor":null}`)
+	got := f.run("evaluation", "case", "list", "wf-1", "run-1")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{"EXECUTION", "case-1", "1000"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+		}
 	}
 }
 
