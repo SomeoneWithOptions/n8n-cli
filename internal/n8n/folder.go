@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // DefaultFolderPageSize is the page size used when following every page. The
@@ -171,6 +172,16 @@ func (o ListFoldersOptions) apply() (url.Values, error) {
 	return query, nil
 }
 
+// Folder field limits from the contract.
+const (
+	MaxFolderName = 128
+	MaxFolderID   = 36
+)
+
+// FolderRootID is the parent folder ID that moves a folder to the project
+// root in an update.
+const FolderRootID = "0"
+
 // CreateFolderRequest is the write document for folder creation. ParentFolderID
 // is optional: without it the folder is created at the project root.
 type CreateFolderRequest struct {
@@ -180,16 +191,15 @@ type CreateFolderRequest struct {
 
 // Validate rejects a malformed creation before transport.
 func (r CreateFolderRequest) Validate() error {
-	if err := validateFolderText("name", r.Name, true); err != nil {
+	if err := validateFolderName(r.Name, true); err != nil {
 		return err
 	}
-	return validateFolderText("parent folder ID", r.ParentFolderID, false)
+	return validateFolderLinkedID("parent folder ID", r.ParentFolderID)
 }
 
 // UpdateFolderRequest is the partial write document for a folder update. At
 // least one field must be set, because the API requires a non-empty document.
-// There is no way to clear a parent: moving a folder back to the project root
-// is not part of this contract.
+// ParentFolderID [FolderRootID] moves the folder to the project root.
 type UpdateFolderRequest struct {
 	Name           string `json:"name,omitempty"`
 	ParentFolderID string `json:"parentFolderId,omitempty"`
@@ -200,7 +210,7 @@ func (r UpdateFolderRequest) Validate() error {
 	if r.Name == "" && r.ParentFolderID == "" {
 		return fmt.Errorf("a folder update needs a new name or a new parent folder ID")
 	}
-	if err := validateFolderText("name", r.Name, false); err != nil {
+	if err := validateFolderName(r.Name, false); err != nil {
 		return err
 	}
 	return validateFolderText("parent folder ID", r.ParentFolderID, false)
@@ -298,7 +308,7 @@ func (c *Client) DeleteFolder(ctx context.Context, projectID, folderID, transfer
 	if err := validateFolderID(folderID); err != nil {
 		return err
 	}
-	if err := validateFolderText("transfer target folder ID", transferToFolderID, false); err != nil {
+	if err := validateFolderLinkedID("transfer target folder ID", transferToFolderID); err != nil {
 		return err
 	}
 	query := url.Values{}
@@ -403,6 +413,28 @@ func CollectFoldersWithInfo(ctx context.Context, fetch FolderPageFunc, opts List
 func validateFolderProjectID(id string) error { return validateFolderText("project ID", id, true) }
 
 func validateFolderID(id string) error { return validateFolderText("ID", id, true) }
+
+func validateFolderName(name string, required bool) error {
+	if err := validateFolderText("name", name, required); err != nil {
+		return err
+	}
+	if n := utf8.RuneCountInString(name); n > MaxFolderName {
+		return fmt.Errorf("folder name is %d characters; the API accepts at most %d", n, MaxFolderName)
+	}
+	return nil
+}
+
+// validateFolderLinkedID checks an optional folder ID sent in a body or
+// query, where the contract caps the length.
+func validateFolderLinkedID(field, id string) error {
+	if err := validateFolderText(field, id, false); err != nil {
+		return err
+	}
+	if len(id) > MaxFolderID {
+		return fmt.Errorf("folder %s is %d characters; the API accepts at most %d", field, len(id), MaxFolderID)
+	}
+	return nil
+}
 
 func validateFolderText(field, value string, required bool) error {
 	if required && strings.TrimSpace(value) == "" {

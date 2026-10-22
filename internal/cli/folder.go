@@ -349,11 +349,12 @@ func newFolderUpdateCommand(opts Options) *cobra.Command {
 			"--parent-folder-id moves it (with everything inside it) under another folder,\n" +
 			"and passing both does both. At least one of them is required; anything left out\n" +
 			"stays as it is.\n\n" +
-			"The API has no way to clear a parent, so a folder cannot be moved back to the\n" +
-			"project root with this command, and the target folder must be in the same\n" +
-			"project. Requires folder:update.",
+			"--parent-folder-id 0 moves the folder back to the project root. Otherwise the\n" +
+			"target folder must be in the same project. Names are at most 128 characters.\n" +
+			"Requires folder:update.",
 		Example: "  n8n folder update PROJECT_ID FOLDER_ID --name \"Paid invoices\"\n" +
 			"  n8n folder update PROJECT_ID FOLDER_ID --parent-folder-id OTHER_FOLDER_ID\n" +
+			"  n8n folder update PROJECT_ID FOLDER_ID --parent-folder-id 0\n" +
 			"  n8n folder update PROJECT_ID FOLDER_ID --name Archive --parent-folder-id OTHER_FOLDER_ID --output json",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -362,7 +363,7 @@ func newFolderUpdateCommand(opts Options) *cobra.Command {
 	}
 	f.write.instance.register(cmd)
 	cmd.Flags().StringVar(&f.name, "name", "", "new folder name (required unless --parent-folder-id is given)")
-	cmd.Flags().StringVar(&f.write.parent, "parent-folder-id", "", "move the folder inside this folder (required unless --name is given)")
+	cmd.Flags().StringVar(&f.write.parent, "parent-folder-id", "", "move the folder inside this folder, or 0 for the project root (required unless --name is given)")
 	cmd.Flags().StringVar(&f.write.output, "output", outputText, "output format: text or json (JSON is the updated folder)")
 	return cmd
 }

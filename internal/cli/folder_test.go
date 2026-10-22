@@ -302,6 +302,15 @@ func TestFolderDeleteConfirmationAndTransfer(t *testing.T) {
 	})
 }
 
+func TestFolderUpdateMovesToProjectRoot(t *testing.T) {
+	f := folderFixture(t, cliFolder)
+	got := f.run("folder", "update", "pr-1", "fo-1", "--parent-folder-id", n8n.FolderRootID)
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	assertCLIJSON(t, `{"parentFolderId":"0"}`, f.lastBody())
+}
+
 func TestFolderValidationBeforeRequest(t *testing.T) {
 	tests := []struct {
 		name string
@@ -309,6 +318,7 @@ func TestFolderValidationBeforeRequest(t *testing.T) {
 		want string
 	}{
 		{name: "blank project", args: []string{"folder", "list", " "}, want: "project ID is required"},
+		{name: "long name", args: []string{"folder", "create", "pr-1", strings.Repeat("n", 129)}, want: "at most 128"},
 		{name: "unknown output", args: []string{"folder", "list", "pr-1", "--output", "yaml"}, want: "unknown output format"},
 		{name: "negative skip", args: []string{"folder", "list", "pr-1", "--skip", "-1"}, want: "skip must not be negative"},
 		{name: "negative take", args: []string{"folder", "list", "pr-1", "--take", "-1"}, want: "take must not be negative"},
