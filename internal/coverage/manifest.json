@@ -1760,8 +1760,8 @@
       "scope": "gitConnection:push,gitConnection:pull",
       "availability": "both",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project changes",
+      "status": "implemented"
     },
     {
       "operationId": "continueApplyPackage",
@@ -1771,8 +1771,8 @@
       "scope": "gitConnection:pull",
       "availability": "both",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion apply-continue",
+      "status": "implemented"
     },
     {
       "operationId": "applyProjectSelection",
@@ -1782,8 +1782,8 @@
       "scope": "gitConnection:pull",
       "availability": "both",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project apply",
+      "status": "implemented"
     },
     {
       "operationId": "continueApplyProjectSelection",
@@ -1793,8 +1793,8 @@
       "scope": "gitConnection:pull",
       "availability": "both",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project apply-continue",
+      "status": "implemented"
     },
     {
       "operationId": "promoteProjectSelection",
@@ -1804,8 +1804,8 @@
       "scope": "gitConnection:push",
       "availability": "both",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion project promote",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionProviderRepositories",
@@ -1815,8 +1815,8 @@
       "scope": "gitConnection:discover",
       "availability": "upstream-only",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider repositories",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionProviderRepositoryBranches",
@@ -1826,8 +1826,8 @@
       "scope": "gitConnection:discover",
       "availability": "upstream-only",
       "phase": 31,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion provider branches",
+      "status": "implemented"
     },
     {
       "operationId": "listNodeTypePolicyDocuments",

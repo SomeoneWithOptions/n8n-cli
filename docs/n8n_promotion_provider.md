@@ -7,7 +7,8 @@ Manage promotion providers
 Manage promotion providers: the stored Git credentials one or more
 connections sync through. Start with 'list' to find the provider ID,
 then 'get' to read it, 'create' to add one, or 'update' to rename it
-or replace its credential.
+or replace its credential. Use repositories then branches to discover
+GitLab targets before creating a connection.
 
 Replacing a provider credential affects every connection attached to
 it, so 'update' asks for confirmation. Deleting a provider removes it
@@ -35,9 +36,11 @@ n8n promotion provider [flags]
 ### SEE ALSO
 
 * [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion provider branches](n8n_promotion_provider_branches.md)	 - List branches of a GitLab repository
 * [n8n promotion provider create](n8n_promotion_provider_create.md)	 - Create a promotion provider
 * [n8n promotion provider delete](n8n_promotion_provider_delete.md)	 - Permanently delete a promotion provider
 * [n8n promotion provider get](n8n_promotion_provider_get.md)	 - Show one promotion provider
 * [n8n promotion provider list](n8n_promotion_provider_list.md)	 - List promotion providers
+* [n8n promotion provider repositories](n8n_promotion_provider_repositories.md)	 - List repositories available to a GitLab provider
 * [n8n promotion provider update](n8n_promotion_provider_update.md)	 - Update a promotion provider
 

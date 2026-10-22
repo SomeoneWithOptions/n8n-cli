@@ -4,13 +4,15 @@ Manage promotion providers, connections, and apply/promote sync
 
 ### Synopsis
 
-Manage the upstream-only Promotions generation of Git sync.
+Manage Promotions Git sync and selected project workflows.
 Start with 'provider list' to find a provider, then 'connection list'
 to find a connection. Create a provider first, then a connection on
 it, then a config per direction under 'config', clone each checkout
 under 'checkout', link team projects to a projects-scope connection
 under 'project', then 'promote' the instance to the remote or 'apply'
-the remote into the instance.
+the remote into the instance. For selected workflows, start with
+project changes, then project apply or project promote. Use apply-continue
+after resolving a blocked apply.
 
 'promote' and 'apply' run on the instance connection. 'promote'
 commits and pushes every team project to the remote; 'apply' checks the
@@ -50,6 +52,7 @@ n8n promotion [flags]
 
 * [n8n](n8n.md)	 - Command-line client for the n8n API
 * [n8n promotion apply](n8n_promotion_apply.md)	 - Apply the Git remote into this instance
+* [n8n promotion apply-continue](n8n_promotion_apply-continue.md)	 - Continue a reviewed connection apply after binding setup
 * [n8n promotion checkout](n8n_promotion_checkout.md)	 - Manage promotion checkouts
 * [n8n promotion config](n8n_promotion_config.md)	 - Manage promotion direction configs
 * [n8n promotion connection](n8n_promotion_connection.md)	 - Manage promotion connections

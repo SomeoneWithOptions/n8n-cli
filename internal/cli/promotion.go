@@ -29,13 +29,15 @@ func newPromotionCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promotion",
 		Short: "Manage promotion providers, connections, and apply/promote sync",
-		Long: "Manage the upstream-only Promotions generation of Git sync.\n" +
+		Long: "Manage Promotions Git sync and selected project workflows.\n" +
 			"Start with 'provider list' to find a provider, then 'connection list'\n" +
 			"to find a connection. Create a provider first, then a connection on\n" +
 			"it, then a config per direction under 'config', clone each checkout\n" +
 			"under 'checkout', link team projects to a projects-scope connection\n" +
 			"under 'project', then 'promote' the instance to the remote or 'apply'\n" +
-			"the remote into the instance.\n\n" +
+			"the remote into the instance. For selected workflows, start with\n" +
+			"project changes, then project apply or project promote. Use apply-continue\n" +
+			"after resolving a blocked apply.\n\n" +
 			"'promote' and 'apply' run on the instance connection. 'promote'\n" +
 			"commits and pushes every team project to the remote; 'apply' checks the\n" +
 			"package and imports with overwrite behavior, creating, updating, or\n" +
@@ -65,6 +67,7 @@ func newPromotionCommand(opts Options) *cobra.Command {
 		newPromotionProjectCommand(opts),
 		newPromotionPromoteCommand(opts),
 		newPromotionApplyCommand(opts),
+		newPromotionSelectionCommand(opts, "apply-continue", false),
 	)
 	return cmd
 }
@@ -78,7 +81,8 @@ func newPromotionProviderCommand(opts Options) *cobra.Command {
 		Long: "Manage promotion providers: the stored Git credentials one or more\n" +
 			"connections sync through. Start with 'list' to find the provider ID,\n" +
 			"then 'get' to read it, 'create' to add one, or 'update' to rename it\n" +
-			"or replace its credential.\n\n" +
+			"or replace its credential. Use repositories then branches to discover\n" +
+			"GitLab targets before creating a connection.\n\n" +
 			"Replacing a provider credential affects every connection attached to\n" +
 			"it, so 'update' asks for confirmation. Deleting a provider removes it\n" +
 			"while attached connections keep their content but lose their credential.",
@@ -95,6 +99,8 @@ func newPromotionProviderCommand(opts Options) *cobra.Command {
 		newPromotionProviderGetCommand(opts),
 		newPromotionProviderUpdateCommand(opts),
 		newPromotionProviderDeleteCommand(opts),
+		newPromotionDiscoveryCommand(opts, false),
+		newPromotionDiscoveryCommand(opts, true),
 	)
 	return cmd
 }
@@ -1280,7 +1286,10 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 			"project elsewhere answers 409. Removing unlinks the project; its\n" +
 			"instance content is untouched. Project IDs come from 'n8n project\n" +
 			"list'. Adding and listing need gitConnection:read for reads and\n" +
-			"gitConnection:manageProjects for writes.",
+			"gitConnection:manageProjects for writes. For selected workflow sync,\n" +
+			"start with changes PROJECT_ID apply|promote, then apply or promote.\n" +
+			"Selection commands take a project ID first and resolve its own connection\n" +
+			"before falling back to the instance connection.",
 		Example: "  n8n promotion project list CONNECTION_ID\n" +
 			"  n8n promotion project add CONNECTION_ID PROJECT_ID\n" +
 			"  n8n promotion project remove CONNECTION_ID PROJECT_ID --yes",
@@ -1291,6 +1300,10 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 		newPromotionProjectListCommand(opts),
 		newPromotionProjectAddCommand(opts),
 		newPromotionProjectRemoveCommand(opts),
+		newPromotionProjectChangesCommand(opts),
+		newPromotionSelectionCommand(opts, "apply", true),
+		newPromotionSelectionCommand(opts, "apply-continue", true),
+		newPromotionSelectionCommand(opts, "promote", true),
 	)
 	return cmd
 }
@@ -1634,16 +1647,21 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 // transport and validation errors.
 type promotionApplyStoppedError struct {
 	connectionID, status string
+	project              bool
 }
 
 func (e *promotionApplyStoppedError) Error() string {
+	target := "connection"
+	if e.project {
+		target = "project"
+	}
 	switch e.status {
 	case n8n.PromotionApplyStatusBlocked:
-		return fmt.Sprintf("promotion apply of connection %s was blocked at preflight; nothing was applied", e.connectionID)
+		return fmt.Sprintf("promotion apply of %s %s was blocked at preflight; nothing was applied", target, e.connectionID)
 	case n8n.PromotionApplyStatusSourceChanged:
-		return fmt.Sprintf("promotion apply of connection %s stopped because the source branch moved; nothing was applied", e.connectionID)
+		return fmt.Sprintf("promotion apply of %s %s stopped because the source branch moved; nothing was applied", target, e.connectionID)
 	default:
-		return fmt.Sprintf("promotion apply of connection %s answered unknown status %q; check the instance before assuming anything was applied", e.connectionID, e.status)
+		return fmt.Sprintf("promotion apply of %s %s answered unknown status %q; check the instance before assuming anything was applied", target, e.connectionID, e.status)
 	}
 }
 
@@ -1661,6 +1679,14 @@ func (e *promotionApplyStoppedError) exitCode() int {
 // finishPromotionApply writes the next-step hint for a result that wrote
 // nothing and returns the matching error; an applied result returns nil.
 func finishPromotionApply(opts Options, id string, result *n8n.ApplyPromotionResult) error {
+	return finishPromotionApplyTarget(opts, id, result, false)
+}
+
+func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromotionResult, project bool) error {
+	prefix := "n8n promotion "
+	if project {
+		prefix += "project "
+	}
 	if result.Applied() {
 		return nil
 	}
@@ -1671,14 +1697,17 @@ func finishPromotionApply(opts Options, id string, result *n8n.ApplyPromotionRes
 		if promotionNeedsConfirmation(result.Preflight) {
 			fmt.Fprintln(opts.Streams.Err, "project-deletion and destructive-change conflicts are applied only with explicit confirmation when the apply is continued.")
 		}
-		fmt.Fprintf(opts.Streams.Err, "Then continue the apply with expected source configId=%s branchName=%s commitSha=%s (an 'apply-continue' command is upcoming in this CLI).\n",
-			emptyDash(source.ConfigID), emptyDash(source.BranchName), emptyDash(source.CommitSHA))
+		fmt.Fprintf(opts.Streams.Err, "Then run '%sapply-continue %s --expected-from blocked.json' using the saved --output json result (configId=%s branchName=%s commitSha=%s).\n",
+			prefix, id, emptyDash(source.ConfigID), emptyDash(source.BranchName), emptyDash(source.CommitSHA))
+		if project {
+			fmt.Fprintln(opts.Streams.Err, "Resend the same full selection with repeated --workflow-id flags or --input.")
+		}
 	case n8n.PromotionApplyStatusSourceChanged:
-		fmt.Fprintf(opts.Streams.Err, "Nothing was applied: the branch moved since it was reviewed. Review the branch again, then re-run 'n8n promotion apply %s'.\n", id)
+		fmt.Fprintf(opts.Streams.Err, "Nothing was applied: the branch moved since it was reviewed. Review the branch again, then re-run '%sapply %s'.\n", prefix, id)
 	default:
 		fmt.Fprintln(opts.Streams.Err, "This CLI does not know the apply status; read the full result with --output json.")
 	}
-	return &promotionApplyStoppedError{connectionID: id, status: result.Status}
+	return &promotionApplyStoppedError{connectionID: id, status: result.Status, project: project}
 }
 
 func promotionNeedsConfirmation(preflight *n8n.PromotionApplyPreflight) bool {
@@ -2152,9 +2181,9 @@ func promotionScope(action string) string {
 		return "gitConnection:clone"
 	case "project add", "project remove":
 		return "gitConnection:manageProjects"
-	case "promote":
+	case "promote", "project promote", "project changes promote":
 		return "gitConnection:push"
-	case "apply":
+	case "apply", "apply-continue", "project apply", "project apply-continue", "project changes apply":
 		return "gitConnection:pull"
 	case "provider repositories", "provider branches":
 		return "gitConnection:discover"
