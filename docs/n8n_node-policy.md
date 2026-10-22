@@ -45,6 +45,8 @@ n8n node-policy [flags]
 ### SEE ALSO
 
 * [n8n](n8n.md)	 - Command-line client for the n8n API
+* [n8n node-policy attachment](n8n_node-policy_attachment.md)	 - Manage attached node type policy documents
+* [n8n node-policy document](n8n_node-policy_document.md)	 - Manage reusable node type policy documents
 * [n8n node-policy instance](n8n_node-policy_instance.md)	 - Manage the instance node type policy
 * [n8n node-policy project](n8n_node-policy_project.md)	 - Manage a project's node type policy
 
