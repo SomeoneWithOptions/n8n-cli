@@ -19,6 +19,8 @@ const otelSettingsResponse = `{
   "tracesSampleRate":0.25,
   "startupConnectivityTimeoutMs":2500,
   "includeNodeSpans":false,
+  "emitWorkflowStartSpan":true,
+  "emitNodeStartSpan":false,
   "injectOutbound":true,
   "productionExecutionsOnly":true
 }`
@@ -36,6 +38,8 @@ func validOtelUpdateRequest() UpdateOtelSettingsRequest {
 		TracesSampleRate:             ptr(0.0),
 		StartupConnectivityTimeoutMs: ptr(0),
 		IncludeNodeSpans:             ptr(false),
+		EmitWorkflowStartSpan:        ptr(false),
+		EmitNodeStartSpan:            ptr(false),
 		InjectOutbound:               ptr(false),
 		ProductionExecutionsOnly:     ptr(false),
 	}
@@ -70,6 +74,26 @@ func TestGetOtelSettings(t *testing.T) {
 		!settings.InjectOutbound || !settings.ProductionExecutionsOnly {
 		t.Errorf("settings = %+v", settings)
 	}
+	if settings.EmitWorkflowStartSpan == nil || !*settings.EmitWorkflowStartSpan || settings.EmitNodeStartSpan == nil || *settings.EmitNodeStartSpan {
+		t.Errorf("start spans = %v, %v; want true, false", settings.EmitWorkflowStartSpan, settings.EmitNodeStartSpan)
+	}
+}
+
+func TestGetOtelSettingsFromOlderInstanceOmitsStartSpans(t *testing.T) {
+	body := strings.Replace(otelSettingsResponse, `"emitWorkflowStartSpan":true,`, "", 1)
+	body = strings.Replace(body, `"emitNodeStartSpan":false,`, "", 1)
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+	settings, err := server.client(t).GetOtelSettings(context.Background())
+	if err != nil {
+		t.Fatalf("GetOtelSettings: %v", err)
+	}
+	if settings.EmitWorkflowStartSpan != nil || settings.EmitNodeStartSpan != nil {
+		t.Errorf("absent start spans decoded as %v, %v; want nil", settings.EmitWorkflowStartSpan, settings.EmitNodeStartSpan)
+	}
+	encoded, _ := json.Marshal(settings)
+	if strings.Contains(string(encoded), "StartSpan") {
+		t.Errorf("absent start spans were invented on re-encode: %s", encoded)
+	}
 }
 
 func TestGetOtelSettingsAppliesDefaultProtocol(t *testing.T) {
@@ -103,6 +127,17 @@ func TestUpdateOtelSettingsFullReplacement(t *testing.T) {
 		sent["includeNodeSpans"] != false || sent["injectOutbound"] != false || sent["productionExecutionsOnly"] != false {
 		t.Errorf("false and zero replacement values not preserved: %#v", sent)
 	}
+	for _, field := range []string{"emitWorkflowStartSpan", "emitNodeStartSpan"} {
+		if value, ok := sent[field]; !ok || value != false {
+			t.Errorf("%s = %#v (present %t), want explicit false", field, value, ok)
+		}
+	}
+	if len(sent) != 13 {
+		t.Errorf("replacement has %d fields, want 13: %#v", len(sent), sent)
+	}
+	if got := request.MissingStartSpans(); len(got) != 0 {
+		t.Errorf("complete request reports missing %v", got)
+	}
 	if settings.ExporterProtocol != OtelProtocolGRPC || settings.TracesSampleRate != 0.25 {
 		t.Errorf("decoded settings = %+v", settings)
 	}
@@ -126,6 +161,22 @@ func TestUpdateOtelSettingsOmitsProtocolForServerDefault(t *testing.T) {
 	}
 	if settings.ExporterProtocol != OtelProtocolHTTPProtobuf {
 		t.Errorf("response protocol = %q, want default", settings.ExporterProtocol)
+	}
+}
+
+func TestUpdateOtelSettingsOmitsUnsetStartSpans(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, otelSettingsResponse))
+	request := validOtelUpdateRequest()
+	request.EmitWorkflowStartSpan = nil
+	request.EmitNodeStartSpan = nil
+	if got := request.MissingStartSpans(); len(got) != 2 || got[0] != "emitWorkflowStartSpan" || got[1] != "emitNodeStartSpan" {
+		t.Errorf("MissingStartSpans = %v", got)
+	}
+	if _, err := server.client(t).UpdateOtelSettings(context.Background(), request); err != nil {
+		t.Fatalf("UpdateOtelSettings: %v", err)
+	}
+	if _, body := server.last(t); strings.Contains(body, "StartSpan") {
+		t.Errorf("unset start spans were sent: %s", body)
 	}
 }
 

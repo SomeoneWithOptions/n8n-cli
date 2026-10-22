@@ -36,11 +36,13 @@ const (
 )
 
 // SAMLMapping maps identity-provider attributes to n8n user fields.
+// EmailVerified is nil when the instance predates the field.
 type SAMLMapping struct {
 	Email             string   `json:"email"`
 	FirstName         string   `json:"firstName"`
 	LastName          string   `json:"lastName"`
 	UserPrincipalName string   `json:"userPrincipalName"`
+	EmailVerified     *string  `json:"emailVerified,omitempty"`
 	N8nInstanceRole   string   `json:"n8nInstanceRole"`
 	N8nProjectRoles   []string `json:"n8nProjectRoles"`
 }
@@ -59,25 +61,28 @@ type SAMLSignatureConfig struct {
 
 // SAMLConfiguration is the effective instance-wide SAML SSO configuration.
 // Secret-bearing fields are always empty or SAMLRedactedValue after decoding,
-// even if a non-conforming server returns plaintext.
+// even if a non-conforming server returns plaintext. EmailVerifiedRequired is
+// nil when the instance predates the field, so a GET document replays to that
+// instance without it.
 type SAMLConfiguration struct {
-	EntityID             string              `json:"entityID"`
-	ReturnURL            string              `json:"returnUrl"`
-	Mapping              SAMLMapping         `json:"mapping"`
-	Metadata             string              `json:"metadata"`
-	MetadataURL          string              `json:"metadataUrl"`
-	IgnoreSSL            bool                `json:"ignoreSSL"`
-	LoginBinding         SAMLBinding         `json:"loginBinding"`
-	LoginEnabled         bool                `json:"loginEnabled"`
-	LoginLabel           string              `json:"loginLabel"`
-	AuthnRequestsSigned  bool                `json:"authnRequestsSigned"`
-	WantAssertionsSigned bool                `json:"wantAssertionsSigned"`
-	WantMessageSigned    bool                `json:"wantMessageSigned"`
-	SigningPrivateKey    string              `json:"signingPrivateKey"`
-	SigningCertificate   string              `json:"signingCertificate"`
-	ACSBinding           SAMLBinding         `json:"acsBinding"`
-	SignatureConfig      SAMLSignatureConfig `json:"signatureConfig"`
-	RelayState           string              `json:"relayState"`
+	EntityID              string              `json:"entityID"`
+	ReturnURL             string              `json:"returnUrl"`
+	Mapping               SAMLMapping         `json:"mapping"`
+	Metadata              string              `json:"metadata"`
+	MetadataURL           string              `json:"metadataUrl"`
+	IgnoreSSL             bool                `json:"ignoreSSL"`
+	LoginBinding          SAMLBinding         `json:"loginBinding"`
+	LoginEnabled          bool                `json:"loginEnabled"`
+	LoginLabel            string              `json:"loginLabel"`
+	AuthnRequestsSigned   bool                `json:"authnRequestsSigned"`
+	WantAssertionsSigned  bool                `json:"wantAssertionsSigned"`
+	WantMessageSigned     bool                `json:"wantMessageSigned"`
+	EmailVerifiedRequired *bool               `json:"emailVerifiedRequired,omitempty"`
+	SigningPrivateKey     string              `json:"signingPrivateKey"`
+	SigningCertificate    string              `json:"signingCertificate"`
+	ACSBinding            SAMLBinding         `json:"acsBinding"`
+	SignatureConfig       SAMLSignatureConfig `json:"signatureConfig"`
+	RelayState            string              `json:"relayState"`
 }
 
 func (c *SAMLConfiguration) redactSecrets() {
@@ -89,12 +94,14 @@ func (c *SAMLConfiguration) redactSecrets() {
 }
 
 // SetSAMLMapping is a full replacement mapping. Pointers distinguish omitted
-// required fields from valid empty strings and arrays.
+// required fields from valid empty strings and arrays. EmailVerified is required
+// by current n8n but unknown to older instances, so it is sent only when set.
 type SetSAMLMapping struct {
 	Email             *string   `json:"email"`
 	FirstName         *string   `json:"firstName"`
 	LastName          *string   `json:"lastName"`
 	UserPrincipalName *string   `json:"userPrincipalName"`
+	EmailVerified     *string   `json:"emailVerified,omitempty"`
 	N8nInstanceRole   *string   `json:"n8nInstanceRole"`
 	N8nProjectRoles   *[]string `json:"n8nProjectRoles"`
 }
@@ -114,24 +121,28 @@ type SetSAMLSignatureConfig struct {
 // SetSAMLConfigurationRequest is a full replacement document. EntityID and
 // ReturnURL are accepted so a GET document can be read directly, but are never
 // sent because they are server-computed, read-only values.
+// EmailVerifiedRequired and Mapping.EmailVerified are required by current n8n
+// but unknown to older instances, so they are sent only when set; see
+// MissingEmailVerification.
 type SetSAMLConfigurationRequest struct {
-	EntityID             *string                 `json:"entityID,omitempty"`
-	ReturnURL            *string                 `json:"returnUrl,omitempty"`
-	Mapping              *SetSAMLMapping         `json:"mapping"`
-	Metadata             *string                 `json:"metadata"`
-	MetadataURL          *string                 `json:"metadataUrl"`
-	IgnoreSSL            *bool                   `json:"ignoreSSL"`
-	LoginBinding         *SAMLBinding            `json:"loginBinding"`
-	LoginEnabled         *bool                   `json:"loginEnabled"`
-	LoginLabel           *string                 `json:"loginLabel"`
-	AuthnRequestsSigned  *bool                   `json:"authnRequestsSigned"`
-	WantAssertionsSigned *bool                   `json:"wantAssertionsSigned"`
-	WantMessageSigned    *bool                   `json:"wantMessageSigned"`
-	SigningPrivateKey    *string                 `json:"signingPrivateKey"`
-	SigningCertificate   *string                 `json:"signingCertificate"`
-	ACSBinding           *SAMLBinding            `json:"acsBinding"`
-	SignatureConfig      *SetSAMLSignatureConfig `json:"signatureConfig"`
-	RelayState           *string                 `json:"relayState"`
+	EntityID              *string                 `json:"entityID,omitempty"`
+	ReturnURL             *string                 `json:"returnUrl,omitempty"`
+	Mapping               *SetSAMLMapping         `json:"mapping"`
+	Metadata              *string                 `json:"metadata"`
+	MetadataURL           *string                 `json:"metadataUrl"`
+	IgnoreSSL             *bool                   `json:"ignoreSSL"`
+	LoginBinding          *SAMLBinding            `json:"loginBinding"`
+	LoginEnabled          *bool                   `json:"loginEnabled"`
+	LoginLabel            *string                 `json:"loginLabel"`
+	AuthnRequestsSigned   *bool                   `json:"authnRequestsSigned"`
+	WantAssertionsSigned  *bool                   `json:"wantAssertionsSigned"`
+	WantMessageSigned     *bool                   `json:"wantMessageSigned"`
+	EmailVerifiedRequired *bool                   `json:"emailVerifiedRequired,omitempty"`
+	SigningPrivateKey     *string                 `json:"signingPrivateKey"`
+	SigningCertificate    *string                 `json:"signingCertificate"`
+	ACSBinding            *SAMLBinding            `json:"acsBinding"`
+	SignatureConfig       *SetSAMLSignatureConfig `json:"signatureConfig"`
+	RelayState            *string                 `json:"relayState"`
 }
 
 // Validate enforces every writable full-replacement field and documented enum.
@@ -171,6 +182,20 @@ func (r SetSAMLConfigurationRequest) Validate() error {
 		return err
 	}
 	return r.SignatureConfig.validate()
+}
+
+// MissingEmailVerification names the email-verification fields current n8n
+// requires that the request omits. Older instances do not know them, so
+// omission is not a local validation error.
+func (r SetSAMLConfigurationRequest) MissingEmailVerification() []string {
+	var missing []string
+	if r.EmailVerifiedRequired == nil {
+		missing = append(missing, "emailVerifiedRequired")
+	}
+	if r.Mapping == nil || r.Mapping.EmailVerified == nil {
+		missing = append(missing, "mapping.emailVerified")
+	}
+	return missing
 }
 
 func (m *SetSAMLMapping) validate() error {
@@ -227,21 +252,22 @@ func validateSAMLBinding(name string, binding SAMLBinding) error {
 }
 
 type samlConfigurationUpdate struct {
-	Mapping              *SetSAMLMapping         `json:"mapping"`
-	Metadata             *string                 `json:"metadata"`
-	MetadataURL          *string                 `json:"metadataUrl"`
-	IgnoreSSL            *bool                   `json:"ignoreSSL"`
-	LoginBinding         *SAMLBinding            `json:"loginBinding"`
-	LoginEnabled         *bool                   `json:"loginEnabled"`
-	LoginLabel           *string                 `json:"loginLabel"`
-	AuthnRequestsSigned  *bool                   `json:"authnRequestsSigned"`
-	WantAssertionsSigned *bool                   `json:"wantAssertionsSigned"`
-	WantMessageSigned    *bool                   `json:"wantMessageSigned"`
-	SigningPrivateKey    *string                 `json:"signingPrivateKey"`
-	SigningCertificate   *string                 `json:"signingCertificate"`
-	ACSBinding           *SAMLBinding            `json:"acsBinding"`
-	SignatureConfig      *SetSAMLSignatureConfig `json:"signatureConfig"`
-	RelayState           *string                 `json:"relayState"`
+	Mapping               *SetSAMLMapping         `json:"mapping"`
+	Metadata              *string                 `json:"metadata"`
+	MetadataURL           *string                 `json:"metadataUrl"`
+	IgnoreSSL             *bool                   `json:"ignoreSSL"`
+	LoginBinding          *SAMLBinding            `json:"loginBinding"`
+	LoginEnabled          *bool                   `json:"loginEnabled"`
+	LoginLabel            *string                 `json:"loginLabel"`
+	AuthnRequestsSigned   *bool                   `json:"authnRequestsSigned"`
+	WantAssertionsSigned  *bool                   `json:"wantAssertionsSigned"`
+	WantMessageSigned     *bool                   `json:"wantMessageSigned"`
+	EmailVerifiedRequired *bool                   `json:"emailVerifiedRequired,omitempty"`
+	SigningPrivateKey     *string                 `json:"signingPrivateKey"`
+	SigningCertificate    *string                 `json:"signingCertificate"`
+	ACSBinding            *SAMLBinding            `json:"acsBinding"`
+	SignatureConfig       *SetSAMLSignatureConfig `json:"signatureConfig"`
+	RelayState            *string                 `json:"relayState"`
 }
 
 func (r SetSAMLConfigurationRequest) update() samlConfigurationUpdate {
@@ -250,7 +276,8 @@ func (r SetSAMLConfigurationRequest) update() samlConfigurationUpdate {
 		IgnoreSSL: r.IgnoreSSL, LoginBinding: r.LoginBinding, LoginEnabled: r.LoginEnabled,
 		LoginLabel: r.LoginLabel, AuthnRequestsSigned: r.AuthnRequestsSigned,
 		WantAssertionsSigned: r.WantAssertionsSigned, WantMessageSigned: r.WantMessageSigned,
-		SigningPrivateKey: r.SigningPrivateKey, SigningCertificate: r.SigningCertificate,
+		EmailVerifiedRequired: r.EmailVerifiedRequired,
+		SigningPrivateKey:     r.SigningPrivateKey, SigningCertificate: r.SigningCertificate,
 		ACSBinding: r.ACSBinding, SignatureConfig: r.SignatureConfig, RelayState: r.RelayState,
 	}
 }

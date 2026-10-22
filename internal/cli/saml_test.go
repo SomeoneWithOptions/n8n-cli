@@ -8,13 +8,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/SomeoneWithOptions/n8n-cli/internal/n8n"
 )
 
 const cliSAMLConfiguration = `{
   "entityID":"https://n8n.example.com/rest/sso/saml/metadata",
   "returnUrl":"https://n8n.example.com/rest/sso/saml/acs",
-  "mapping":{"email":"email","firstName":"first","lastName":"last","userPrincipalName":"upn","n8nInstanceRole":"role","n8nProjectRoles":["project:role"]},
+  "mapping":{"email":"email","firstName":"first","lastName":"last","userPrincipalName":"upn","emailVerified":"email_verified","n8nInstanceRole":"role","n8nProjectRoles":["project:role"]},
   "metadata":"` + n8n.SAMLRedactedValue + `",
   "metadataUrl":"https://idp.example.com/metadata",
   "ignoreSSL":false,
@@ -24,6 +26,7 @@ const cliSAMLConfiguration = `{
   "authnRequestsSigned":true,
   "wantAssertionsSigned":true,
   "wantMessageSigned":false,
+  "emailVerifiedRequired":false,
   "signingPrivateKey":"` + n8n.SAMLRedactedValue + `",
   "signingCertificate":"` + n8n.SAMLRedactedValue + `",
   "acsBinding":"post",
@@ -34,7 +37,7 @@ const cliSAMLConfiguration = `{
 const cliSAMLDisabledInput = `{
   "entityID":"https://n8n.example.com/rest/sso/saml/metadata",
   "returnUrl":"https://n8n.example.com/rest/sso/saml/acs",
-  "mapping":{"email":"email","firstName":"","lastName":"","userPrincipalName":"","n8nInstanceRole":"","n8nProjectRoles":[]},
+  "mapping":{"email":"email","firstName":"","lastName":"","userPrincipalName":"","emailVerified":"","n8nInstanceRole":"","n8nProjectRoles":[]},
   "metadata":"` + n8n.SAMLRedactedValue + `",
   "metadataUrl":"",
   "ignoreSSL":false,
@@ -44,6 +47,7 @@ const cliSAMLDisabledInput = `{
   "authnRequestsSigned":false,
   "wantAssertionsSigned":false,
   "wantMessageSigned":false,
+  "emailVerifiedRequired":false,
   "signingPrivateKey":"` + n8n.SAMLRedactedValue + `",
   "signingCertificate":"` + n8n.SAMLRedactedValue + `",
   "acsBinding":"post",
@@ -81,6 +85,7 @@ func TestSAMLGetTextHidesSecretsAndShowsEverySetting(t *testing.T) {
 		"configured (value hidden)", "Metadata URL:", "idp.example.com", "Ignore metadata URL SSL errors:", "no",
 		"Login binding:", "redirect", "Login enabled:", "yes", "Login label:", "Company SSO",
 		"Authentication requests signed:", "Signed assertions required:", "Signed messages required:",
+		"Mapping email verified:", "email_verified", "Verified email required:",
 		"Signing private key:", "Signing certificate:", "ACS binding:", "post", "Signature prefix:",
 		"Signature location reference:", "Signature location action:", "after", "Relay state:",
 	} {
@@ -156,7 +161,7 @@ func TestSAMLSetRequiresConfirmationAndPreservesFullReplacement(t *testing.T) {
 	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
 		t.Fatalf("request body is not JSON: %v", err)
 	}
-	if len(sent) != 15 || sent["loginEnabled"] != false || sent["metadataUrl"] != "" || sent["relayState"] != "" || sent["signingPrivateKey"] != n8n.SAMLRedactedValue {
+	if len(sent) != 16 || sent["emailVerifiedRequired"] != false || sent["loginEnabled"] != false || sent["metadataUrl"] != "" || sent["relayState"] != "" || sent["signingPrivateKey"] != n8n.SAMLRedactedValue {
 		t.Errorf("full replacement not preserved: %#v", sent)
 	}
 	if _, ok := sent["entityID"]; ok {
@@ -168,6 +173,115 @@ func TestSAMLSetRequiresConfirmationAndPreservesFullReplacement(t *testing.T) {
 	mapping := sent["mapping"].(map[string]any)
 	if roles, ok := mapping["n8nProjectRoles"].([]any); !ok || len(roles) != 0 {
 		t.Errorf("empty project roles not preserved: %#v", mapping["n8nProjectRoles"])
+	}
+	if value, ok := mapping["emailVerified"]; !ok || value != "" {
+		t.Errorf("mapping.emailVerified = %#v (present %t), want explicit empty string", value, ok)
+	}
+	if strings.Contains(got.stderr, "Warning") {
+		t.Errorf("complete document warned: %s", got.stderr)
+	}
+}
+
+func TestSAMLGetJSONRoundTripsThroughSetLosslessly(t *testing.T) {
+	f := samlFixture(t, cliSAMLConfiguration)
+	got := f.run("saml", "get", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("get exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	f.stdin = got.stdout
+	set := f.run("saml", "set", "--input", "-", "--yes")
+	if set.code != ExitSuccess {
+		t.Fatalf("set exit = %d, stderr: %s", set.code, set.stderr)
+	}
+	var want, sent map[string]any
+	if err := json.Unmarshal([]byte(cliSAMLConfiguration), &want); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v", err)
+	}
+	delete(want, "entityID")
+	delete(want, "returnUrl")
+	if diff := cmp.Diff(want, sent); diff != "" {
+		t.Errorf("round trip changed the document (-get +set):\n%s", diff)
+	}
+}
+
+func TestSAMLSetFromOlderInstanceDocumentWarnsAndOmitsEmailVerification(t *testing.T) {
+	f := samlFixture(t, cliSAMLConfiguration)
+	input := strings.Replace(cliSAMLDisabledInput, `"emailVerifiedRequired":false,`, "", 1)
+	input = strings.Replace(input, `"emailVerified":"",`, "", 1)
+	f.stdin = input
+	got := f.run("saml", "set", "--input", "-", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{"Warning", "emailVerifiedRequired and mapping.emailVerified", "--email-verified-required", "--email-verified-attribute"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr missing %q: %s", want, got.stderr)
+		}
+	}
+	if strings.Contains(f.lastBody(), "emailVerified") {
+		t.Errorf("absent fields were invented: %s", f.lastBody())
+	}
+}
+
+func TestSAMLSetEmailVerificationFlagsOverrideInput(t *testing.T) {
+	older := strings.Replace(cliSAMLDisabledInput, `"emailVerifiedRequired":false,`, "", 1)
+	older = strings.Replace(older, `"emailVerified":"",`, "", 1)
+	current := strings.Replace(cliSAMLDisabledInput, `"emailVerifiedRequired":false`, `"emailVerifiedRequired":true`, 1)
+	current = strings.Replace(current, `"emailVerified":""`, `"emailVerified":"verified"`, 1)
+	tests := []struct {
+		name          string
+		input         string
+		args          []string
+		wantRequired  bool
+		wantAttribute string
+	}{
+		{name: "fill older document", input: older, args: []string{"--email-verified-required", "--email-verified-attribute", "email_verified"}, wantRequired: true, wantAttribute: "email_verified"},
+		{name: "explicit false and empty override", input: current, args: []string{"--email-verified-required=false", "--email-verified-attribute", ""}, wantRequired: false, wantAttribute: ""},
+		{name: "unset flags keep input", input: current, wantRequired: true, wantAttribute: "verified"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := samlFixture(t, cliSAMLConfiguration)
+			f.stdin = tt.input
+			got := f.run(append([]string{"saml", "set", "--input", "-", "--yes"}, tt.args...)...)
+			if got.code != ExitSuccess {
+				t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+			}
+			if strings.Contains(got.stderr, "Warning") {
+				t.Errorf("complete request warned: %s", got.stderr)
+			}
+			var sent struct {
+				EmailVerifiedRequired *bool `json:"emailVerifiedRequired"`
+				Mapping               struct {
+					EmailVerified *string `json:"emailVerified"`
+				} `json:"mapping"`
+			}
+			if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+				t.Fatalf("request body is not JSON: %v", err)
+			}
+			if sent.EmailVerifiedRequired == nil || *sent.EmailVerifiedRequired != tt.wantRequired {
+				t.Errorf("emailVerifiedRequired = %v, want %t", sent.EmailVerifiedRequired, tt.wantRequired)
+			}
+			if sent.Mapping.EmailVerified == nil || *sent.Mapping.EmailVerified != tt.wantAttribute {
+				t.Errorf("mapping.emailVerified = %v, want %q", sent.Mapping.EmailVerified, tt.wantAttribute)
+			}
+		})
+	}
+}
+
+func TestSAMLSetHelpDocumentsEmailVerificationFields(t *testing.T) {
+	f := samlFixture(t, cliSAMLConfiguration)
+	got := f.run("saml", "set", "--help")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{"--email-verified-required", "--email-verified-attribute", "emailVerifiedRequired", "mapping.emailVerified", "round-trips"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("help missing %q:\n%s", want, got.stdout)
+		}
 	}
 }
 
@@ -258,7 +372,7 @@ func TestSAMLAPIErrorsExplainLicenseConflictAndAvailability(t *testing.T) {
 		want   []string
 	}{
 		{name: "forbidden", status: http.StatusForbidden, args: []string{"saml", "get"}, want: []string{"saml:manage", "SAML license", "discover --resource settingsssosaml"}},
-		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"saml", "set", "--input", "-", "--yes"}, input: cliSAMLDisabledInput, want: []string{"full SAML replacement", "15 writable fields", "response details redacted"}},
+		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"saml", "set", "--input", "-", "--yes"}, input: cliSAMLDisabledInput, want: []string{"full SAML replacement", "16 writable fields", "emailVerifiedRequired", "--email-verified-attribute", "response details redacted"}},
 		{name: "environment managed", status: http.StatusConflict, args: []string{"saml", "set", "--input", "-", "--yes"}, input: cliSAMLDisabledInput, want: []string{"managed by environment variables", "no changes were made", "saml get"}},
 		{name: "not found", status: http.StatusNotFound, args: []string{"saml", "get"}, want: []string{"SAML endpoint", "discover --resource settingsssosaml"}},
 		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"saml", "get"}, want: []string{"SAML service", "discover --resource settingsssosaml"}},
