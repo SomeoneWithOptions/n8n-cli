@@ -73,7 +73,7 @@ func TestCommunityPackageLifecycle(t *testing.T) {
 	})
 
 	pkg, err := client.InstallCommunityPackage(context.Background(), n8n.InstallCommunityPackageRequest{
-		Name: name, Version: installVersion, Verify: n8n.Bool(true),
+		Name: name, Version: installVersion,
 	})
 	if err != nil {
 		t.Fatalf("InstallCommunityPackage: %v", err)
@@ -84,7 +84,7 @@ func TestCommunityPackageLifecycle(t *testing.T) {
 	}
 
 	pkg, err = client.UpdateCommunityPackage(context.Background(), name, n8n.UpdateCommunityPackageRequest{
-		Version: updateVersion, Verify: n8n.Bool(true),
+		Version: updateVersion,
 	})
 	if err != nil {
 		t.Fatalf("UpdateCommunityPackage: %v", err)

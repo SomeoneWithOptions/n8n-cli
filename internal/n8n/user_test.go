@@ -23,7 +23,7 @@ const userResponse = `{
 func TestListUsersQueryAuthAndDecoding(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, `{"data":[`+userResponse+`],"nextCursor":"next/one?x=1"}`))
 	page, err := server.client(t).ListUsers(context.Background(), ListUsersOptions{
-		ListOptions: ListOptions{Limit: 50}, Offset: 25, IncludeRole: true, ProjectID: "project/one?x=1",
+		ListOptions: ListOptions{Limit: 50}, IncludeRole: true, ProjectID: "project/one?x=1",
 	})
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
@@ -33,8 +33,11 @@ func TestListUsersQueryAuthAndDecoding(t *testing.T) {
 		t.Errorf("request = %s %s, want GET %s", req.Method, req.URL.Path, BasePath+UsersPath)
 	}
 	query := req.URL.Query()
-	if query.Get("limit") != "50" || query.Get("offset") != "25" || query.Get("includeRole") != "true" || query.Get("projectId") != "project/one?x=1" {
+	if query.Get("limit") != "50" || query.Get("includeRole") != "true" || query.Get("projectId") != "project/one?x=1" {
 		t.Errorf("query = %q", req.URL.RawQuery)
+	}
+	if query.Has("offset") {
+		t.Errorf("query = %q, want no offset; GET /users declares none", req.URL.RawQuery)
 	}
 	if body != "" {
 		t.Errorf("body = %q, want empty", body)
@@ -112,8 +115,11 @@ func TestGetChangeRoleAndDeleteUser(t *testing.T) {
 			return c.ChangeUserRole(context.Background(), identifier, "global:custom/role")
 		}, method: http.MethodPatch, path: "/users/person+ops@example.com%2Fone%3Fx=1/role", body: `{"newRoleName":"global:custom/role"}`, status: http.StatusNoContent},
 		{name: "delete", call: func(c *Client) error {
-			return c.DeleteUser(context.Background(), identifier)
+			return c.DeleteUser(context.Background(), identifier, DeleteUserOptions{})
 		}, method: http.MethodDelete, path: "/users/person+ops@example.com%2Fone%3Fx=1", status: http.StatusNoContent},
+		{name: "delete with transfer", call: func(c *Client) error {
+			return c.DeleteUser(context.Background(), identifier, DeleteUserOptions{TransferProjectID: "project/one?x=1"})
+		}, method: http.MethodDelete, path: "/users/person+ops@example.com%2Fone%3Fx=1", query: "transferId=project%2Fone%3Fx%3D1", status: http.StatusNoContent},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -157,16 +163,8 @@ func TestUserValidationBeforeRequest(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, `{}`))
 	client := server.client(t)
 	calls := map[string]func() error{
-		"negative offset": func() error {
-			_, err := client.ListUsers(context.Background(), ListUsersOptions{Offset: -1})
-			return err
-		},
 		"large limit": func() error {
 			_, err := client.ListUsers(context.Background(), ListUsersOptions{ListOptions: ListOptions{Limit: 251}})
-			return err
-		},
-		"offset with cursor": func() error {
-			_, err := client.ListUsers(context.Background(), ListUsersOptions{ListOptions: ListOptions{Cursor: "next"}, Offset: 1})
 			return err
 		},
 		"empty invitations": func() error {
@@ -189,7 +187,10 @@ func TestUserValidationBeforeRequest(t *testing.T) {
 			return client.ChangeUserRole(context.Background(), "one@example.com", " ")
 		},
 		"padded delete identifier": func() error {
-			return client.DeleteUser(context.Background(), " one@example.com")
+			return client.DeleteUser(context.Background(), " one@example.com", DeleteUserOptions{})
+		},
+		"padded transfer project": func() error {
+			return client.DeleteUser(context.Background(), "one@example.com", DeleteUserOptions{TransferProjectID: "project "})
 		},
 	}
 	for name, call := range calls {

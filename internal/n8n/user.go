@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/mail"
 	"net/url"
-	"strconv"
 	"strings"
 )
 
@@ -26,11 +25,11 @@ type User struct {
 	MFAEnabled bool   `json:"mfaEnabled"`
 }
 
-// ListUsersOptions contains pagination and user-specific filters.
+// ListUsersOptions contains pagination and user-specific filters. GET /users
+// declares no offset parameter and servers ignore one, so paging is
+// cursor-only.
 type ListUsersOptions struct {
 	ListOptions
-	// Offset skips this many users. It cannot be combined with Cursor.
-	Offset int
 	// IncludeRole asks n8n to include each user's global role.
 	IncludeRole bool
 	// ProjectID limits results to members of one project.
@@ -45,20 +44,11 @@ func (o ListUsersOptions) Validate() error {
 	if o.Limit > 250 {
 		return fmt.Errorf("limit must not exceed 250, got %d", o.Limit)
 	}
-	if o.Offset < 0 {
-		return fmt.Errorf("offset must not be negative, got %d", o.Offset)
-	}
-	if o.Offset > 0 && o.Cursor != "" {
-		return fmt.Errorf("offset and cursor cannot be used together")
-	}
 	return validateUserText("project ID", o.ProjectID, false)
 }
 
 func (o ListUsersOptions) apply() url.Values {
 	query := o.ListOptions.Apply(nil)
-	if o.Offset > 0 {
-		query.Set("offset", strconv.Itoa(o.Offset))
-	}
 	if o.IncludeRole {
 		query.Set("includeRole", "true")
 	}
@@ -151,12 +141,27 @@ func (c *Client) ChangeUserRole(ctx context.Context, identifier, role string) er
 	return err
 }
 
-// DeleteUser permanently removes one user by ID or email.
-func (c *Client) DeleteUser(ctx context.Context, identifier string) error {
+// DeleteUserOptions controls what happens to resources the deleted user owns.
+type DeleteUserOptions struct {
+	// TransferProjectID moves the user's workflows and credentials to this
+	// project (query parameter transferId). Empty deletes them with the user.
+	TransferProjectID string
+}
+
+// DeleteUser permanently removes one user by ID or email. Without a transfer
+// project, n8n deletes the user's workflows and credentials too.
+func (c *Client) DeleteUser(ctx context.Context, identifier string, opts DeleteUserOptions) error {
 	if err := validateUserIdentifier(identifier); err != nil {
 		return err
 	}
-	_, err := c.Do(ctx, Request{Method: http.MethodDelete, Path: PathJoin("users", identifier)}, nil)
+	if err := validateUserText("transfer project ID", opts.TransferProjectID, false); err != nil {
+		return err
+	}
+	query := make(url.Values)
+	if opts.TransferProjectID != "" {
+		query.Set("transferId", opts.TransferProjectID)
+	}
+	_, err := c.Do(ctx, Request{Method: http.MethodDelete, Path: PathJoin("users", identifier), Query: query}, nil)
 	return err
 }
 

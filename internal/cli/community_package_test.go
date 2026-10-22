@@ -82,7 +82,7 @@ func TestCommunityPackageListEmpty(t *testing.T) {
 func TestCommunityPackageInstall(t *testing.T) {
 	f := communityPackageFixture(t, cliCommunityPackage)
 	f.stdin = "yes\n"
-	got := f.run("community-package", "install", "n8n-nodes-example", "--version", "1.2.3", "--verify=false")
+	got := f.run("community-package", "install", "n8n-nodes-example", "--version", "1.2.3")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
 	}
@@ -98,7 +98,7 @@ func TestCommunityPackageInstall(t *testing.T) {
 	if req.Method != http.MethodPost || req.URL.Path != n8n.BasePath+n8n.CommunityPackagesPath {
 		t.Errorf("request = %s %s, want POST collection", req.Method, req.URL.Path)
 	}
-	assertCLIJSON(t, `{"name":"n8n-nodes-example","version":"1.2.3","verify":false}`, f.lastBody())
+	assertCLIJSON(t, `{"name":"n8n-nodes-example","version":"1.2.3"}`, f.lastBody())
 }
 
 func TestCommunityPackageInstallJSONNonInteractive(t *testing.T) {
@@ -115,7 +115,67 @@ func TestCommunityPackageInstallJSONNonInteractive(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &pkg); err != nil || pkg.PackageName != "n8n-nodes-example" {
 		t.Errorf("stdout = %q, want package JSON (error: %v)", got.stdout, err)
 	}
-	assertCLIJSON(t, `{"name":"n8n-nodes-example","verify":true}`, f.lastBody())
+	assertCLIJSON(t, `{"name":"n8n-nodes-example"}`, f.lastBody())
+}
+
+func TestCommunityPackageInstallScopedName(t *testing.T) {
+	f := communityPackageFixture(t, cliCommunityPackage)
+	got := f.run("community-package", "install", "@acme/n8n-nodes-example", "--version", "beta", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	if req := f.lastRequest(); req.URL.EscapedPath() != n8n.BasePath+n8n.CommunityPackagesPath {
+		t.Errorf("escaped path = %q, want the collection", req.URL.EscapedPath())
+	}
+	assertCLIJSON(t, `{"name":"@acme/n8n-nodes-example","version":"beta"}`, f.lastBody())
+}
+
+func TestCommunityPackageDeprecatedVerifyFlag(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "install", args: []string{"community-package", "install", "n8n-nodes-example", "--verify=false", "--yes", "--output", "json"}, want: `{"name":"n8n-nodes-example"}`},
+		{name: "update", args: []string{"community-package", "update", "n8n-nodes-example", "--version", "2.0.0", "--verify=false", "--yes", "--output", "json"}, want: `{"version":"2.0.0"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := communityPackageFixture(t, cliCommunityPackage)
+			got := f.run(tt.args...)
+			if got.code != ExitSuccess {
+				t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+			}
+			if !strings.Contains(got.stderr, "Flag --verify has been deprecated") || !strings.Contains(got.stderr, "instance setting") {
+				t.Errorf("stderr = %q, want deprecation naming the instance setting", got.stderr)
+			}
+			assertCLIJSON(t, tt.want, f.lastBody())
+			var pkg n8n.CommunityPackage
+			if err := json.Unmarshal([]byte(got.stdout), &pkg); err != nil {
+				t.Errorf("stdout = %q, want only package JSON (error: %v)", got.stdout, err)
+			}
+
+			help := run(t, "community-package", tt.name, "--help")
+			if strings.Contains(help.stdout, "--verify") {
+				t.Errorf("help lists deprecated --verify:\n%s", help.stdout)
+			}
+		})
+	}
+}
+
+func TestCommunityPackageUpdateWithoutVersionSendsNoBody(t *testing.T) {
+	f := communityPackageFixture(t, cliCommunityPackage)
+	f.stdin = "yes\n"
+	got := f.run("community-package", "update", "n8n-nodes-example")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "latest version") {
+		t.Errorf("stderr = %q, want confirmation naming the latest version", got.stderr)
+	}
+	if body := f.lastBody(); body != "" {
+		t.Errorf("body = %q, want none so n8n selects the latest version", body)
+	}
 }
 
 func TestCommunityPackageUpdateEscapesName(t *testing.T) {
@@ -136,7 +196,7 @@ func TestCommunityPackageUpdateEscapesName(t *testing.T) {
 	if req.URL.RawQuery != "" {
 		t.Errorf("query = %q, want empty", req.URL.RawQuery)
 	}
-	assertCLIJSON(t, `{"version":"1.3.0","verify":true}`, f.lastBody())
+	assertCLIJSON(t, `{"version":"1.3.0"}`, f.lastBody())
 }
 
 func TestCommunityPackageUninstall(t *testing.T) {

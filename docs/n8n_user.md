@@ -11,7 +11,8 @@ access.
 
 Create accepts a strict JSON array and preserves every per-user success or
 error. Role changes and deletion accept the exact user ID or email allowed by
-the API. Deletion always requires confirmation.
+the API. Deletion always requires confirmation and deletes the user's workflows
+and credentials unless --transfer-to-project moves them to a project.
 
 ```
 n8n user [flags]
@@ -24,7 +25,7 @@ n8n user [flags]
   n8n user get person@example.com --include-role
   n8n user create --input users.json
   n8n user role set USER_ID global:member
-  n8n user delete USER_ID --yes
+  n8n user delete USER_ID --transfer-to-project PROJECT_ID --yes
 ```
 
 ### Options
