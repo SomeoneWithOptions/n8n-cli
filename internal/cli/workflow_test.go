@@ -85,6 +85,54 @@ func TestWorkflowListTextJSONAndQuery(t *testing.T) {
 	}
 }
 
+func TestWorkflowListIncludeParentFolder(t *testing.T) {
+	f := workflowFixture(t, `{"data":[`+
+		strings.Replace(cliWorkflow, `"id":"wf-1"`, `"id":"wf-1","parentFolder":{"id":"fo-1"}`, 1)+`,`+
+		strings.Replace(cliWorkflow, `"id":"wf-1"`, `"id":"wf-2","parentFolder":null`, 1)+`],"nextCursor":null}`)
+	got := f.run("workflow", "list", "--include-parent-folder")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if q := f.lastRequest().URL.Query().Get("includeParentFolder"); q != "true" {
+		t.Errorf("includeParentFolder = %q, want true", q)
+	}
+	lines := strings.Split(got.stdout, "\n")
+	var header, first, second string
+	for _, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "ID"):
+			header = line
+		case strings.HasPrefix(line, "wf-1"):
+			first = line
+		case strings.HasPrefix(line, "wf-2"):
+			second = line
+		}
+	}
+	if !strings.HasSuffix(strings.TrimSpace(header), "FOLDER") || !strings.HasSuffix(strings.TrimSpace(first), "fo-1") || !strings.HasSuffix(strings.TrimSpace(second), "-") {
+		t.Errorf("stdout lacks the folder column:\n%s", got.stdout)
+	}
+	if strings.Contains(got.stderr, "no parentFolder") {
+		t.Errorf("stderr warns although every row has parentFolder: %s", got.stderr)
+	}
+
+	got = f.run("workflow", "list", "--include-parent-folder", "--output", "json")
+	if !strings.Contains(got.stdout, `"parentFolder": {`) || !strings.Contains(got.stdout, `"parentFolder": null`) {
+		t.Errorf("JSON lost parentFolder:\n%s", got.stdout)
+	}
+
+	got = f.run("workflow", "list")
+	if strings.Contains(got.stdout, "FOLDER") || f.lastRequest().URL.Query().Has("includeParentFolder") {
+		t.Errorf("folder column or query without the flag:\n%s", got.stdout)
+	}
+
+	// An instance that predates the parameter ignores it.
+	f.body = `{"data":[` + cliWorkflow + `],"nextCursor":null}`
+	got = f.run("workflow", "list", "--include-parent-folder")
+	if !strings.Contains(got.stderr, "no parentFolder field") {
+		t.Errorf("stderr = %q, want the missing field explained", got.stderr)
+	}
+}
+
 func TestWorkflowListRejectsUnknownActiveValue(t *testing.T) {
 	f := workflowFixture(t, `{"data":[],"nextCursor":null}`)
 	before := f.requestCount()
@@ -321,6 +369,51 @@ func TestWorkflowCreateRejectsBadInput(t *testing.T) {
 		if got.code != ExitError || !strings.Contains(got.stderr, "open workflow input") {
 			t.Errorf("result = %+v", got)
 		}
+	})
+}
+
+// A document read back with 'get --output json' carries shapes only the read
+// schema allows; they are normalized before sending, not answered with 400.
+func TestWorkflowWriteNormalizesReadDocument(t *testing.T) {
+	read := strings.NewReplacer(
+		`"description":null`, `"description":"Syncs invoices","parentFolderId":null`,
+		`"settings":{"executionOrder":"v1"}`, `"settings":{"executionOrder":"v1","saveExecutionProgress":"DEFAULT","saveDataSuccessExecution":"DEFAULT","saveDataErrorExecution":"all"}`,
+		`"parameters":{"path":"hook"}`, `"parameters":{"path":"hook"},"createdAt":"2026-09-16T20:03:43.517Z"`,
+	).Replace(cliWorkflow)
+	for _, args := range [][]string{
+		{"workflow", "create"},
+		{"workflow", "update", "wf-1"},
+	} {
+		t.Run(args[1], func(t *testing.T) {
+			f := workflowFixture(t, cliWorkflow)
+			got := f.run(append(args, "--input", writeWorkflowFile(t, read))...)
+			if got.code != ExitSuccess {
+				t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+			}
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(f.lastBody()), &body); err != nil {
+				t.Fatalf("request body is not JSON: %v", err)
+			}
+			assertCLIJSON(t, `"Syncs invoices"`, string(body["description"]))
+			assertCLIJSON(t, `null`, string(body["parentFolderId"]))
+			assertCLIJSON(t, `{"executionOrder":"v1","saveDataErrorExecution":"all"}`, string(body["settings"]))
+			assertCLIJSON(t, `[{"id":"n-1","name":"Webhook","type":"n8n-nodes-base.webhook","typeVersion":2,"parameters":{"path":"hook"}}]`, string(body["nodes"]))
+			for _, want := range []string{"settings.saveExecutionProgress", "settings.saveDataSuccessExecution", "nodes[].createdAt"} {
+				if !strings.Contains(got.stderr, want) {
+					t.Errorf("stderr missing %q: %s", want, got.stderr)
+				}
+			}
+		})
+	}
+
+	t.Run("null settings", func(t *testing.T) {
+		f := workflowFixture(t, cliWorkflow)
+		f.stdin = `{"name":"x","nodes":[],"connections":{},"settings":null}`
+		got := f.run("workflow", "update", "wf-1", "--input", "-")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		assertCLIJSON(t, `{"name":"x","nodes":[],"connections":{},"settings":{}}`, f.lastBody())
 	})
 }
 

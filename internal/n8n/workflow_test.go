@@ -66,13 +66,14 @@ func TestListWorkflowsQueryAndDecoding(t *testing.T) {
 		`{"data":[`+workflowResponse+`],"nextCursor":"next/one?x=1"}`))
 	active := true
 	page, err := server.client(t).ListWorkflows(context.Background(), ListWorkflowsOptions{
-		ListOptions:       ListOptions{Limit: 50, Cursor: "prev/one?x=1"},
-		Offset:            10,
-		Active:            &active,
-		Tags:              []string{"production", "finance"},
-		Name:              "Invoice sync",
-		ProjectID:         "pr-1",
-		ExcludePinnedData: true,
+		ListOptions:         ListOptions{Limit: 50, Cursor: "prev/one?x=1"},
+		Offset:              10,
+		Active:              &active,
+		Tags:                []string{"production", "finance"},
+		Name:                "Invoice sync",
+		ProjectID:           "pr-1",
+		ExcludePinnedData:   true,
+		IncludeParentFolder: true,
 	})
 	if err != nil {
 		t.Fatalf("ListWorkflows: %v", err)
@@ -89,14 +90,15 @@ func TestListWorkflowsQueryAndDecoding(t *testing.T) {
 	}
 	query := req.URL.Query()
 	for field, want := range map[string]string{
-		"limit":             "50",
-		"cursor":            "prev/one?x=1",
-		"offset":            "10",
-		"active":            "true",
-		"tags":              "production,finance",
-		"name":              "Invoice sync",
-		"projectId":         "pr-1",
-		"excludePinnedData": "true",
+		"limit":               "50",
+		"cursor":              "prev/one?x=1",
+		"offset":              "10",
+		"active":              "true",
+		"tags":                "production,finance",
+		"name":                "Invoice sync",
+		"projectId":           "pr-1",
+		"excludePinnedData":   "true",
+		"includeParentFolder": "true",
 	} {
 		if got := query.Get(field); got != want {
 			t.Errorf("query %s = %q, want %q", field, got, want)
@@ -237,13 +239,98 @@ func TestWorkflowDocumentForWriteDropsReadOnlyFields(t *testing.T) {
 
 	create, _ := doc.ForCreate()
 	if _, ok := create["description"]; ok {
-		t.Error("create body carries description, which POST /workflows does not accept")
+		t.Error("create body carries a null description, which the API rejects")
 	}
 	if err := create.Set("projectId", "pr-2"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	if create.Text("projectId") != "pr-2" {
 		t.Errorf("projectId = %q", create.Text("projectId"))
+	}
+}
+
+func TestWorkflowDocumentForWriteNormalizesReadShapes(t *testing.T) {
+	read := WorkflowDocument{
+		"name":           json.RawMessage(`"x"`),
+		"description":    json.RawMessage(`"Syncs invoices"`),
+		"parentFolderId": json.RawMessage(`null`),
+		"nodes": json.RawMessage(`[
+			{"id":"n-1","name":"Webhook","createdAt":"2026-09-16T20:03:43.517Z","updatedAt":"2026-09-16T20:03:43.517Z"},
+			{"id":"n-2","name":"Set","createdAt":"2026-09-16T20:03:43.517Z"}
+		]`),
+		"connections": json.RawMessage(`{}`),
+		"settings": json.RawMessage(`{"executionOrder":"v1","saveExecutionProgress":"DEFAULT",` +
+			`"saveManualExecutions":true,"saveDataErrorExecution":"DEFAULT","saveDataSuccessExecution":"all"}`),
+	}
+	wantDropped := []string{"nodes[].createdAt", "nodes[].updatedAt", "settings.saveDataErrorExecution", "settings.saveExecutionProgress"}
+	for name, forWrite := range map[string]func() (WorkflowDocument, []string){
+		"create": read.ForCreate,
+		"update": read.ForUpdate,
+	} {
+		t.Run(name, func(t *testing.T) {
+			doc, dropped := forWrite()
+			if !slices.Equal(dropped, wantDropped) {
+				t.Errorf("dropped = %v, want %v", dropped, wantDropped)
+			}
+			if doc.Text("description") != "Syncs invoices" {
+				t.Errorf("description = %s, want it kept", doc["description"])
+			}
+			if string(doc["parentFolderId"]) != "null" {
+				t.Errorf("parentFolderId = %s, want null (move to the project root)", doc["parentFolderId"])
+			}
+			assertJSONEqual(t, `{"executionOrder":"v1","saveManualExecutions":true,"saveDataSuccessExecution":"all"}`, string(doc["settings"]))
+			assertJSONEqual(t, `[{"id":"n-1","name":"Webhook"},{"id":"n-2","name":"Set"}]`, string(doc["nodes"]))
+			if err := doc.Validate(); err != nil {
+				t.Errorf("Validate: %v", err)
+			}
+		})
+	}
+
+	// Nothing to remove: the raw bytes are sent as written.
+	clean := writeDocument()
+	clean["nodes"] = json.RawMessage(`[{"name":"Webhook",  "id":"n-1"}]`)
+	kept, dropped := clean.ForUpdate()
+	if len(dropped) != 0 || string(kept["nodes"]) != string(clean["nodes"]) || string(kept["settings"]) != string(clean["settings"]) {
+		t.Errorf("clean document changed: dropped %v, nodes %s, settings %s", dropped, kept["nodes"], kept["settings"])
+	}
+
+	// Settings are nullable on read but required on write.
+	nullSettings := writeDocument()
+	nullSettings["settings"] = json.RawMessage(`null`)
+	kept, dropped = nullSettings.ForCreate()
+	if string(kept["settings"]) != `{}` || len(dropped) != 0 {
+		t.Errorf("null settings = %s (dropped %v), want {}", kept["settings"], dropped)
+	}
+	if err := kept.Validate(); err != nil {
+		t.Errorf("Validate with null settings: %v", err)
+	}
+}
+
+func TestWorkflowParentFolderID(t *testing.T) {
+	for name, tt := range map[string]struct {
+		body   string
+		wantID string
+		wantOK bool
+	}{
+		"folder": {body: `{"id":"wf-1","active":false,"isArchived":false,"parentFolder":{"id":"fo-1"}}`, wantID: "fo-1", wantOK: true},
+		"root":   {body: `{"id":"wf-1","active":false,"isArchived":false,"parentFolder":null}`, wantOK: true},
+		"absent": {body: `{"id":"wf-1","active":false,"isArchived":false}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var workflow Workflow
+			if err := json.Unmarshal([]byte(tt.body), &workflow); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			id, ok := workflow.ParentFolderID()
+			if id != tt.wantID || ok != tt.wantOK {
+				t.Errorf("ParentFolderID = %q, %t; want %q, %t", id, ok, tt.wantID, tt.wantOK)
+			}
+			encoded, err := json.Marshal(workflow)
+			if err != nil {
+				t.Fatalf("encode: %v", err)
+			}
+			assertJSONEqual(t, tt.body, string(encoded))
+		})
 	}
 }
 

@@ -13,8 +13,12 @@ start from a fresh read:
   n8n workflow get ID --output json > workflow.json
   n8n workflow update ID --input workflow.json
 Read-only fields in the document (id, versionId, active, timestamps, tags,
-sharing) are dropped before sending and reported on stderr, because the API
-answers a read-only field with 400.
+sharing, node timestamps) and settings set to "DEFAULT" are dropped before
+sending and reported on stderr, because the API answers them with 400; an
+omitted setting keeps the instance default, which is what "DEFAULT" means.
+A null settings is sent as {}. Add "parentFolderId": "FOLDER_ID" to move
+the workflow into a folder, or "parentFolderId": null to move it to the
+project root; without the field the folder is unchanged.
 
 A published workflow is republished with the new version unless --no-publish is
 given. Republishing additionally needs the workflow:activate scope and the

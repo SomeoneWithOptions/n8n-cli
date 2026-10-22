@@ -85,6 +85,7 @@ type workflowListFlags struct {
 	name        string
 	projectID   string
 	excludePins bool
+	withFolder  bool
 	view        listViewFlags
 	output      string
 }
@@ -100,7 +101,9 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 			"Use this to find the workflow ID every other command takes. Narrow the result\n" +
 			"set with --active, --name, --tag and --project-id. Each row carries the full\n" +
 			"definition, so on a large instance prefer --exclude-pinned-data, which drops\n" +
-			"the pinned sample data that dominates the response. Requires workflow:list.\n\n" +
+			"the pinned sample data that dominates the response. --include-parent-folder\n" +
+			"adds the containing folder: a FOLDER column in text, parentFolder in JSON\n" +
+			"({\"id\": ...}, or null at the project root). Requires workflow:list.\n\n" +
 			scriptViewHelp("workflow", "ID and name") + "\n\n" +
 			cursorCollectionHelp,
 		Example: "  n8n workflow list\n" +
@@ -109,6 +112,7 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 			"  n8n workflow list --active true --limit 50\n" +
 			"  n8n workflow list --tag production --tag finance\n" +
 			"  n8n workflow list --project-id PROJECT_ID --exclude-pinned-data\n" +
+			"  n8n workflow list --project-id PROJECT_ID --include-parent-folder\n" +
 			"  n8n workflow list --all --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -125,6 +129,7 @@ func newWorkflowListCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.name, "name", "", "only workflows with exactly this name (default: any name)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "only workflows in this project, from 'n8n project list' (default: every project)")
 	cmd.Flags().BoolVar(&f.excludePins, "exclude-pinned-data", false, "leave pinned sample data out of the response (default: include it)")
+	cmd.Flags().BoolVar(&f.withFolder, "include-parent-folder", false, "add each workflow's containing folder, null at the project root (default: omit it)")
 	f.view.register(cmd, "workflow", "ID and name")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is a page object with data and nextCursor, plus collection with --all)")
 	return cmd
@@ -139,13 +144,14 @@ func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) err
 		return err
 	}
 	listOpts := n8n.ListWorkflowsOptions{
-		ListOptions:       n8n.ListOptions{Limit: f.limit, Cursor: f.cursor},
-		Offset:            f.offset,
-		Active:            active,
-		Tags:              f.tags,
-		Name:              f.name,
-		ProjectID:         f.projectID,
-		ExcludePinnedData: f.excludePins,
+		ListOptions:         n8n.ListOptions{Limit: f.limit, Cursor: f.cursor},
+		Offset:              f.offset,
+		Active:              active,
+		Tags:                f.tags,
+		Name:                f.name,
+		ProjectID:           f.projectID,
+		ExcludePinnedData:   f.excludePins,
+		IncludeParentFolder: f.withFolder,
 	}
 	if err := listOpts.Validate(); err != nil {
 		return err
@@ -176,7 +182,7 @@ func runWorkflowList(ctx context.Context, opts Options, f workflowListFlags) err
 			return scriptListRow{ID: workflow.ID, Fields: []string{workflow.Name}}
 		})
 	} else {
-		err = writeWorkflowList(opts, resolution, page)
+		err = writeWorkflowList(opts, resolution, page, f.withFolder)
 	}
 	return finishCollection(opts.Streams.Err, collection, err)
 }
@@ -200,17 +206,30 @@ func workflowActiveFilter(value string) (*bool, error) {
 
 const workflowListEmptyHint = "No workflows were returned. Widen the filters, or create one with 'n8n workflow create --name NAME'."
 
-func writeWorkflowList(opts Options, resolution config.Resolution, page n8n.Page[n8n.Workflow]) error {
+func writeWorkflowList(opts Options, resolution config.Resolution, page n8n.Page[n8n.Workflow], withFolder bool) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	folderMissing := false
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	fmt.Fprintf(tw, "Workflows:\t%d\n", len(page.Data))
 	if len(page.Data) > 0 {
-		fmt.Fprintln(tw, "\nID\tNAME\tPUBLISHED\tARCHIVED\tNODES\tTRIGGERS\tTAGS\tUPDATED")
+		header := "\nID\tNAME\tPUBLISHED\tARCHIVED\tNODES\tTRIGGERS\tTAGS\tUPDATED"
+		if withFolder {
+			header += "\tFOLDER"
+		}
+		fmt.Fprintln(tw, header)
 		for _, workflow := range page.Data {
-			fmt.Fprintf(tw, "%s\t%s\t%t\t%t\t%d\t%d\t%s\t%s\n",
+			fmt.Fprintf(tw, "%s\t%s\t%t\t%t\t%d\t%d\t%s\t%s",
 				emptyDash(workflow.ID), emptyDash(workflow.Name), workflow.Active, workflow.IsArchived,
 				workflow.NodeCount(), workflow.TriggerCount, emptyDash(workflowTagNames(workflow.Tags)),
 				emptyDash(workflow.UpdatedAt))
+			if withFolder {
+				folder, ok := workflow.ParentFolderID()
+				if !ok {
+					folderMissing = true
+				}
+				fmt.Fprintf(tw, "\t%s", emptyDash(folder))
+			}
+			fmt.Fprintln(tw)
 		}
 	}
 	if page.HasMore() {
@@ -221,6 +240,9 @@ func writeWorkflowList(opts Options, resolution config.Resolution, page n8n.Page
 	}
 	if len(page.Data) == 0 {
 		fmt.Fprintln(opts.Streams.Err, workflowListEmptyHint)
+	}
+	if folderMissing {
+		fmt.Fprintln(opts.Streams.Err, "The instance sent no parentFolder field, so FOLDER '-' means unknown, not the project root; it may predate --include-parent-folder.")
 	}
 	return nil
 }
@@ -328,10 +350,11 @@ func newWorkflowCreateCommand(opts Options) *cobra.Command {
 			"from stdin ('--input -'); without it, --name creates an empty workflow with no\n" +
 			"nodes, ready to be edited in the UI or filled in by a later update.\n\n" +
 			"The input may be a document produced by 'n8n workflow get --output json': the\n" +
-			"read-only fields (id, versionId, active, timestamps, tags, sharing) are dropped\n" +
-			"before sending, because the API answers a read-only field with 400, and the\n" +
-			"dropped names are reported on stderr. --name, --project-id and\n" +
-			"--parent-folder-id override what the document says.\n\n" +
+			"read-only fields (id, versionId, active, timestamps, tags, sharing, node\n" +
+			"timestamps) and settings set to \"DEFAULT\" are dropped before sending, because\n" +
+			"the API answers them with 400, and the dropped names are reported on stderr. A\n" +
+			"null settings is sent as {}. --name, --project-id and --parent-folder-id\n" +
+			"override what the document says.\n\n" +
 			"A created workflow is never published: publish it with 'n8n workflow publish'.\n" +
 			"Requires workflow:create.",
 		Example: "  n8n workflow create --name \"Invoice sync\"\n" +
@@ -435,8 +458,12 @@ func newWorkflowUpdateCommand(opts Options) *cobra.Command {
 			"  n8n workflow get ID --output json > workflow.json\n" +
 			"  n8n workflow update ID --input workflow.json\n" +
 			"Read-only fields in the document (id, versionId, active, timestamps, tags,\n" +
-			"sharing) are dropped before sending and reported on stderr, because the API\n" +
-			"answers a read-only field with 400.\n\n" +
+			"sharing, node timestamps) and settings set to \"DEFAULT\" are dropped before\n" +
+			"sending and reported on stderr, because the API answers them with 400; an\n" +
+			"omitted setting keeps the instance default, which is what \"DEFAULT\" means.\n" +
+			"A null settings is sent as {}. Add \"parentFolderId\": \"FOLDER_ID\" to move\n" +
+			"the workflow into a folder, or \"parentFolderId\": null to move it to the\n" +
+			"project root; without the field the folder is unchanged.\n\n" +
 			"A published workflow is republished with the new version unless --no-publish is\n" +
 			"given. Republishing additionally needs the workflow:activate scope and the\n" +
 			"project's workflow:publish permission; without them the new version is still\n" +
