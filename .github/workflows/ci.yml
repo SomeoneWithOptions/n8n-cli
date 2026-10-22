@@ -1,6 +1,8 @@
 # CI runs the same Makefile targets that gate a change locally. If a step here
 # does something the Makefile cannot do, the step is wrong: add the target
 # instead, so a failure is reproducible with one command on a laptop.
+# The one exception is the `changes` gate, which only decides whether the
+# targets need to run at all.
 name: CI
 
 on:
@@ -16,8 +18,59 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
+  # Skips the expensive jobs for PRs that touch only prose. Gating happens here,
+  # not with `on.pull_request.paths`: the main ruleset requires the check and
+  # install-script jobs by name, and a workflow that never starts leaves them
+  # pending forever. Releases (workflow_call) always run everything.
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          # The PR merge commit plus its parents: HEAD^1 is the base tip.
+          fetch-depth: 2
+
+      - name: Classify changed files
+        id: filter
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "scripts=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          scripts=false
+          while IFS= read -r f; do
+            case "$f" in
+              # docs/ is generated and drift-checked by TestDocsAreCurrent.
+              docs/* | cmd/* | internal/* | test/*) code=true ;;
+              install.sh | install.ps1) scripts=true ;;
+              .github/workflows/ci.yml) code=true; scripts=true ;;
+              # Prose and repo metadata no target reads.
+              *.md | LICENSE | .github/CODEOWNERS | .github/ISSUE_TEMPLATE/*) ;;
+              # Anything unrecognised runs the full suite.
+              *) code=true ;;
+            esac
+          done < <(git diff --name-only HEAD^1 HEAD)
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "scripts=$scripts" >> "$GITHUB_OUTPUT"
+          echo "code=$code scripts=$scripts"
+
   check:
     name: check (${{ matrix.os }})
+    needs: changes
+    # Always start, even if `changes` failed: a skipped matrix job never reports
+    # the per-OS names the ruleset requires. Steps below fail open (run) unless
+    # `changes` positively said there is nothing to check.
+    if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -29,52 +82,71 @@ jobs:
         # Use Git Bash on Windows; the Makefile also selects bash explicitly.
         shell: bash
     steps:
+      - name: No code changes
+        if: needs.changes.outputs.code == 'false'
+        run: echo "Only docs or metadata changed; skipping checks."
+
       - uses: actions/checkout@v7.0.1
+        if: needs.changes.outputs.code != 'false'
         with:
           persist-credentials: false
 
       - uses: actions/setup-go@v7.0.0
+        if: needs.changes.outputs.code != 'false'
         with:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
 
       - name: Install make (Windows)
-        if: runner.os == 'Windows'
+        if: needs.changes.outputs.code != 'false' && runner.os == 'Windows'
         run: choco install make --no-progress --yes
 
       - name: Formatting
+        if: needs.changes.outputs.code != 'false'
         run: make fmt-check
 
       - name: Vet
+        if: needs.changes.outputs.code != 'false'
         run: make vet
 
       - name: Lint
+        if: needs.changes.outputs.code != 'false'
         run: make lint
 
       - name: Tests
+        if: needs.changes.outputs.code != 'false'
         run: make test
 
       - name: Tests (race)
+        if: needs.changes.outputs.code != 'false'
         run: make test-race
 
       - name: Dependency allowlist
+        if: needs.changes.outputs.code != 'false'
         run: make deps-check
 
       - name: Module tidiness
+        if: needs.changes.outputs.code != 'false'
         run: make tidy-check
 
       - name: Cross-compile targets
+        if: needs.changes.outputs.code != 'false'
         run: make cross
 
       - name: Vulnerabilities
+        if: needs.changes.outputs.code != 'false'
         run: make vuln
 
       - name: Smoke
+        if: needs.changes.outputs.code != 'false'
         run: make smoke
 
   scripts:
     name: install scripts
+    needs: changes
+    # Not a matrix job, so a skip reports under the required name and passes.
+    if: ${{ !cancelled() && needs.changes.outputs.scripts != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
