@@ -522,17 +522,19 @@ func (c *Client) ListWorkflows(ctx context.Context, opts ListWorkflowsOptions) (
 
 // CreateWorkflow creates one workflow from a write document. The document must
 // already be reduced with [WorkflowDocument.ForCreate]: a read-only field in the
-// body is a 400, not an ignored field.
-func (c *Client) CreateWorkflow(ctx context.Context, doc WorkflowDocument) (*Workflow, error) {
+// body is a 400, not an ignored field. opts accepts [IdempotencyKey].
+func (c *Client) CreateWorkflow(ctx context.Context, doc WorkflowDocument, opts ...CallOption) (*Workflow, error) {
 	if err := doc.Validate(); err != nil {
 		return nil, err
 	}
 	var created Workflow
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   WorkflowsPath,
 		Body:   doc,
-	}, &created); err != nil {
+	}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &created); err != nil {
 		return nil, err
 	}
 	return &created, nil

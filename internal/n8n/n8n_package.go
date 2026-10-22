@@ -873,19 +873,24 @@ func IsImportUnprocessable(err error) bool {
 // and is never buffered whole in memory. The caller confirms first: imports
 // may publish, archive, hard-delete workflows and executions, create
 // credential stubs, and overwrite folders, tags, variables, or tables.
-func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest, packageData io.Reader, filename string) (*ImportPackageResult, error) {
+//
+// opts accepts [IdempotencyKey]. With a key the multipart boundary is derived
+// from it, so a retry with the same key, archive and filename sends the same
+// bytes, which the server requires to replay the first result.
+func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest, packageData io.Reader, filename string, opts ...CallOption) (*ImportPackageResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return c.postPackageImport(ctx, N8nPackageImportPath, request.fields(), packageData, filename)
+	return c.postPackageImport(ctx, N8nPackageImportPath, request.fields(), packageData, filename, opts)
 }
 
 // ImportPackageSelection cherry-picks workflows from one source project of a
 // project package into the instance project with the same ID, created if
 // missing. It never removes a workflow the selection omits; it deletes only
 // request.DeletedWorkflowIDs. The archive streams like [Client.ImportPackage]
-// and the result has the same shape. The caller confirms first.
-func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPackageSelectionRequest, packageData io.Reader, filename string) (*ImportPackageResult, error) {
+// and the result has the same shape. The caller confirms first. opts accepts
+// [IdempotencyKey], with the same boundary rule as [Client.ImportPackage].
+func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPackageSelectionRequest, packageData io.Reader, filename string, opts ...CallOption) (*ImportPackageResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
@@ -893,15 +898,23 @@ func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPacka
 	if err != nil {
 		return nil, err
 	}
-	return c.postPackageImport(ctx, N8nPackageImportSelectionPath, fields, packageData, filename)
+	return c.postPackageImport(ctx, N8nPackageImportSelectionPath, fields, packageData, filename, opts)
 }
 
 // postPackageImport streams fields and the archive to an import endpoint and
 // decodes the shared import result. A 409 or 422 becomes an
-// [*ImportBlockedError] naming path.
-func (c *Client) postPackageImport(ctx context.Context, path string, fields map[string]string, packageData io.Reader, filename string) (*ImportPackageResult, error) {
+// [*ImportBlockedError] naming path, except an idempotency refusal, which
+// stays an [*APIError].
+func (c *Client) postPackageImport(ctx context.Context, path string, fields map[string]string, packageData io.Reader, filename string, opts []CallOption) (*ImportPackageResult, error) {
 	if packageData == nil {
 		return nil, fmt.Errorf("package archive is required: pass the .n8np bytes")
+	}
+	var call Request
+	applyCallOptions(&call, opts)
+	if call.IdempotencyKey != "" {
+		if err := ValidateIdempotencyKey(call.IdempotencyKey); err != nil {
+			return nil, err
+		}
 	}
 	if strings.TrimSpace(filename) == "" {
 		filename = DefaultImportPackageFilename
@@ -920,12 +933,22 @@ func (c *Client) postPackageImport(ctx context.Context, path string, fields map[
 		return nil, err
 	}
 
-	body, contentType := multipartImportBody(fields, packageData, filename)
+	boundary := ""
+	if call.IdempotencyKey != "" {
+		boundary = idempotentBoundary(call.IdempotencyKey)
+	}
+	body, contentType, err := multipartImportBody(fields, packageData, filename, boundary)
+	if err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, importEndpoint.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("n8n: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", contentType)
+	if call.IdempotencyKey != "" {
+		req.Header.Set(IdempotencyKeyHeader, call.IdempotencyKey)
+	}
 	req.Header.Set("Accept", contentTypeJSON)
 	req.Header.Set("User-Agent", c.userAgent)
 	if c.auth != nil {
@@ -962,9 +985,12 @@ func (c *Client) postPackageImport(ctx context.Context, path string, fields map[
 	)
 
 	if resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusUnprocessableEntity {
-		raw, _, err := readLimited(resp.Body, maxErrorBody)
+		raw, truncated, err := readLimited(resp.Body, maxErrorBody)
 		if err != nil {
 			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", path, err)
+		}
+		if isIdempotencyRefusalBody(raw) {
+			return nil, newAPIError(resp, http.MethodPost, path, raw, truncated)
 		}
 		return nil, newImportBlockedError(resp, path, raw)
 	}
@@ -985,16 +1011,23 @@ func (c *Client) postPackageImport(ctx context.Context, path string, fields map[
 
 // multipartImportBody streams the policy fields and the archive through a
 // pipe: the writer side runs in a goroutine, so the HTTP transport reads
-// while the archive streams without an intermediate buffer.
-func multipartImportBody(fields map[string]string, packageData io.Reader, filename string) (io.Reader, string) {
+// while the archive streams without an intermediate buffer. An empty boundary
+// keeps the random one multipart picks.
+func multipartImportBody(fields map[string]string, packageData io.Reader, filename, boundary string) (io.Reader, string, error) {
 	reader, writer := io.Pipe()
 	multipartWriter := multipart.NewWriter(writer)
+	if boundary != "" {
+		if err := multipartWriter.SetBoundary(boundary); err != nil {
+			_ = writer.Close()
+			return nil, "", fmt.Errorf("n8n: multipart boundary: %w", err)
+		}
+	}
 	contentType := multipartWriter.FormDataContentType()
 	go func() {
 		err := writeMultipartImport(multipartWriter, fields, packageData, filename)
 		_ = writer.CloseWithError(err)
 	}()
-	return reader, contentType
+	return reader, contentType, nil
 }
 
 func writeMultipartImport(multipartWriter *multipart.Writer, fields map[string]string, packageData io.Reader, filename string) error {

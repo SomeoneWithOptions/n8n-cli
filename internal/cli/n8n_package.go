@@ -383,6 +383,7 @@ type packageImportFlags struct {
 	tagConflict        string
 	yes                bool
 	output             string
+	idempotency        idempotencyFlag
 }
 
 func newPackageImportCommand(opts Options) *cobra.Command {
@@ -413,7 +414,9 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 			"workflow:import plus, depending on the package and the policies,\n" +
 			"credential, variable, tag, data-table, folder, and delete scopes, and\n" +
 			"the Packages, Variables, and Folders features where the contents\n" +
-			"require them.",
+			"require them.\n\n" +
+			idempotencyHelp + " A retry must send\n" +
+			"the same archive under the same file name with the same flags.",
 		Example: "  n8n package import --file workflows.n8np --workflow-conflict-policy new-version --yes\n" +
 			"  n8n package import --file project.n8np --workflow-conflict-policy fail --project-id Ox8O54VQrmBrb4qL --yes --output json\n" +
 			"  n8n package import --file update.n8np --workflow-conflict-policy skip --workflow-publishing-policy publish-all --yes",
@@ -446,6 +449,7 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.tagConflict, "tag-conflict-policy", "", "conflicted tag handling: skip, fail, or rename (default: server default skip)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm importing, publishing, archiving, deleting, and overwriting without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full import result)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -484,6 +488,9 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
@@ -496,8 +503,11 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 		return err
 	}
 	defer cleanup()
-	result, err := client.ImportPackage(ctx, request, archive, filename)
+	result, err := client.ImportPackage(ctx, request, archive, filename, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return packageAPIError(err, resolution, "import", allOf("workflow:import"))
 	}
 	if f.output == outputJSON {
@@ -658,6 +668,7 @@ type packageImportSelectionFlags struct {
 	deletionPolicy   string
 	yes              bool
 	output           string
+	idempotency      idempotencyFlag
 }
 
 func newPackageImportSelectionCommand(opts Options) *cobra.Command {
@@ -690,7 +701,9 @@ func newPackageImportSelectionCommand(opts Options) *cobra.Command {
 			"stdin cannot answer. Needs workflow:import, plus workflow:delete when\n" +
 			"deleting or when an update changes a workflow's archive state, and the\n" +
 			"licensed Packages feature. Output is the same import result as\n" +
-			"'n8n package import'.",
+			"'n8n package import'.\n\n" +
+			idempotencyHelp + " A retry must send\n" +
+			"the same archive under the same file name with the same flags.",
 		Example: "  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --workflow-id 7pQr3sTuVwXyZaBc --yes\n" +
 			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --delete-workflow-id 9xKp2mNqRzAbCdEf --workflow-conflict-policy fail --output json --yes\n" +
 			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --delete-workflow-id 9xKp2mNqRzAbCdEf --overwrite-deletion-policy hard-delete",
@@ -709,6 +722,7 @@ func newPackageImportSelectionCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.deletionPolicy, "overwrite-deletion-policy", "", "how --delete-workflow-id removes workflows: archive (recoverable) or hard-delete (also drops executions permanently; prefer archive); needs --delete-workflow-id (default: server default archive)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm importing and deleting the listed workflows without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full import result)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -739,6 +753,9 @@ func runPackageImportSelection(ctx context.Context, opts Options, f packageImpor
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
@@ -751,8 +768,11 @@ func runPackageImportSelection(ctx context.Context, opts Options, f packageImpor
 		return err
 	}
 	defer cleanup()
-	result, err := client.ImportPackageSelection(ctx, request, archive, filename)
+	result, err := client.ImportPackageSelection(ctx, request, archive, filename, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		need := allOf("workflow:import")
 		if len(request.DeletedWorkflowIDs) > 0 {
 			need = allOf("workflow:import", "workflow:delete")

@@ -1179,8 +1179,9 @@ func (c *Client) RemoveProjectFromPromotionConnection(ctx context.Context, id, p
 }
 
 // PromotePackage exports all team projects, commits them and pushes to the
-// remote. The promote checkout must be cloned first.
-func (c *Client) PromotePackage(ctx context.Context, id string, request PromotePromotionRequest) (*PromotePromotionResult, error) {
+// remote. The promote checkout must be cloned first. opts accepts
+// [IdempotencyKey].
+func (c *Client) PromotePackage(ctx context.Context, id string, request PromotePromotionRequest, opts ...CallOption) (*PromotePromotionResult, error) {
 	if err := validatePromotionID(id, "promotion connection ID"); err != nil {
 		return nil, err
 	}
@@ -1188,11 +1189,13 @@ func (c *Client) PromotePackage(ctx context.Context, id string, request PromoteP
 		return nil, err
 	}
 	var result PromotePromotionResult
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("promotions", "connections", id, "promote"),
 		Body:   request,
-	}, &result); err != nil {
+	}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -1200,16 +1203,18 @@ func (c *Client) PromotePackage(ctx context.Context, id string, request PromoteP
 
 // ApplyPackage resets the apply checkout to the branch tip and imports
 // projects into the instance, overwriting to match. The apply checkout must be
-// cloned first.
-func (c *Client) ApplyPackage(ctx context.Context, id string) (*ApplyPromotionResult, error) {
+// cloned first. opts accepts [IdempotencyKey].
+func (c *Client) ApplyPackage(ctx context.Context, id string, opts ...CallOption) (*ApplyPromotionResult, error) {
 	if err := validatePromotionID(id, "promotion connection ID"); err != nil {
 		return nil, err
 	}
 	var result ApplyPromotionResult
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("promotions", "connections", id, "apply"),
-	}, &result); err != nil {
+	}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

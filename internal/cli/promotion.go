@@ -1488,11 +1488,12 @@ func runPromotionProjectRemove(ctx context.Context, opts Options, id, projectID 
 // Promote and apply.
 
 type promotionPromoteFlags struct {
-	instance instanceFlags
-	commit   string
-	force    bool
-	yes      bool
-	output   string
+	instance    instanceFlags
+	commit      string
+	force       bool
+	yes         bool
+	output      string
+	idempotency idempotencyFlag
 }
 
 func newPromotionPromoteCommand(opts Options) *cobra.Command {
@@ -1511,7 +1512,8 @@ func newPromotionPromoteCommand(opts Options) *cobra.Command {
 			"promote the remote would reject is refused with 409 and nothing is\n" +
 			"pushed; --force pushes anyway and rewrites remote history. This\n" +
 			"mutates the remote branch. Interactive runs ask for confirmation and\n" +
-			"non-interactive runs require --yes. Requires gitConnection:push.",
+			"non-interactive runs require --yes. Requires gitConnection:push.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n promotion promote CONNECTION_ID --commit-message \"sync workflows\"\n" +
 			"  n8n promotion promote CONNECTION_ID --commit-message \"sync\" --force --yes\n" +
 			"  n8n promotion promote CONNECTION_ID --commit-message \"sync\" --yes --output json",
@@ -1525,6 +1527,7 @@ func newPromotionPromoteCommand(opts Options) *cobra.Command {
 	cmd.Flags().BoolVar(&f.force, "force", false, "promote even when the remote would reject it, rewriting remote history (default: reject a rejected promote with 409)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm promoting every team project to the remote without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the promote result with counts and commit)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -1542,6 +1545,9 @@ func runPromotionPromote(ctx context.Context, opts Options, id string, f promoti
 	if err := request.Validate(); err != nil {
 		return err
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
@@ -1553,8 +1559,11 @@ func runPromotionPromote(ctx context.Context, opts Options, id string, f promoti
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
-	result, err := client.PromotePackage(ctx, id, request)
+	result, err := client.PromotePackage(ctx, id, request, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return promotionAPIError(err, resolution, "promote", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {
@@ -1564,9 +1573,10 @@ func runPromotionPromote(ctx context.Context, opts Options, id string, f promoti
 }
 
 type promotionApplyFlags struct {
-	instance instanceFlags
-	yes      bool
-	output   string
+	instance    instanceFlags
+	yes         bool
+	output      string
+	idempotency idempotencyFlag
 }
 
 func newPromotionApplyCommand(opts Options) *cobra.Command {
@@ -1592,7 +1602,8 @@ func newPromotionApplyCommand(opts Options) *cobra.Command {
 			"non-interactive runs require --yes. Requires gitConnection:pull.\n\n" +
 			"Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 any other error\n" +
 			"or an unknown status. --output json prints the full result on stdout\n" +
-			"in every status; the next step goes to stderr.",
+			"in every status; the next step goes to stderr.\n\n" +
+			idempotencyHelp,
 		Example: "  n8n promotion apply CONNECTION_ID\n" +
 			"  n8n promotion apply CONNECTION_ID --yes\n" +
 			"  n8n promotion apply CONNECTION_ID --yes --output json",
@@ -1604,6 +1615,7 @@ func newPromotionApplyCommand(opts Options) *cobra.Command {
 	f.instance.register(cmd)
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm overwriting instance content from the remote without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full apply result: status, git, and counts or preflight)")
+	f.idempotency.register(cmd)
 	return cmd
 }
 
@@ -1617,6 +1629,9 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 	if strings.TrimSpace(id) != id {
 		return fmt.Errorf("connection ID must not start or end with whitespace")
 	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
@@ -1625,8 +1640,11 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
-	result, err := client.ApplyPackage(ctx, id)
+	result, err := client.ApplyPackage(ctx, id, f.idempotency.resolve(opts.Streams.Err)...)
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return promotionAPIError(err, resolution, "apply", promotionConnectionSubject(id))
 	}
 	if f.output == outputJSON {

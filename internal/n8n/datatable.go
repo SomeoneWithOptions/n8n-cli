@@ -652,7 +652,8 @@ func (c *Client) ListDataTableRows(ctx context.Context, tableID string, opts Lis
 
 // InsertDataTableRows inserts one or more rows and preserves whichever
 // response shape the requested return type produced.
-func (c *Client) InsertDataTableRows(ctx context.Context, tableID string, req InsertRowsRequest) (*InsertRowsResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) InsertDataTableRows(ctx context.Context, tableID string, req InsertRowsRequest, opts ...CallOption) (*InsertRowsResult, error) {
 	if err := validateDataTableID(tableID); err != nil {
 		return nil, err
 	}
@@ -660,11 +661,13 @@ func (c *Client) InsertDataTableRows(ctx context.Context, tableID string, req In
 		return nil, err
 	}
 	var result InsertRowsResult
-	if _, err := c.Do(ctx, Request{
+	call := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("data-tables", tableID, "rows"),
 		Body:   req,
-	}, &result); err != nil {
+	}
+	applyCallOptions(&call, opts)
+	if _, err := c.Do(ctx, call, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -690,7 +693,8 @@ func (c *Client) UpdateDataTableRows(ctx context.Context, tableID string, req Up
 }
 
 // UpsertDataTableRow updates the row matching the filter or inserts a new one.
-func (c *Client) UpsertDataTableRow(ctx context.Context, tableID string, req UpsertRowRequest) (*RowMutationResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) UpsertDataTableRow(ctx context.Context, tableID string, req UpsertRowRequest, opts ...CallOption) (*RowMutationResult, error) {
 	if err := validateDataTableID(tableID); err != nil {
 		return nil, err
 	}
@@ -698,11 +702,13 @@ func (c *Client) UpsertDataTableRow(ctx context.Context, tableID string, req Ups
 		return nil, err
 	}
 	var result RowMutationResult
-	if _, err := c.Do(ctx, Request{
+	call := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("data-tables", tableID, "rows", "upsert"),
 		Body:   req,
-	}, &result); err != nil {
+	}
+	applyCallOptions(&call, opts)
+	if _, err := c.Do(ctx, call, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

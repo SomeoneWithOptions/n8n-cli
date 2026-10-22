@@ -328,47 +328,56 @@ func (c *Client) SetExecutionTags(ctx context.Context, id string, tagIDs []strin
 }
 
 // StopManyExecutions cancels every accessible execution matching request.
-func (c *Client) StopManyExecutions(ctx context.Context, request StopManyExecutionsRequest) (*StopManyExecutionsResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) StopManyExecutions(ctx context.Context, request StopManyExecutionsRequest, opts ...CallOption) (*StopManyExecutionsResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
 	var result StopManyExecutionsResult
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("executions", "stop"),
 		Body:   request,
-	}, &result); err != nil {
+	}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
 // StopExecution cancels one queued, running, or waiting execution.
-func (c *Client) StopExecution(ctx context.Context, id string) (*ExecutionStopResult, error) {
+// opts accepts [IdempotencyKey].
+func (c *Client) StopExecution(ctx context.Context, id string, opts ...CallOption) (*ExecutionStopResult, error) {
 	if err := validateExecutionID(id); err != nil {
 		return nil, err
 	}
 	var result ExecutionStopResult
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("executions", id, "stop"),
-	}, &result); err != nil {
+	}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
 // RetryExecution starts a new execution from an existing failed execution.
-func (c *Client) RetryExecution(ctx context.Context, id string, opts RetryExecutionOptions) (*Execution, error) {
+// callOpts accepts [IdempotencyKey].
+func (c *Client) RetryExecution(ctx context.Context, id string, opts RetryExecutionOptions, callOpts ...CallOption) (*Execution, error) {
 	if err := validateExecutionID(id); err != nil {
 		return nil, err
 	}
 	var execution Execution
-	if _, err := c.Do(ctx, Request{
+	req := Request{
 		Method: http.MethodPost,
 		Path:   PathJoin("executions", id, "retry"),
 		Body:   opts,
-	}, &execution); err != nil {
+	}
+	applyCallOptions(&req, callOpts)
+	if _, err := c.Do(ctx, req, &execution); err != nil {
 		return nil, err
 	}
 	return &execution, nil

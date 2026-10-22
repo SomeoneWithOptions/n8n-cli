@@ -33,6 +33,11 @@ deleting or when an update changes a workflow's archive state, and the
 licensed Packages feature. Output is the same import result as
 'n8n package import'.
 
+--idempotency-key KEY makes a retry after a timeout or lost response safe:
+the same request with the same key returns the first result instead of
+running again (auto generates a key and prints it on stderr). A retry must send
+the same archive under the same file name with the same flags.
+
 ```
 n8n package import-selection [flags]
 ```
@@ -52,6 +57,7 @@ n8n package import-selection [flags]
       --delete-workflow-id stringArray     destination workflow ID to remove from the target project, repeatable; needs workflow:delete and must not match a --workflow-id (default: none)
       --file string                        project package archive (.n8np) to import from: a file path, or - for stdin (required; stdin requires --yes)
   -h, --help                               help for import-selection
+      --idempotency-key string             retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
       --output string                      output format: text or json (JSON is the full import result) (default "text")
       --overwrite-deletion-policy string   how --delete-workflow-id removes workflows: archive (recoverable) or hard-delete (also drops executions permanently; prefer archive); needs --delete-workflow-id (default: server default archive)
       --project-id string                  source project ID as it appears in the package; also the target project ID, created if missing (required)

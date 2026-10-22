@@ -136,6 +136,9 @@ type Request struct {
 	ContentType string
 	// Accept overrides the Accept header. Defaults to application/json.
 	Accept string
+	// IdempotencyKey is sent as the Idempotency-Key header when set. It is
+	// validated before transport; see [IdempotencyKey].
+	IdempotencyKey string
 }
 
 // Response is the metadata of a successful call. The body is already decoded.
@@ -163,6 +166,11 @@ func (c *Client) Do(ctx context.Context, r Request, out any) (*Response, error) 
 	method := r.Method
 	if method == "" {
 		method = http.MethodGet
+	}
+	if r.IdempotencyKey != "" {
+		if err := ValidateIdempotencyKey(r.IdempotencyKey); err != nil {
+			return nil, err
+		}
 	}
 
 	endpoint, err := c.resolve(r.Path, r.Query)
@@ -195,6 +203,9 @@ func (c *Client) Do(ctx context.Context, r Request, out any) (*Response, error) 
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	if r.IdempotencyKey != "" {
+		req.Header.Set(IdempotencyKeyHeader, r.IdempotencyKey)
 	}
 	accept := r.Accept
 	if accept == "" {

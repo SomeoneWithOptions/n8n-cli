@@ -181,6 +181,7 @@ type promotionSelectionFlags struct {
 	source                      n8n.PromotionExpectedSource
 	commit                      string
 	yes, destructive            bool
+	idempotency                 idempotencyFlag
 }
 
 // Separate commands keep the required source and selection explicit at continue time.
@@ -251,7 +252,7 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 	long += "Read request JSON with --input FILE|- (maximum 1 MiB). Input and document flags are\n" +
 		"mutually exclusive. Interactive runs ask for confirmation; non-interactive\n" +
 		"runs and stdin input require --yes. JSON returns the server result; text\n" +
-		"shows counts and the commit after success."
+		"shows counts and the commit after success.\n\n" + idempotencyHelp
 	example := "  " + prefix + action + " " + strings.ToUpper(target) + "_ID"
 	flags := ""
 	if project {
@@ -266,6 +267,7 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 	cmd.Flags().StringVar(&f.input, "input", "", "request JSON file path or - for stdin, maximum 1 MiB (default: use document flags; stdin requires --yes)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (default: text; JSON is the full server result)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm content changes without prompting (default: prompt; required for non-interactive or stdin input)")
+	f.idempotency.register(cmd)
 	documentFlags := []string{}
 	if project {
 		cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "selected workflow ID, 1 to 36 characters; repeat for each ID (default: none; required unless --input is used)")
@@ -304,6 +306,9 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 		}
 		if (f.input == "-" || f.expectedFrom == "-") && !f.yes {
 			return fmt.Errorf("stdin input requires --yes because stdin cannot answer confirmation")
+		}
+		if err := f.idempotency.validate(); err != nil {
+			return err
 		}
 		var source *n8n.PromotionExpectedSource
 		if !isPromote && f.input == "" {
@@ -438,11 +443,15 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
+	callOpts := f.idempotency.resolve(opts.Streams.Err)
 	var result *n8n.ApplyPromotionResult
 	switch r := request.(type) {
 	case *n8n.PromoteProjectSelectionRequest:
-		promoted, err := client.PromoteProjectSelection(ctx, id, *r)
+		promoted, err := client.PromoteProjectSelection(ctx, id, *r, callOpts...)
 		if err != nil {
+			if refused := f.idempotency.refusal(err, resolution); refused != nil {
+				return refused
+			}
 			return promotionAPIError(err, resolution, action, subject)
 		}
 		if f.output == outputJSON {
@@ -450,13 +459,16 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 		}
 		return writePromotionPromoteResult(opts, resolution, promoted)
 	case *n8n.ApplyProjectSelectionRequest:
-		result, err = client.ApplyProjectSelection(ctx, id, *r)
+		result, err = client.ApplyProjectSelection(ctx, id, *r, callOpts...)
 	case *n8n.ContinueApplyProjectSelectionRequest:
-		result, err = client.ContinueApplyProjectSelection(ctx, id, *r)
+		result, err = client.ContinueApplyProjectSelection(ctx, id, *r, callOpts...)
 	case *n8n.ContinueApplyPromotionRequest:
-		result, err = client.ContinueApplyPackage(ctx, id, *r)
+		result, err = client.ContinueApplyPackage(ctx, id, *r, callOpts...)
 	}
 	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
 		return promotionAPIError(err, resolution, action, subject)
 	}
 	if f.output == outputJSON {

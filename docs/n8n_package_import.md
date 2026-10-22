@@ -30,6 +30,11 @@ credential, variable, tag, data-table, folder, and delete scopes, and
 the Packages, Variables, and Folders features where the contents
 require them.
 
+--idempotency-key KEY makes a retry after a timeout or lost response safe:
+the same request with the same key returns the first result instead of
+running again (auto generates a key and prints it on stderr). A retry must send
+the same archive under the same file name with the same flags.
+
 ```
 n8n package import [flags]
 ```
@@ -56,6 +61,7 @@ n8n package import [flags]
       --folder-conflict-policy string       existing folder handling: merge, fail, or overwrite; empty follows --project-conflict-policy on project packages, merge otherwise (default: follow)
       --folder-id string                    folder within the target project, from 'n8n folder list PROJECT_ID' (default: the project root)
   -h, --help                                help for import
+      --idempotency-key string              retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
       --missing-node-type-mode string       unknown node type handling: fail rejects before anything is written, import-anyway imports without publishing those workflows (default: server default fail)
       --output string                       output format: text or json (JSON is the full import result) (default "text")
       --overwrite-deletion-policy string    how folder overwrite removes missing workflows: archive (recoverable) or hard-delete (also drops executions; prefer archive) (default: server default archive)
