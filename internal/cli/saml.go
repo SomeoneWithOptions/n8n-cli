@@ -88,10 +88,12 @@ func runSAMLGet(ctx context.Context, opts Options, f samlGetFlags) error {
 }
 
 type samlSetFlags struct {
-	instance instanceFlags
-	input    string
-	yes      bool
-	output   string
+	instance               instanceFlags
+	input                  string
+	emailVerifiedRequired  bool
+	emailVerifiedAttribute string
+	yes                    bool
+	output                 string
 }
 
 func newSAMLSetCommand(opts Options) *cobra.Command {
@@ -100,12 +102,19 @@ func newSAMLSetCommand(opts Options) *cobra.Command {
 		Use:   "set",
 		Short: "Fully replace SAML SSO configuration",
 		Long: "Fully replace the instance SAML SSO configuration from strict JSON. This is\n" +
-			"a PUT, not a patch: all 15 writable top-level fields and every nested mapping\n" +
-			"and signature field are required, including false, empty-string, and empty-array\n" +
-			"values. Start from 'n8n saml get --output json'. Read-only entityID and returnUrl\n" +
-			"are accepted for that round trip but ignored on set. Leave returned redaction\n" +
-			"placeholders unchanged to preserve metadata, private key, and certificate; use\n" +
-			"empty strings to clear supported values or plaintext to replace them.\n\n" +
+			"a PUT, not a patch: every writable top-level field (16 on current n8n) and every\n" +
+			"nested mapping and signature field is required, including false, empty-string,\n" +
+			"and empty-array values. Start from 'n8n saml get --output json': that document\n" +
+			"round-trips losslessly, including emailVerifiedRequired and mapping.emailVerified.\n" +
+			"Read-only entityID and returnUrl are accepted for that round trip but ignored on\n" +
+			"set. Leave returned redaction placeholders unchanged to preserve metadata,\n" +
+			"private key, and certificate; use empty strings to clear supported values or\n" +
+			"plaintext to replace them.\n\n" +
+			"Current n8n requires emailVerifiedRequired and mapping.emailVerified and answers\n" +
+			"400 without them; older instances do not know them, so a document without them\n" +
+			"is sent as is with a warning. --email-verified-required and\n" +
+			"--email-verified-attribute set or override those two fields in the --input\n" +
+			"document, e.g. when it came from an older instance.\n\n" +
 			"Every replacement asks for confirmation because changing SAML settings can alter\n" +
 			"the login flow immediately. Non-interactive use and --input - require --yes.\n" +
 			"Protect files containing replacement metadata, keys, or certificates. Server\n" +
@@ -114,18 +123,33 @@ func newSAMLSetCommand(opts Options) *cobra.Command {
 		Example: "  umask 077 && n8n saml get --output json > saml.json\n" +
 			"  n8n saml set --input saml.json\n" +
 			"  n8n saml set --input saml.json --yes --output json\n" +
+			"  n8n saml set --input saml.json --email-verified-required --email-verified-attribute email_verified\n" +
 			"  n8n saml set --input - --yes < saml.json",
 		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error { return runSAMLSet(cmd.Context(), opts, f) },
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runSAMLSet(cmd.Context(), opts, f, samlSetOverrides{
+				emailVerifiedRequired:  cmd.Flags().Changed("email-verified-required"),
+				emailVerifiedAttribute: cmd.Flags().Changed("email-verified-attribute"),
+			})
+		},
 	}
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.input, "input", "", "full SAML configuration JSON file path, or - for stdin (required; maximum 1 MiB; may contain private material)")
+	cmd.Flags().BoolVar(&f.emailVerifiedRequired, "email-verified-required", false, "require the identity provider to assert a verified email before a login links to an existing user by email; true or false, overrides emailVerifiedRequired in --input (default: the --input value)")
+	cmd.Flags().StringVar(&f.emailVerifiedAttribute, "email-verified-attribute", "", "SAML attribute whose true/false value states the email is verified, empty string when unused; overrides mapping.emailVerified in --input (default: the --input value)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm full replacement and possible login-flow changes without prompting (required for non-interactive use)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (secret-bearing values are returned only as n8n placeholders)")
 	return cmd
 }
 
-func runSAMLSet(ctx context.Context, opts Options, f samlSetFlags) error {
+// samlSetOverrides records which field flags were passed, so an explicit false
+// or empty value still overrides the --input document.
+type samlSetOverrides struct {
+	emailVerifiedRequired  bool
+	emailVerifiedAttribute bool
+}
+
+func runSAMLSet(ctx context.Context, opts Options, f samlSetFlags, overrides samlSetOverrides) error {
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
@@ -138,6 +162,15 @@ func runSAMLSet(ctx context.Context, opts Options, f samlSetFlags) error {
 	}
 	if err := request.Validate(); err != nil {
 		return err
+	}
+	if overrides.emailVerifiedRequired {
+		request.EmailVerifiedRequired = &f.emailVerifiedRequired
+	}
+	if overrides.emailVerifiedAttribute {
+		request.Mapping.EmailVerified = &f.emailVerifiedAttribute
+	}
+	if missing := request.MissingEmailVerification(); len(missing) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "Warning: --input omits %s. Current n8n requires them and answers 400; older instances do not know them. Add them from 'n8n saml get --output json' or pass --email-verified-required and --email-verified-attribute.\n", strings.Join(missing, " and "))
 	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
@@ -199,6 +232,9 @@ func writeSAMLConfiguration(opts Options, resolution config.Resolution, heading 
 	fmt.Fprintf(tw, "Mapping first name:\t%s\n", emptyDash(configuration.Mapping.FirstName))
 	fmt.Fprintf(tw, "Mapping last name:\t%s\n", emptyDash(configuration.Mapping.LastName))
 	fmt.Fprintf(tw, "Mapping user principal name:\t%s\n", emptyDash(configuration.Mapping.UserPrincipalName))
+	if configuration.Mapping.EmailVerified != nil {
+		fmt.Fprintf(tw, "Mapping email verified:\t%s\n", emptyDash(*configuration.Mapping.EmailVerified))
+	}
 	fmt.Fprintf(tw, "Mapping instance role:\t%s\n", emptyDash(configuration.Mapping.N8nInstanceRole))
 	fmt.Fprintf(tw, "Mapping project roles:\t%s\n", emptyDash(strings.Join(configuration.Mapping.N8nProjectRoles, ", ")))
 	fmt.Fprintf(tw, "Identity provider metadata:\t%s\n", samlSecretStatus(configuration.Metadata))
@@ -210,6 +246,9 @@ func writeSAMLConfiguration(opts Options, resolution config.Resolution, heading 
 	fmt.Fprintf(tw, "Authentication requests signed:\t%s\n", yesNo(configuration.AuthnRequestsSigned))
 	fmt.Fprintf(tw, "Signed assertions required:\t%s\n", yesNo(configuration.WantAssertionsSigned))
 	fmt.Fprintf(tw, "Signed messages required:\t%s\n", yesNo(configuration.WantMessageSigned))
+	if configuration.EmailVerifiedRequired != nil {
+		fmt.Fprintf(tw, "Verified email required:\t%s\n", yesNo(*configuration.EmailVerifiedRequired))
+	}
 	fmt.Fprintf(tw, "Signing private key:\t%s\n", samlSecretStatus(configuration.SigningPrivateKey))
 	fmt.Fprintf(tw, "Signing certificate:\t%s\n", samlSecretStatus(configuration.SigningCertificate))
 	fmt.Fprintf(tw, "ACS binding:\t%s\n", configuration.ACSBinding)
@@ -233,7 +272,7 @@ func samlAPIError(err error, resolution config.Resolution, action string) error 
 		return forbiddenScopeError(err, resolution, "SAML configuration "+action, allOf("saml:manage"),
 			"the instance also needs the SAML license.", samlResource)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update":
-		return fmt.Errorf("%s rejected the full SAML replacement (400): include all 15 writable fields and every mapping and signature field, valid redirect/post bindings, and a supported signature action; response details redacted", resolution.URL)
+		return fmt.Errorf("%s rejected the full SAML replacement (400): include all 16 writable fields and every mapping and signature field (current n8n requires emailVerifiedRequired and mapping.emailVerified, older instances may not accept them; see --email-verified-required and --email-verified-attribute), valid redirect/post bindings, and a supported signature action; response details redacted", resolution.URL)
 	case n8n.IsConflict(err) && action == "update":
 		return fmt.Errorf("%s refused the SAML replacement (409): SAML SSO configuration is managed by environment variables, so no changes were made; change the environment configuration and restart n8n, then run 'n8n saml get'", resolution.URL)
 	case n8n.IsNotFound(err):

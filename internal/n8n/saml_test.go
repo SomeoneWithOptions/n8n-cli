@@ -11,7 +11,7 @@ import (
 const samlConfigurationResponse = `{
   "entityID":"https://n8n.example.com/rest/sso/saml/metadata",
   "returnUrl":"https://n8n.example.com/rest/sso/saml/acs",
-  "mapping":{"email":"email","firstName":"first","lastName":"last","userPrincipalName":"upn","n8nInstanceRole":"role","n8nProjectRoles":["project:role"]},
+  "mapping":{"email":"email","firstName":"first","lastName":"last","userPrincipalName":"upn","emailVerified":"email_verified","n8nInstanceRole":"role","n8nProjectRoles":["project:role"]},
   "metadata":"` + SAMLRedactedValue + `",
   "metadataUrl":"https://idp.example.com/metadata",
   "ignoreSSL":false,
@@ -21,6 +21,7 @@ const samlConfigurationResponse = `{
   "authnRequestsSigned":true,
   "wantAssertionsSigned":true,
   "wantMessageSigned":false,
+  "emailVerifiedRequired":true,
   "signingPrivateKey":"` + SAMLRedactedValue + `",
   "signingCertificate":"` + SAMLRedactedValue + `",
   "acsBinding":"post",
@@ -34,12 +35,13 @@ func validSAMLSetRequest() SetSAMLConfigurationRequest {
 		ReturnURL: ptr("https://ignored.example.com/acs"),
 		Mapping: &SetSAMLMapping{
 			Email: ptr("email"), FirstName: ptr("first"), LastName: ptr("last"),
-			UserPrincipalName: ptr("upn"), N8nInstanceRole: ptr(""), N8nProjectRoles: ptr([]string{}),
+			UserPrincipalName: ptr("upn"), EmailVerified: ptr(""), N8nInstanceRole: ptr(""), N8nProjectRoles: ptr([]string{}),
 		},
 		Metadata: ptr(SAMLRedactedValue), MetadataURL: ptr(""), IgnoreSSL: ptr(false),
 		LoginBinding: ptr(SAMLBindingRedirect), LoginEnabled: ptr(false), LoginLabel: ptr(""),
 		AuthnRequestsSigned: ptr(false), WantAssertionsSigned: ptr(false), WantMessageSigned: ptr(false),
-		SigningPrivateKey: ptr(SAMLRedactedValue), SigningCertificate: ptr(SAMLRedactedValue),
+		EmailVerifiedRequired: ptr(false),
+		SigningPrivateKey:     ptr(SAMLRedactedValue), SigningCertificate: ptr(SAMLRedactedValue),
 		ACSBinding: ptr(SAMLBindingPost),
 		SignatureConfig: &SetSAMLSignatureConfig{Prefix: ptr("ds"), Location: &SetSAMLSignatureLocation{
 			Reference: ptr("/samlp:Response/saml:Issuer"), Action: ptr(SAMLSignatureAfter),
@@ -63,6 +65,9 @@ func TestGetSAMLConfiguration(t *testing.T) {
 	}
 	if !configuration.LoginEnabled || configuration.LoginBinding != SAMLBindingRedirect || configuration.ACSBinding != SAMLBindingPost || configuration.Mapping.Email != "email" || len(configuration.Mapping.N8nProjectRoles) != 1 {
 		t.Errorf("configuration = %+v", configuration)
+	}
+	if configuration.EmailVerifiedRequired == nil || !*configuration.EmailVerifiedRequired || configuration.Mapping.EmailVerified == nil || *configuration.Mapping.EmailVerified != "email_verified" {
+		t.Errorf("email verification fields = %v, %v", configuration.EmailVerifiedRequired, configuration.Mapping.EmailVerified)
 	}
 	if configuration.Metadata != SAMLRedactedValue || configuration.SigningPrivateKey != SAMLRedactedValue || configuration.SigningCertificate != SAMLRedactedValue {
 		t.Errorf("secret placeholders = %q, %q, %q", configuration.Metadata, configuration.SigningPrivateKey, configuration.SigningCertificate)
@@ -112,8 +117,11 @@ func TestSetSAMLConfigurationFullReplacementAndIgnoresReadOnlyFields(t *testing.
 	if err := json.Unmarshal([]byte(body), &sent); err != nil {
 		t.Fatalf("body is not JSON: %v", err)
 	}
-	if len(sent) != 15 {
-		t.Errorf("replacement has %d fields, want 15: %#v", len(sent), sent)
+	if len(sent) != 16 {
+		t.Errorf("replacement has %d fields, want 16: %#v", len(sent), sent)
+	}
+	if value, ok := sent["emailVerifiedRequired"]; !ok || value != false {
+		t.Errorf("emailVerifiedRequired = %#v (present %t), want explicit false", value, ok)
 	}
 	if _, ok := sent["entityID"]; ok {
 		t.Error("read-only entityID was sent")
@@ -125,11 +133,54 @@ func TestSetSAMLConfigurationFullReplacementAndIgnoresReadOnlyFields(t *testing.
 		t.Errorf("false, empty, or sentinel values were not preserved: %#v", sent)
 	}
 	mapping := sent["mapping"].(map[string]any)
+	if len(mapping) != 7 {
+		t.Errorf("mapping has %d fields, want 7: %#v", len(mapping), mapping)
+	}
+	if value, ok := mapping["emailVerified"]; !ok || value != "" {
+		t.Errorf("mapping.emailVerified = %#v (present %t), want explicit empty string", value, ok)
+	}
 	if roles, ok := mapping["n8nProjectRoles"].([]any); !ok || len(roles) != 0 {
 		t.Errorf("empty project role array not preserved: %#v", mapping["n8nProjectRoles"])
 	}
 	if configuration.Metadata != SAMLRedactedValue || configuration.SigningPrivateKey != SAMLRedactedValue || configuration.SigningCertificate != SAMLRedactedValue {
 		t.Errorf("response was not redacted: %+v", configuration)
+	}
+}
+
+func TestGetSAMLConfigurationFromOlderInstanceOmitsEmailVerification(t *testing.T) {
+	body := strings.Replace(samlConfigurationResponse, `"emailVerifiedRequired":true,`, "", 1)
+	body = strings.Replace(body, `"emailVerified":"email_verified",`, "", 1)
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+	configuration, err := server.client(t).GetSAMLConfiguration(context.Background())
+	if err != nil {
+		t.Fatalf("GetSAMLConfiguration: %v", err)
+	}
+	if configuration.EmailVerifiedRequired != nil || configuration.Mapping.EmailVerified != nil {
+		t.Errorf("absent fields decoded as %v, %v; want nil", configuration.EmailVerifiedRequired, configuration.Mapping.EmailVerified)
+	}
+	encoded, _ := json.Marshal(configuration)
+	if strings.Contains(string(encoded), "emailVerified") {
+		t.Errorf("absent fields were invented on re-encode: %s", encoded)
+	}
+}
+
+func TestSetSAMLConfigurationOmitsUnsetEmailVerificationForOlderInstances(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, samlConfigurationResponse))
+	request := validSAMLSetRequest()
+	request.EmailVerifiedRequired = nil
+	request.Mapping.EmailVerified = nil
+	if got := request.MissingEmailVerification(); len(got) != 2 || got[0] != "emailVerifiedRequired" || got[1] != "mapping.emailVerified" {
+		t.Errorf("MissingEmailVerification = %v", got)
+	}
+	if _, err := server.client(t).SetSAMLConfiguration(context.Background(), request); err != nil {
+		t.Fatalf("SetSAMLConfiguration: %v", err)
+	}
+	_, body := server.last(t)
+	if strings.Contains(body, "emailVerified") {
+		t.Errorf("unset email-verification fields were sent: %s", body)
+	}
+	if got := validSAMLSetRequest().MissingEmailVerification(); len(got) != 0 {
+		t.Errorf("complete request reports missing %v", got)
 	}
 }
 

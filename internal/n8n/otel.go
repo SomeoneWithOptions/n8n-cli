@@ -26,6 +26,8 @@ const (
 )
 
 // OtelSettings is the effective instance-wide OpenTelemetry configuration.
+// EmitWorkflowStartSpan and EmitNodeStartSpan are nil when the instance
+// predates them, so a GET document replays to that instance without them.
 type OtelSettings struct {
 	Enabled                      bool                 `json:"enabled"`
 	ExporterProtocol             OtelExporterProtocol `json:"exporterProtocol"`
@@ -36,6 +38,8 @@ type OtelSettings struct {
 	TracesSampleRate             float64              `json:"tracesSampleRate"`
 	StartupConnectivityTimeoutMs int                  `json:"startupConnectivityTimeoutMs"`
 	IncludeNodeSpans             bool                 `json:"includeNodeSpans"`
+	EmitWorkflowStartSpan        *bool                `json:"emitWorkflowStartSpan,omitempty"`
+	EmitNodeStartSpan            *bool                `json:"emitNodeStartSpan,omitempty"`
 	InjectOutbound               bool                 `json:"injectOutbound"`
 	ProductionExecutionsOnly     bool                 `json:"productionExecutionsOnly"`
 }
@@ -49,6 +53,9 @@ func (s *OtelSettings) applyDefaults() {
 // UpdateOtelSettingsRequest is a full replacement document. Pointers preserve
 // omitted required fields separately from valid false, zero, and empty values.
 // ExporterProtocol is optional; omission selects http/protobuf on the server.
+// EmitWorkflowStartSpan and EmitNodeStartSpan are optional too, but omission
+// selects false: a replacement without them turns both spans off, and an
+// instance that pins either to true by environment answers 409.
 type UpdateOtelSettingsRequest struct {
 	Enabled                      *bool                `json:"enabled"`
 	ExporterProtocol             OtelExporterProtocol `json:"exporterProtocol,omitempty"`
@@ -59,6 +66,8 @@ type UpdateOtelSettingsRequest struct {
 	TracesSampleRate             *float64             `json:"tracesSampleRate"`
 	StartupConnectivityTimeoutMs *int                 `json:"startupConnectivityTimeoutMs"`
 	IncludeNodeSpans             *bool                `json:"includeNodeSpans"`
+	EmitWorkflowStartSpan        *bool                `json:"emitWorkflowStartSpan,omitempty"`
+	EmitNodeStartSpan            *bool                `json:"emitNodeStartSpan,omitempty"`
 	InjectOutbound               *bool                `json:"injectOutbound"`
 	ProductionExecutionsOnly     *bool                `json:"productionExecutionsOnly"`
 }
@@ -91,6 +100,19 @@ func (r UpdateOtelSettingsRequest) Validate() error {
 		return fmt.Errorf("productionExecutionsOnly is required and must be true or false")
 	}
 	return nil
+}
+
+// MissingStartSpans names the optional start-span fields the request omits,
+// which the server then sets to false.
+func (r UpdateOtelSettingsRequest) MissingStartSpans() []string {
+	var missing []string
+	if r.EmitWorkflowStartSpan == nil {
+		missing = append(missing, "emitWorkflowStartSpan")
+	}
+	if r.EmitNodeStartSpan == nil {
+		missing = append(missing, "emitNodeStartSpan")
+	}
+	return missing
 }
 
 // OtelTestTraceRequest contains collector details for one test span. It does

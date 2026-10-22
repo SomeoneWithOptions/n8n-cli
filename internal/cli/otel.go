@@ -93,10 +93,12 @@ func runOtelGet(ctx context.Context, opts Options, f otelGetFlags) error {
 }
 
 type otelSetFlags struct {
-	instance instanceFlags
-	input    string
-	yes      bool
-	output   string
+	instance              instanceFlags
+	input                 string
+	emitWorkflowStartSpan bool
+	emitNodeStartSpan     bool
+	yes                   bool
+	output                string
 }
 
 func newOtelSetCommand(opts Options) *cobra.Command {
@@ -105,32 +107,53 @@ func newOtelSetCommand(opts Options) *cobra.Command {
 		Use:   "set",
 		Short: "Fully replace OpenTelemetry settings",
 		Long: "Fully replace the instance OpenTelemetry configuration from strict JSON. This\n" +
-			"is a PUT, not a patch: every field is required except exporterProtocol. Omitting\n" +
-			"that field selects http/protobuf. Start from 'n8n otel get --output json'.\n\n" +
+			"is a PUT, not a patch: every field is required except exporterProtocol,\n" +
+			"emitWorkflowStartSpan, and emitNodeStartSpan. Omitting exporterProtocol selects\n" +
+			"http/protobuf. The two start-span fields are omitted = false on the server: a\n" +
+			"document without them turns both spans off, so pass the current values or use\n" +
+			"--input from 'n8n otel get --output json', which round-trips them losslessly.\n" +
+			"--emit-workflow-start-span and --emit-node-start-span set or override them in\n" +
+			"the --input document. Instances older than these settings do not report them;\n" +
+			"leave them out there.\n\n" +
 			"A successful update is applied to the running instance immediately and can\n" +
 			"change or stop exported traces, so interactive runs ask for confirmation and\n" +
 			"non-interactive runs require --yes. --input - also requires --yes because stdin\n" +
 			"cannot hold both JSON and a confirmation answer.\n\n" +
 			"Environment-managed fields are read-only. Re-submit their effective GET values\n" +
-			"unchanged, or change the environment configuration. Exporter headers may be\n" +
-			"credentials; response details are redacted on errors. Requires otel:manage.",
+			"unchanged, or change the environment configuration. Omitting a start-span field\n" +
+			"that the environment pins to true is a change and answers 409. Exporter headers\n" +
+			"may be credentials; response details are redacted on errors. Requires\n" +
+			"otel:manage.",
 		Example: "  umask 077 && n8n otel get --output json > otel.json\n" +
 			"  n8n otel set --input otel.json\n" +
 			"  n8n otel set --input otel.json --yes --output json\n" +
+			"  n8n otel set --input otel.json --emit-workflow-start-span --emit-node-start-span=false\n" +
 			"  n8n otel set --input - --yes < otel.json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runOtelSet(cmd.Context(), opts, f)
+			return runOtelSet(cmd.Context(), opts, f, otelSetOverrides{
+				emitWorkflowStartSpan: cmd.Flags().Changed("emit-workflow-start-span"),
+				emitNodeStartSpan:     cmd.Flags().Changed("emit-node-start-span"),
+			})
 		},
 	}
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.input, "input", "", "full OpenTelemetry settings JSON file path, or - for stdin (required; maximum 1 MiB)")
+	cmd.Flags().BoolVar(&f.emitWorkflowStartSpan, "emit-workflow-start-span", false, "emit a 0 ms workflow.execute.started span when each execution starts; true or false, overrides emitWorkflowStartSpan in --input (default: the --input value, and false on the server when both omit it)")
+	cmd.Flags().BoolVar(&f.emitNodeStartSpan, "emit-node-start-span", false, "emit a 0 ms node.execute.started span when each node span starts, doubling node spans; true or false, overrides emitNodeStartSpan in --input (default: the --input value, and false on the server when both omit it)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm full replacement and immediate runtime application without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON includes possibly sensitive exporter headers)")
 	return cmd
 }
 
-func runOtelSet(ctx context.Context, opts Options, f otelSetFlags) error {
+// otelSetOverrides records which field flags were passed, so an explicit false
+// still overrides the --input document.
+type otelSetOverrides struct {
+	emitWorkflowStartSpan bool
+	emitNodeStartSpan     bool
+}
+
+func runOtelSet(ctx context.Context, opts Options, f otelSetFlags, overrides otelSetOverrides) error {
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
@@ -141,8 +164,17 @@ func runOtelSet(ctx context.Context, opts Options, f otelSetFlags) error {
 	if err := readOtelDocument(opts, f.input, &request, "settings"); err != nil {
 		return err
 	}
+	if overrides.emitWorkflowStartSpan {
+		request.EmitWorkflowStartSpan = &f.emitWorkflowStartSpan
+	}
+	if overrides.emitNodeStartSpan {
+		request.EmitNodeStartSpan = &f.emitNodeStartSpan
+	}
 	if err := request.Validate(); err != nil {
 		return err
+	}
+	if missing := request.MissingStartSpans(); len(missing) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "Warning: --input omits %s. Instances that support them set them to false (409 if pinned to true by environment); older instances do not know them. Add them from 'n8n otel get --output json' or pass --emit-workflow-start-span and --emit-node-start-span.\n", strings.Join(missing, " and "))
 	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
@@ -276,6 +308,12 @@ func writeOtelSettings(opts Options, resolution config.Resolution, heading strin
 	fmt.Fprintf(tw, "Trace sample rate:\t%g\n", settings.TracesSampleRate)
 	fmt.Fprintf(tw, "Startup connectivity timeout:\t%d ms\n", settings.StartupConnectivityTimeoutMs)
 	fmt.Fprintf(tw, "Include node spans:\t%s\n", yesNo(settings.IncludeNodeSpans))
+	if settings.EmitWorkflowStartSpan != nil {
+		fmt.Fprintf(tw, "Emit workflow start span:\t%s\n", yesNo(*settings.EmitWorkflowStartSpan))
+	}
+	if settings.EmitNodeStartSpan != nil {
+		fmt.Fprintf(tw, "Emit node start span:\t%s\n", yesNo(*settings.EmitNodeStartSpan))
+	}
 	fmt.Fprintf(tw, "Inject outbound trace context:\t%s\n", yesNo(settings.InjectOutbound))
 	fmt.Fprintf(tw, "Production executions only:\t%s\n", yesNo(settings.ProductionExecutionsOnly))
 	if applied {
@@ -294,13 +332,13 @@ func otelHeadersStatus(headers string) string {
 func otelAPIError(err error, resolution config.Resolution, action string) error {
 	switch {
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update":
-		return fmt.Errorf("%s rejected the full OpenTelemetry replacement (400): include every field except optional exporterProtocol, which defaults to http/protobuf; collector response details were redacted", resolution.URL)
+		return fmt.Errorf("%s rejected the full OpenTelemetry replacement (400): include every field except optional exporterProtocol, which defaults to http/protobuf, and the start-span fields, which default to false and which older instances may not accept; collector response details were redacted", resolution.URL)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "test":
 		return fmt.Errorf("%s rejected the OpenTelemetry test connection details (400): check the endpoint, protocol, service name, headers, and timeout; collector response details were redacted", resolution.URL)
 	case n8n.IsForbidden(err):
 		return forbiddenScopeError(err, resolution, "OpenTelemetry settings "+action, allOf("otel:manage"), "", otelResource)
 	case n8n.IsConflict(err) && action == "update":
-		return fmt.Errorf("%s refused the OpenTelemetry replacement (409): one or more changed fields are managed by environment variables, so no changes were made; run 'n8n otel get', re-submit environment-managed values unchanged, or change the environment configuration and restart n8n", resolution.URL)
+		return fmt.Errorf("%s refused the OpenTelemetry replacement (409): one or more changed fields are managed by environment variables, so no changes were made; omitting emitWorkflowStartSpan or emitNodeStartSpan counts as a change when the environment pins it to true; run 'n8n otel get', re-submit environment-managed values unchanged (or pass --emit-workflow-start-span / --emit-node-start-span), or change the environment configuration and restart n8n", resolution.URL)
 	default:
 		return apiError(err, resolution, otelResource)
 	}
