@@ -32,12 +32,11 @@ type CommunityPackageNode struct {
 }
 
 // InstallCommunityPackageRequest selects the npm package and version to
-// install. Verify is a pointer because the API distinguishes an omitted value
-// from false; use [Bool] when setting it directly.
+// install. The API no longer accepts a verify field: the instance setting for
+// unverified packages decides which versions may be installed.
 type InstallCommunityPackageRequest struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
-	Verify  *bool  `json:"verify,omitempty"`
 }
 
 // Validate checks the required package name before a request is sent.
@@ -49,8 +48,8 @@ func (r InstallCommunityPackageRequest) Validate() error {
 	if name != r.Name {
 		return fmt.Errorf("community package name must not start or end with whitespace")
 	}
-	if !strings.HasPrefix(name, "n8n-nodes-") {
-		return fmt.Errorf("community package name %q must start with %q", name, "n8n-nodes-")
+	if !validCommunityPackageName(name) {
+		return fmt.Errorf("community package name %q must have the form n8n-nodes-<name> or @<scope>/n8n-nodes-<name>", name)
 	}
 	if strings.TrimSpace(r.Version) != r.Version {
 		return fmt.Errorf("community package version must not start or end with whitespace")
@@ -58,12 +57,11 @@ func (r InstallCommunityPackageRequest) Validate() error {
 	return nil
 }
 
-// UpdateCommunityPackageRequest selects an optional target version and package
-// verification policy. Its zero value sends no body, asking n8n to use its
-// defaults (latest version and verification enabled).
+// UpdateCommunityPackageRequest selects an optional target version. The API
+// declares the body optional, so its zero value sends no body and n8n updates
+// to the latest version the instance setting for unverified packages allows.
 type UpdateCommunityPackageRequest struct {
 	Version string `json:"version,omitempty"`
-	Verify  *bool  `json:"verify,omitempty"`
 }
 
 // Validate checks update options before a request is sent.
@@ -75,7 +73,20 @@ func (r UpdateCommunityPackageRequest) Validate() error {
 }
 
 func (r UpdateCommunityPackageRequest) empty() bool {
-	return r.Version == "" && r.Verify == nil
+	return r.Version == ""
+}
+
+// validCommunityPackageName accepts the two npm name forms n8n installs:
+// unscoped n8n-nodes-<name> and scoped @<scope>/n8n-nodes-<name>.
+func validCommunityPackageName(name string) bool {
+	if scoped, ok := strings.CutPrefix(name, "@"); ok {
+		scope, rest, found := strings.Cut(scoped, "/")
+		if !found || scope == "" || strings.Contains(rest, "/") {
+			return false
+		}
+		name = rest
+	}
+	return strings.HasPrefix(name, "n8n-nodes-") && len(name) > len("n8n-nodes-")
 }
 
 // Bool returns a pointer to value for optional boolean request fields.

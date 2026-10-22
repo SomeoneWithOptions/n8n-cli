@@ -5,9 +5,10 @@ Set a user's global role
 ### Synopsis
 
 Change one user's global role using the exact user ID or email accepted by the
-API. The role slug must identify an assignable global role; run 'n8n role list'
-to inspect licensing and available slugs. This can immediately change the user's
-instance permissions. Requires user:changeRole.
+API. The role slug must identify an assignable global role: global:admin,
+global:member, global:chatUser, or a custom global role slug. Run 'n8n role
+list' to inspect licensing and available slugs. This can immediately change the
+user's instance permissions. Requires user:changeRole.
 
 ```
 n8n user role set <user-id-or-email> <role-slug> [flags]
@@ -17,7 +18,8 @@ n8n user role set <user-id-or-email> <role-slug> [flags]
 
 ```
   n8n user role set USER_ID global:member
-  n8n user role set person@example.com global:admin --output json
+  n8n user role set person@example.com global:chatUser
+  n8n user role set USER_ID CUSTOM_ROLE_SLUG --output json
 ```
 
 ### Options

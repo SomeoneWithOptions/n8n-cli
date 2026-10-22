@@ -6,10 +6,11 @@ Update an installed community package
 
 Update one installed community node package on the selected n8n instance.
 
-Omit --version to update to the version selected by n8n. Verification against
-n8n's vetted package list is enabled by default; --verify=false explicitly
-permits unverified code when the instance allows it. Updating code can change
-node behavior in existing workflows, though it does not delete those workflows.
+--version takes a semver version or an npm dist-tag such as latest or beta.
+Omit it to send no body and update to the latest version n8n allows. Whether
+unverified versions may be installed is an instance setting: when it is off,
+only versions verified by n8n install. Updating code can change node behavior
+in existing workflows, though it does not delete those workflows.
 
 Interactive runs ask before updating. Non-interactive runs fail unless --yes is
 passed. Requires API-key authentication and communityPackage:update.
@@ -34,8 +35,7 @@ n8n community-package update <name> [flags]
   -h, --help             help for update
       --output string    output format: text or json (default text; json is stable for scripting) (default "text")
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
-      --verify           verify against n8n's vetted package list (default true; --verify=false permits unverified code when allowed) (default true)
-      --version string   npm package version, e.g. 1.2.3 (default: let n8n select the version)
+      --version string   npm semver version or dist-tag, e.g. 1.2.3 or beta (default: let n8n select the version)
       --yes              confirm the instance-changing action without prompting (required when stdin is not interactive)
 ```
 

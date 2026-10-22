@@ -127,7 +127,7 @@ func TestListCommunityPackagesEmpty(t *testing.T) {
 
 func TestInstallCommunityPackage(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, communityPackageBody))
-	request := InstallCommunityPackageRequest{Name: "n8n-nodes-example", Version: "1.2.3", Verify: Bool(false)}
+	request := InstallCommunityPackageRequest{Name: "n8n-nodes-example", Version: "1.2.3"}
 
 	installed, err := server.client(t).InstallCommunityPackage(context.Background(), request)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestInstallCommunityPackage(t *testing.T) {
 	if req.Header.Get("Content-Type") != contentTypeJSON {
 		t.Errorf("Content-Type = %q, want %q", req.Header.Get("Content-Type"), contentTypeJSON)
 	}
-	assertJSONEqual(t, `{"name":"n8n-nodes-example","version":"1.2.3","verify":false}`, body)
+	assertJSONEqual(t, `{"name":"n8n-nodes-example","version":"1.2.3"}`, body)
 	if installed.PackageName != request.Name || installed.InstalledVersion != request.Version {
 		t.Errorf("installed = %+v, want requested package and version", installed)
 	}
@@ -156,10 +156,23 @@ func TestInstallCommunityPackageOptionalFields(t *testing.T) {
 	assertJSONEqual(t, `{"name":"n8n-nodes-example"}`, body)
 }
 
+func TestInstallCommunityPackageScopedName(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, communityPackageBody))
+	request := InstallCommunityPackageRequest{Name: "@acme/n8n-nodes-example", Version: "beta"}
+	if _, err := server.client(t).InstallCommunityPackage(context.Background(), request); err != nil {
+		t.Fatalf("InstallCommunityPackage: %v", err)
+	}
+	req, body := server.last(t)
+	if req.URL.EscapedPath() != BasePath+CommunityPackagesPath {
+		t.Errorf("escaped path = %q, want the collection; the scoped name belongs in the body", req.URL.EscapedPath())
+	}
+	assertJSONEqual(t, `{"name":"@acme/n8n-nodes-example","version":"beta"}`, body)
+}
+
 func TestUpdateCommunityPackage(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, communityPackageBody))
 	name := "@scope/n8n-nodes-example?channel=next#node"
-	request := UpdateCommunityPackageRequest{Version: "1.3.0", Verify: Bool(false)}
+	request := UpdateCommunityPackageRequest{Version: "1.3.0"}
 
 	updated, err := server.client(t).UpdateCommunityPackage(context.Background(), name, request)
 	if err != nil {
@@ -176,7 +189,7 @@ func TestUpdateCommunityPackage(t *testing.T) {
 	if req.URL.RawQuery != "" {
 		t.Errorf("query = %q, want empty; package punctuation belongs in the path", req.URL.RawQuery)
 	}
-	assertJSONEqual(t, `{"version":"1.3.0","verify":false}`, body)
+	assertJSONEqual(t, `{"version":"1.3.0"}`, body)
 	if updated.PackageName != "n8n-nodes-example" {
 		t.Errorf("updated package = %+v", updated)
 	}
@@ -267,7 +280,27 @@ func TestCommunityPackageValidationBeforeRequest(t *testing.T) {
 		{name: "install wrong prefix", call: func(c *Client) error {
 			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "example"})
 			return err
-		}, want: "must start"},
+		}, want: "must have the form"},
+		{name: "install bare prefix", call: func(c *Client) error {
+			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "n8n-nodes-"})
+			return err
+		}, want: "must have the form"},
+		{name: "install scoped wrong prefix", call: func(c *Client) error {
+			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "@acme/example"})
+			return err
+		}, want: "must have the form"},
+		{name: "install empty scope", call: func(c *Client) error {
+			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "@/n8n-nodes-example"})
+			return err
+		}, want: "must have the form"},
+		{name: "install scope without slash", call: func(c *Client) error {
+			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "@n8n-nodes-example"})
+			return err
+		}, want: "must have the form"},
+		{name: "install nested path", call: func(c *Client) error {
+			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "@acme/n8n-nodes-example/extra"})
+			return err
+		}, want: "must have the form"},
 		{name: "install padded name", call: func(c *Client) error {
 			_, err := c.InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: " n8n-nodes-example"})
 			return err

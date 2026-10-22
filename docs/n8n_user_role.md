@@ -5,8 +5,9 @@ Manage users' global roles
 ### Synopsis
 
 Manage global role assignments for instance users. Use 'set' with a user ID
-or email and a role slug discovered through 'n8n role list'. Role changes can
-alter instance-wide permissions and may require owner access or licensing.
+or email and a role slug: global:admin, global:member, global:chatUser, or a
+custom global role discovered through 'n8n role list'. Role changes can alter
+instance-wide permissions and may require owner access or licensing.
 
 ```
 n8n user role [flags]
@@ -16,7 +17,7 @@ n8n user role [flags]
 
 ```
   n8n user role set USER_ID global:member
-  n8n user role set person@example.com global:admin --output json
+  n8n user role set person@example.com global:chatUser --output json
 ```
 
 ### Options

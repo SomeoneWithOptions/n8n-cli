@@ -31,7 +31,7 @@ func userFixture(t *testing.T, body string) *fixture {
 
 func TestUserListTextJSONAndPagination(t *testing.T) {
 	f := userFixture(t, `{"data":[`+cliUser+`],"nextCursor":"next/one?x=1"}`)
-	got := f.run("user", "list", "--limit", "50", "--offset", "25", "--include-role", "--project-id", "project/one?x=1")
+	got := f.run("user", "list", "--limit", "50", "--include-role", "--project-id", "project/one?x=1")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -42,7 +42,7 @@ func TestUserListTextJSONAndPagination(t *testing.T) {
 	}
 	req := f.lastRequest()
 	query := req.URL.Query()
-	if req.Method != http.MethodGet || req.URL.Path != n8n.BasePath+n8n.UsersPath || query.Get("limit") != "50" || query.Get("offset") != "25" || query.Get("includeRole") != "true" || query.Get("projectId") != "project/one?x=1" {
+	if req.Method != http.MethodGet || req.URL.Path != n8n.BasePath+n8n.UsersPath || query.Get("limit") != "50" || query.Get("includeRole") != "true" || query.Get("projectId") != "project/one?x=1" {
 		t.Errorf("request = %s %s?%s", req.Method, req.URL.Path, req.URL.RawQuery)
 	}
 
@@ -66,7 +66,7 @@ func TestUserListAllKeepsFiltersAndFollowsCursor(t *testing.T) {
 		pending = strings.Replace(pending, `"email":"person@example.com"`, `"email":"two@example.com"`, 1)
 		return `{"data":[` + pending + `],"nextCursor":null}`
 	}
-	got := f.run("user", "list", "--all", "--offset", "5", "--limit", "1", "--include-role", "--project-id", "project-1", "--output", "json")
+	got := f.run("user", "list", "--all", "--limit", "1", "--include-role", "--project-id", "project-1", "--output", "json")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -81,16 +81,40 @@ func TestUserListAllKeepsFiltersAndFollowsCursor(t *testing.T) {
 		t.Fatalf("requests = %d, want login plus two user pages", len(requests))
 	}
 	first, second := requests[len(requests)-2], requests[len(requests)-1]
-	if first.URL.Query().Get("offset") != "5" || first.URL.Query().Get("cursor") != "" {
+	if first.URL.Query().Get("cursor") != "" {
 		t.Errorf("first query = %q", first.URL.RawQuery)
 	}
-	if second.URL.Query().Get("offset") != "" || second.URL.Query().Get("cursor") != "next/one?x=1" {
+	if second.URL.Query().Get("cursor") != "next/one?x=1" {
 		t.Errorf("second query = %q", second.URL.RawQuery)
 	}
 	for _, req := range []*http.Request{first, second} {
 		if req.URL.Query().Get("projectId") != "project-1" || req.URL.Query().Get("includeRole") != "true" || req.URL.Query().Get("limit") != "1" {
 			t.Errorf("filters not preserved: %q", req.URL.RawQuery)
 		}
+	}
+}
+
+func TestUserListDeprecatedOffsetIsIgnored(t *testing.T) {
+	f := userFixture(t, `{"data":[`+cliUser+`],"nextCursor":null}`)
+	got := f.run("user", "list", "--offset", "25", "--cursor", "next", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "Flag --offset has been deprecated") || !strings.Contains(got.stderr, "use --cursor") {
+		t.Errorf("stderr = %q, want deprecation pointing at --cursor", got.stderr)
+	}
+	var page n8n.Page[n8n.User]
+	if err := json.Unmarshal([]byte(got.stdout), &page); err != nil {
+		t.Errorf("stdout = %q, want only the JSON page (error: %v)", got.stdout, err)
+	}
+	query := f.lastRequest().URL.Query()
+	if query.Has("offset") || query.Get("cursor") != "next" {
+		t.Errorf("query = %q, want cursor and no offset", f.lastRequest().URL.RawQuery)
+	}
+
+	help := run(t, "user", "list", "--help")
+	if strings.Contains(help.stdout, "--offset") {
+		t.Errorf("help lists deprecated --offset:\n%s", help.stdout)
 	}
 }
 
@@ -163,7 +187,7 @@ func TestUserRoleSetAndDelete(t *testing.T) {
 		before := f.requestCount()
 		f.stdin = "no\n"
 		got := f.run("user", "delete", "person@example.com")
-		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") || !strings.Contains(got.stderr, "owned personal-project resources") || f.requestCount() != before {
+		if got.code != ExitError || !strings.Contains(got.stderr, "aborted") || !strings.Contains(got.stderr, "workflows and credentials will be permanently deleted") || f.requestCount() != before {
 			t.Errorf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
 		}
 		f.interactive = false
@@ -176,8 +200,43 @@ func TestUserRoleSetAndDelete(t *testing.T) {
 			t.Fatalf("confirmed exit = %d, stderr: %s", got.code, got.stderr)
 		}
 		req := f.lastRequest()
-		if req.Method != http.MethodDelete || req.URL.EscapedPath() != n8n.BasePath+"/users/person+ops@example.com%2Fone%3Fx=1" {
-			t.Errorf("request = %s %s", req.Method, req.URL.EscapedPath())
+		if req.Method != http.MethodDelete || req.URL.EscapedPath() != n8n.BasePath+"/users/person+ops@example.com%2Fone%3Fx=1" || req.URL.RawQuery != "" {
+			t.Errorf("request = %s %s?%s, want no transferId", req.Method, req.URL.EscapedPath(), req.URL.RawQuery)
+		}
+		var result userMutation
+		if err := json.Unmarshal([]byte(got.stdout), &result); err != nil || result.TransferProjectID != "" {
+			t.Errorf("stdout = %q, want acknowledgement without transfer (error: %v)", got.stdout, err)
+		}
+	})
+
+	t.Run("delete with transfer", func(t *testing.T) {
+		f := userFixture(t, "")
+		before := f.requestCount()
+		f.stdin = "no\n"
+		got := f.run("user", "delete", "person@example.com", "--transfer-to-project", "project/one")
+		if got.code != ExitError || !strings.Contains(got.stderr, `will move to project "project/one"`) || strings.Contains(got.stderr, "permanently deleted too") || f.requestCount() != before {
+			t.Errorf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
+		}
+		f.interactive = false
+		got = f.run("user", "delete", "person@example.com", "--transfer-to-project", "project/one")
+		if got.code != ExitError || !strings.Contains(got.stderr, "pass --yes") || f.requestCount() != before {
+			t.Errorf("non-interactive result = %+v", got)
+		}
+		got = f.run("user", "delete", "person@example.com", "--transfer-to-project", "project/one", "--yes", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("confirmed exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		req := f.lastRequest()
+		if req.Method != http.MethodDelete || req.URL.Query().Get("transferId") != "project/one" {
+			t.Errorf("request = %s %s?%s, want transferId", req.Method, req.URL.EscapedPath(), req.URL.RawQuery)
+		}
+		var result userMutation
+		if err := json.Unmarshal([]byte(got.stdout), &result); err != nil || result.TransferProjectID != "project/one" {
+			t.Errorf("stdout = %q, want transfer project in acknowledgement (error: %v)", got.stdout, err)
+		}
+		got = f.run("user", "delete", "person@example.com", "--transfer-to-project", "project/one", "--yes")
+		if got.code != ExitSuccess || !strings.Contains(got.stdout, "Transferred to project:") {
+			t.Errorf("text result = %+v, want transfer line", got)
 		}
 	})
 }
@@ -189,7 +248,6 @@ func TestUserValidationBeforeRequest(t *testing.T) {
 		args  []string
 		want  string
 	}{
-		{name: "offset with cursor", args: []string{"user", "list", "--offset", "1", "--cursor", "next"}, want: "cannot be used together"},
 		{name: "large limit", args: []string{"user", "list", "--limit", "251"}, want: "must not exceed 250"},
 		{name: "missing input", args: []string{"user", "create"}, want: "--input is required"},
 		{name: "unknown input field", stdin: `[{"email":"one@example.com","name":"One"}]`, args: []string{"user", "create", "--input", "-"}, want: "unknown field"},
@@ -199,6 +257,8 @@ func TestUserValidationBeforeRequest(t *testing.T) {
 		{name: "blank get identifier", args: []string{"user", "get", " "}, want: "ID or email is required"},
 		{name: "blank role", args: []string{"user", "role", "set", "person@example.com", " "}, want: "role slug is required"},
 		{name: "padded delete identifier", args: []string{"user", "delete", " person@example.com", "--yes"}, want: "whitespace"},
+		{name: "empty transfer project", args: []string{"user", "delete", "person@example.com", "--transfer-to-project", "", "--yes"}, want: "needs a project ID"},
+		{name: "padded transfer project", args: []string{"user", "delete", "person@example.com", "--transfer-to-project", " p1", "--yes"}, want: "whitespace"},
 		{name: "unknown output", args: []string{"user", "list", "--output", "yaml"}, want: "unknown output format"},
 	}
 	for _, tt := range tests {

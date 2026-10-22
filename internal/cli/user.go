@@ -31,12 +31,13 @@ func newUserCommand(opts Options) *cobra.Command {
 			"access.\n\n" +
 			"Create accepts a strict JSON array and preserves every per-user success or\n" +
 			"error. Role changes and deletion accept the exact user ID or email allowed by\n" +
-			"the API. Deletion always requires confirmation.",
+			"the API. Deletion always requires confirmation and deletes the user's workflows\n" +
+			"and credentials unless --transfer-to-project moves them to a project.",
 		Example: "  n8n user list --include-role\n" +
 			"  n8n user get person@example.com --include-role\n" +
 			"  n8n user create --input users.json\n" +
 			"  n8n user role set USER_ID global:member\n" +
-			"  n8n user delete USER_ID --yes",
+			"  n8n user delete USER_ID --transfer-to-project PROJECT_ID --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
@@ -53,7 +54,7 @@ func newUserCommand(opts Options) *cobra.Command {
 type userListFlags struct {
 	instance    instanceFlags
 	limit       int
-	offset      int
+	offset      int // deprecated and ignored: GET /users has no offset
 	cursor      string
 	all         bool
 	includeRole bool
@@ -68,23 +69,28 @@ func newUserListCommand(opts Options) *cobra.Command {
 		Short: "List instance or project users",
 		Long: "List users visible to the selected credential. Use --project-id to filter to\n" +
 			"one project's members and --include-role to request global roles. The API is\n" +
-			"cursor-paginated; --offset selects a starting position, while --cursor resumes\n" +
-			"a previous response. They cannot be combined.\n\n" +
+			"cursor-paginated: --cursor resumes from the nextCursor of a previous response.\n\n" +
 			"--all follows cursors and collects at most 10,000 users. Instance-wide listing\n" +
 			"may require the instance owner. Requires user:list.\n\n" + cursorCollectionHelp,
 		Example: "  n8n user list --include-role\n" +
 			"  n8n user list --project-id PROJECT_ID --limit 50\n" +
-			"  n8n user list --offset 100 --output json\n" +
+			"  n8n user list --cursor NEXT_CURSOR --output json\n" +
 			"  n8n user list --all --include-role --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runUserList(cmd.Context(), opts, f)
 		},
 	}
+	// Deprecation notices go to the flag set output; cobra would otherwise
+	// print them on stdout, which carries the user list or JSON page.
+	cmd.Flags().SetOutput(opts.Streams.Err)
 	f.instance.register(cmd)
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "users per API page, 1 to 250 (default: server default of 100)")
-	cmd.Flags().IntVar(&f.offset, "offset", 0, "users to skip before first page, zero or greater (default: 0; cannot combine with --cursor)")
-	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: first page; cannot combine with --offset)")
+	// The API declares no offset and live servers ignore it; the flag still
+	// parses so existing scripts keep working, but it is never sent.
+	cmd.Flags().IntVar(&f.offset, "offset", 0, "ignored; the API has no offset, use --cursor (default: 0)")
+	_ = cmd.Flags().MarkDeprecated("offset", "it is ignored: the users API has no offset and always starts at the first page; use --cursor")
+	cmd.Flags().StringVar(&f.cursor, "cursor", "", "pagination cursor returned by a previous list (default: first page)")
 	cmd.Flags().BoolVar(&f.all, "all", false, "follow every page instead of one (maximum 10,000 users; hitting it warns and sets JSON collection.truncated)")
 	cmd.Flags().BoolVar(&f.includeRole, "include-role", false, "include each user's global role (default: role is omitted by API)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "return members of this project ID (default: all visible instance users)")
@@ -98,7 +104,6 @@ func runUserList(ctx context.Context, opts Options, f userListFlags) error {
 	}
 	listOpts := n8n.ListUsersOptions{
 		ListOptions: n8n.ListOptions{Limit: f.limit, Cursor: f.cursor},
-		Offset:      f.offset,
 		IncludeRole: f.includeRole,
 		ProjectID:   f.projectID,
 	}
@@ -115,9 +120,6 @@ func runUserList(ctx context.Context, opts Options, f userListFlags) error {
 		fetch := func(ctx context.Context, pagination n8n.ListOptions) (n8n.Page[n8n.User], error) {
 			pageOpts := listOpts
 			pageOpts.ListOptions = pagination
-			if pagination.Cursor != "" {
-				pageOpts.Offset = 0
-			}
 			return client.ListUsers(ctx, pageOpts)
 		}
 		page, collection, err = collectPage(ctx, fetch, listOpts.ListOptions)
@@ -217,7 +219,8 @@ func newUserCreateCommand(opts Options) *cobra.Command {
 		Use:   "create",
 		Short: "Invite one or more users",
 		Long: "Create or invite users from a strict JSON array supplied by --input. Each item\n" +
-			"requires email and may set a global role slug. Unknown fields, an empty array,\n" +
+			"requires email and may set role: global:admin, global:member (the default),\n" +
+			"global:chatUser, or a custom global role slug. Unknown fields, an empty array,\n" +
 			"invalid emails, and trailing JSON documents are refused before transport.\n\n" +
 			"n8n returns one result per invitation. Output preserves successful users, invite\n" +
 			"URLs, email-delivery state, and individual errors even when a bulk request is\n" +
@@ -262,10 +265,11 @@ func newUserRoleCommand(opts Options) *cobra.Command {
 		Use:   "role",
 		Short: "Manage users' global roles",
 		Long: "Manage global role assignments for instance users. Use 'set' with a user ID\n" +
-			"or email and a role slug discovered through 'n8n role list'. Role changes can\n" +
-			"alter instance-wide permissions and may require owner access or licensing.",
+			"or email and a role slug: global:admin, global:member, global:chatUser, or a\n" +
+			"custom global role discovered through 'n8n role list'. Role changes can alter\n" +
+			"instance-wide permissions and may require owner access or licensing.",
 		Example: "  n8n user role set USER_ID global:member\n" +
-			"  n8n user role set person@example.com global:admin --output json",
+			"  n8n user role set person@example.com global:chatUser --output json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
@@ -284,11 +288,13 @@ func newUserRoleSetCommand(opts Options) *cobra.Command {
 		Use:   "set <user-id-or-email> <role-slug>",
 		Short: "Set a user's global role",
 		Long: "Change one user's global role using the exact user ID or email accepted by the\n" +
-			"API. The role slug must identify an assignable global role; run 'n8n role list'\n" +
-			"to inspect licensing and available slugs. This can immediately change the user's\n" +
-			"instance permissions. Requires user:changeRole.",
+			"API. The role slug must identify an assignable global role: global:admin,\n" +
+			"global:member, global:chatUser, or a custom global role slug. Run 'n8n role\n" +
+			"list' to inspect licensing and available slugs. This can immediately change the\n" +
+			"user's instance permissions. Requires user:changeRole.",
 		Example: "  n8n user role set USER_ID global:member\n" +
-			"  n8n user role set person@example.com global:admin --output json",
+			"  n8n user role set person@example.com global:chatUser\n" +
+			"  n8n user role set USER_ID CUSTOM_ROLE_SLUG --output json",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUserRoleSet(cmd.Context(), opts, args[0], args[1], f)
@@ -320,9 +326,10 @@ func runUserRoleSet(ctx context.Context, opts Options, identifier, role string, 
 }
 
 type userDeleteFlags struct {
-	instance instanceFlags
-	yes      bool
-	output   string
+	instance          instanceFlags
+	transferProjectID string
+	yes               bool
+	output            string
 }
 
 func newUserDeleteCommand(opts Options) *cobra.Command {
@@ -331,21 +338,28 @@ func newUserDeleteCommand(opts Options) *cobra.Command {
 		Use:   "delete <user-id-or-email>",
 		Short: "Permanently delete a user",
 		Long: "Permanently delete one user using the exact ID or email accepted by the API.\n" +
-			"This removes the account and can delete resources owned by its personal project;\n" +
-			"the documented endpoint provides no ownership-transfer option. It cannot be\n" +
-			"undone and the instance owner cannot be deleted.\n\n" +
-			"Interactive runs ask for confirmation. Non-interactive runs require --yes.\n" +
+			"By default n8n also deletes the user's workflows and credentials. Pass\n" +
+			"--transfer-to-project with a project ID (sent as the API's transferId) to move\n" +
+			"those workflows and credentials to that project instead; find IDs with\n" +
+			"'n8n project list'. Deletion cannot be undone and the instance owner cannot be\n" +
+			"deleted.\n\n" +
+			"Interactive runs ask for confirmation naming what happens to the user's\n" +
+			"workflows and credentials. Non-interactive runs require --yes.\n" +
 			"Requires user:delete.",
-		Example: "  n8n user delete USER_ID\n" +
+		Example: "  n8n user delete USER_ID --transfer-to-project PROJECT_ID\n" +
 			"  n8n user delete person@example.com --yes --output json",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("transfer-to-project") && f.transferProjectID == "" {
+				return fmt.Errorf("--transfer-to-project needs a project ID: omit the flag to delete the user's workflows and credentials instead")
+			}
 			return runUserDelete(cmd.Context(), opts, args[0], f)
 		},
 	}
 	f.instance.register(cmd)
-	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm permanent user and owned-resource deletion without prompting (required when stdin is not interactive)")
-	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (acknowledgement contains only deleted user identifier)")
+	cmd.Flags().StringVar(&f.transferProjectID, "transfer-to-project", "", "project ID that receives the user's workflows and credentials (default: none, they are deleted with the user)")
+	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm permanent user deletion, and deletion of their workflows and credentials unless transferred, without prompting (required when stdin is not interactive)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (acknowledgement contains deleted user identifier and any transfer project ID)")
 	return cmd
 }
 
@@ -356,18 +370,25 @@ func runUserDelete(ctx context.Context, opts Options, identifier string, f userD
 	if err := validateUserIdentifier(identifier); err != nil {
 		return err
 	}
+	if strings.TrimSpace(f.transferProjectID) != f.transferProjectID {
+		return fmt.Errorf("--transfer-to-project project ID must not start or end with whitespace")
+	}
 	client, resolution, err := opts.apiClient(f.instance)
 	if err != nil {
 		return err
 	}
-	question := fmt.Sprintf("Permanently delete user %q from %s? Their account and owned personal-project resources may be deleted.", identifier, resolution.URL)
+	fate := "Their workflows and credentials will be permanently deleted too; pass --transfer-to-project to keep them."
+	if f.transferProjectID != "" {
+		fate = fmt.Sprintf("Their workflows and credentials will move to project %q.", f.transferProjectID)
+	}
+	question := fmt.Sprintf("Permanently delete user %q from %s? %s", identifier, resolution.URL, fate)
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
-	if err := client.DeleteUser(ctx, identifier); err != nil {
+	if err := client.DeleteUser(ctx, identifier, n8n.DeleteUserOptions{TransferProjectID: f.transferProjectID}); err != nil {
 		return userAPIError(err, resolution, "delete")
 	}
-	return writeUserMutation(opts, resolution, userMutation{Action: "deleted", Identifier: identifier}, f.output)
+	return writeUserMutation(opts, resolution, userMutation{Action: "deleted", Identifier: identifier, TransferProjectID: f.transferProjectID}, f.output)
 }
 
 func readUserDocument(opts Options, path string, dst any) error {
@@ -453,9 +474,10 @@ func writeCreateUserResults(opts Options, resolution config.Resolution, results 
 }
 
 type userMutation struct {
-	Action     string `json:"action"`
-	Identifier string `json:"identifier"`
-	Role       string `json:"role,omitempty"`
+	Action            string `json:"action"`
+	Identifier        string `json:"identifier"`
+	Role              string `json:"role,omitempty"`
+	TransferProjectID string `json:"transferProjectId,omitempty"`
 }
 
 func writeUserMutation(opts Options, resolution config.Resolution, result userMutation, output string) error {
@@ -467,6 +489,9 @@ func writeUserMutation(opts Options, resolution config.Resolution, result userMu
 	fmt.Fprintf(tw, "User:\t%s\n", result.Identifier)
 	if result.Role != "" {
 		fmt.Fprintf(tw, "Role:\t%s\n", result.Role)
+	}
+	if result.TransferProjectID != "" {
+		fmt.Fprintf(tw, "Transferred to project:\t%s\n", result.TransferProjectID)
 	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	return tw.Flush()

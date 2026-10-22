@@ -6,10 +6,11 @@ Install a community package
 
 Install an npm community node package on the selected n8n instance.
 
-The package name must start with n8n-nodes-. Omit --version to let npm select
-the version. Verification against n8n's vetted package list is enabled by
-default; --verify=false explicitly permits unverified code when the instance
-allows it. Installed package code runs inside n8n.
+The package name must have the form n8n-nodes-<name> or the scoped form
+@<scope>/n8n-nodes-<name>. --version takes a semver version or an npm dist-tag
+such as latest or beta; omit it to let npm select the version. Whether
+unverified packages may be installed is an instance setting: when it is off,
+only versions verified by n8n install. Installed package code runs inside n8n.
 
 Interactive runs ask before installing. Non-interactive runs fail unless --yes
 is passed. Requires API-key authentication and communityPackage:install.
@@ -24,7 +25,7 @@ n8n community-package install <name> [flags]
 ```
   n8n community-package install n8n-nodes-example
   n8n community-package install n8n-nodes-example --version 1.2.3 --yes
-  n8n community-package install n8n-nodes-example --verify=false --yes --output json
+  n8n community-package install '@scope/n8n-nodes-example' --version beta --yes --output json
 ```
 
 ### Options
@@ -34,8 +35,7 @@ n8n community-package install <name> [flags]
   -h, --help             help for install
       --output string    output format: text or json (default text; json is stable for scripting) (default "text")
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
-      --verify           verify against n8n's vetted package list (default true; --verify=false permits unverified code when allowed) (default true)
-      --version string   npm package version, e.g. 1.2.3 (default: let n8n select the version)
+      --version string   npm semver version or dist-tag, e.g. 1.2.3 or beta (default: let n8n select the version)
       --yes              confirm the instance-changing action without prompting (required when stdin is not interactive)
 ```
 

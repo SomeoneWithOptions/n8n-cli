@@ -5,7 +5,8 @@ Invite one or more users
 ### Synopsis
 
 Create or invite users from a strict JSON array supplied by --input. Each item
-requires email and may set a global role slug. Unknown fields, an empty array,
+requires email and may set role: global:admin, global:member (the default),
+global:chatUser, or a custom global role slug. Unknown fields, an empty array,
 invalid emails, and trailing JSON documents are refused before transport.
 
 n8n returns one result per invitation. Output preserves successful users, invite

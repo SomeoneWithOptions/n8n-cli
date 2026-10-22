@@ -24,6 +24,7 @@ n8n community-package [flags]
 ```
   n8n community-package list
   n8n community-package install n8n-nodes-example
+  n8n community-package install '@scope/n8n-nodes-example' --yes
   n8n community-package update n8n-nodes-example --yes
   n8n community-package uninstall n8n-nodes-example --yes
 ```

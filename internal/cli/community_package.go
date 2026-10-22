@@ -28,6 +28,7 @@ func newCommunityPackageCommand(opts Options) *cobra.Command {
 			"installed packages, then install, update or uninstall one package.",
 		Example: "  n8n community-package list\n" +
 			"  n8n community-package install n8n-nodes-example\n" +
+			"  n8n community-package install '@scope/n8n-nodes-example' --yes\n" +
 			"  n8n community-package update n8n-nodes-example --yes\n" +
 			"  n8n community-package uninstall n8n-nodes-example --yes",
 		Args: cobra.NoArgs,
@@ -133,22 +134,23 @@ func newCommunityPackageInstallCommand(opts Options) *cobra.Command {
 		Use:   "install <name>",
 		Short: "Install a community package",
 		Long: "Install an npm community node package on the selected n8n instance.\n\n" +
-			"The package name must start with n8n-nodes-. Omit --version to let npm select\n" +
-			"the version. Verification against n8n's vetted package list is enabled by\n" +
-			"default; --verify=false explicitly permits unverified code when the instance\n" +
-			"allows it. Installed package code runs inside n8n.\n\n" +
+			"The package name must have the form n8n-nodes-<name> or the scoped form\n" +
+			"@<scope>/n8n-nodes-<name>. --version takes a semver version or an npm dist-tag\n" +
+			"such as latest or beta; omit it to let npm select the version. Whether\n" +
+			"unverified packages may be installed is an instance setting: when it is off,\n" +
+			"only versions verified by n8n install. Installed package code runs inside n8n.\n\n" +
 			"Interactive runs ask before installing. Non-interactive runs fail unless --yes\n" +
 			"is passed. Requires API-key authentication and communityPackage:install.\n" +
 			"Next step: 'n8n community-package list'.",
 		Example: "  n8n community-package install n8n-nodes-example\n" +
 			"  n8n community-package install n8n-nodes-example --version 1.2.3 --yes\n" +
-			"  n8n community-package install n8n-nodes-example --verify=false --yes --output json",
+			"  n8n community-package install '@scope/n8n-nodes-example' --version beta --yes --output json",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCommunityPackageInstall(cmd.Context(), opts, args[0], f)
 		},
 	}
-	registerCommunityPackageMutationFlags(cmd, &f, true)
+	registerCommunityPackageMutationFlags(cmd, opts, &f, true)
 	return cmd
 }
 
@@ -156,7 +158,7 @@ func runCommunityPackageInstall(ctx context.Context, opts Options, name string, 
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
-	request := n8n.InstallCommunityPackageRequest{Name: name, Version: f.version, Verify: n8n.Bool(f.verify)}
+	request := n8n.InstallCommunityPackageRequest{Name: name, Version: f.version}
 	if err := request.Validate(); err != nil {
 		return err
 	}
@@ -191,10 +193,11 @@ func newCommunityPackageUpdateCommand(opts Options) *cobra.Command {
 		Use:   "update <name>",
 		Short: "Update an installed community package",
 		Long: "Update one installed community node package on the selected n8n instance.\n\n" +
-			"Omit --version to update to the version selected by n8n. Verification against\n" +
-			"n8n's vetted package list is enabled by default; --verify=false explicitly\n" +
-			"permits unverified code when the instance allows it. Updating code can change\n" +
-			"node behavior in existing workflows, though it does not delete those workflows.\n\n" +
+			"--version takes a semver version or an npm dist-tag such as latest or beta.\n" +
+			"Omit it to send no body and update to the latest version n8n allows. Whether\n" +
+			"unverified versions may be installed is an instance setting: when it is off,\n" +
+			"only versions verified by n8n install. Updating code can change node behavior\n" +
+			"in existing workflows, though it does not delete those workflows.\n\n" +
 			"Interactive runs ask before updating. Non-interactive runs fail unless --yes is\n" +
 			"passed. Requires API-key authentication and communityPackage:update.\n" +
 			"Next step: run 'n8n community-package list' and test affected workflows.",
@@ -206,7 +209,7 @@ func newCommunityPackageUpdateCommand(opts Options) *cobra.Command {
 			return runCommunityPackageUpdate(cmd.Context(), opts, args[0], f)
 		},
 	}
-	registerCommunityPackageMutationFlags(cmd, &f, true)
+	registerCommunityPackageMutationFlags(cmd, opts, &f, true)
 	return cmd
 }
 
@@ -214,7 +217,7 @@ func runCommunityPackageUpdate(ctx context.Context, opts Options, name string, f
 	if err := validateOutput(f.output); err != nil {
 		return err
 	}
-	request := n8n.UpdateCommunityPackageRequest{Version: f.version, Verify: n8n.Bool(f.verify)}
+	request := n8n.UpdateCommunityPackageRequest{Version: f.version}
 	if err := validateCommunityPackageArgument(name); err != nil {
 		return err
 	}
@@ -228,7 +231,7 @@ func runCommunityPackageUpdate(ctx context.Context, opts Options, name string, f
 	if err := requireAPIKey(resolution, "community-package"); err != nil {
 		return err
 	}
-	target := "the version selected by n8n"
+	target := "the latest version n8n allows"
 	if f.version != "" {
 		target = "version " + f.version
 	}
@@ -266,7 +269,7 @@ func newCommunityPackageUninstallCommand(opts Options) *cobra.Command {
 			return runCommunityPackageUninstall(cmd.Context(), opts, args[0], f)
 		},
 	}
-	registerCommunityPackageMutationFlags(cmd, &f, false)
+	registerCommunityPackageMutationFlags(cmd, opts, &f, false)
 	return cmd
 }
 
@@ -301,11 +304,17 @@ func runCommunityPackageUninstall(ctx context.Context, opts Options, name string
 	return nil
 }
 
-func registerCommunityPackageMutationFlags(cmd *cobra.Command, f *communityPackageMutationFlags, withPackageOptions bool) {
+func registerCommunityPackageMutationFlags(cmd *cobra.Command, opts Options, f *communityPackageMutationFlags, withPackageOptions bool) {
 	f.instance.register(cmd)
 	if withPackageOptions {
-		cmd.Flags().StringVar(&f.version, "version", "", "npm package version, e.g. 1.2.3 (default: let n8n select the version)")
-		cmd.Flags().BoolVar(&f.verify, "verify", true, "verify against n8n's vetted package list (default true; --verify=false permits unverified code when allowed)")
+		// Deprecation notices go to the flag set output; cobra would otherwise
+		// print them on stdout, which carries the result or JSON document.
+		cmd.Flags().SetOutput(opts.Streams.Err)
+		cmd.Flags().StringVar(&f.version, "version", "", "npm semver version or dist-tag, e.g. 1.2.3 or beta (default: let n8n select the version)")
+		// The API dropped the verify field; the flag still parses so existing
+		// scripts keep working, but its value is never sent.
+		cmd.Flags().BoolVar(&f.verify, "verify", true, "ignored; the instance setting for unverified packages now controls verification (default true)")
+		_ = cmd.Flags().MarkDeprecated("verify", "it is ignored: the instance setting for unverified community packages now controls verification")
 	}
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm the instance-changing action without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (default text; json is stable for scripting)")
