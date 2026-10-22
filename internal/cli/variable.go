@@ -166,7 +166,7 @@ type variableWriteFlags struct {
 func (f *variableWriteFlags) register(cmd *cobra.Command) {
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.value, "value", "", "complete variable value; pass an empty string to store an empty value (required, not repeated in diagnostics)")
-	cmd.Flags().StringVar(&f.projectID, "project-id", "", "project scope ID (default: global scope; on update this replaces current scope)")
+	cmd.Flags().StringVar(&f.projectID, "project-id", "", "project scope ID, at most 36 characters (default: global scope on create; on update see the command help)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (acknowledgement excludes the submitted value)")
 }
 
@@ -177,10 +177,11 @@ func newVariableCreateCommand(opts Options) *cobra.Command {
 		Short: "Create a variable",
 		Long: "Create one variable with a complete key and value. Omit --project-id for a\n" +
 			"global variable, or pass a project ID for project scope. A key must be unique\n" +
-			"within that scope; a duplicate fails with a conflict.\n\n" +
-			"--value is required, though an explicitly empty value is valid. The submitted\n" +
-			"value is sent to n8n but never repeated in CLI diagnostics or acknowledgement\n" +
-			"output. Requires variable:create.",
+			"within that scope; a duplicate fails with a conflict. Keys start with a letter\n" +
+			"or underscore, then use letters, digits and underscores, at most 50 in all.\n\n" +
+			"--value is required, though an explicitly empty value is valid; it is at most\n" +
+			"1000 characters. The submitted value is sent to n8n but never repeated in CLI\n" +
+			"diagnostics or acknowledgement output. Requires variable:create.",
 		Example: "  n8n variable create API_HOST --value https://api.example.com\n" +
 			"  n8n variable create OPTIONAL_VALUE --value \"\"\n" +
 			"  n8n variable create API_HOST --value https://api.example.com --project-id PROJECT_ID --output json",
@@ -219,11 +220,14 @@ func newVariableUpdateCommand(opts Options) *cobra.Command {
 		Use:   "update <variable-id>",
 		Short: "Fully replace a variable",
 		Long: "Fully replace one variable by ID. This is a PUT, so --key and --value are both\n" +
-			"required even when one is unchanged. Omitting --project-id replaces the current\n" +
-			"scope with global scope; pass its project ID to keep or select project scope.\n\n" +
-			"A key already used in the resulting scope fails with a conflict. An explicitly\n" +
-			"empty value is valid. Submitted values never appear in diagnostics or success\n" +
-			"acknowledgements. Requires variable:update.",
+			"required even when one is unchanged. The API contract makes projectId optional\n" +
+			"and nullable here without saying what omitting it does to the current scope,\n" +
+			"so pass --project-id to keep or select project scope, and check the result\n" +
+			"with 'n8n variable list'.\n\n" +
+			"Keys use letters, digits and underscores, at most 50; values are at most 1000\n" +
+			"characters. A key already used in the resulting scope fails with a conflict.\n" +
+			"An explicitly empty value is valid. Submitted values never appear in\n" +
+			"diagnostics or success acknowledgements. Requires variable:update.",
 		Example: "  n8n variable update VARIABLE_ID --key API_HOST --value https://api.internal\n" +
 			"  n8n variable update VARIABLE_ID --key API_HOST --value \"\" --project-id PROJECT_ID\n" +
 			"  n8n variable update VARIABLE_ID --key API_HOST --value VALUE --output json",

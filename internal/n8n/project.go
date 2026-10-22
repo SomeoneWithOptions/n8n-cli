@@ -2,9 +2,11 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 // ProjectsPath is the collection endpoint for projects.
@@ -13,16 +15,132 @@ const ProjectsPath = "/projects"
 // maxProjectPageSize is the page size the API documents as its maximum.
 const maxProjectPageSize = 250
 
-// Project is one n8n project. Name is the only writable field: the API marks
-// id and type read-only and rejects any other property.
+// Project is one n8n project as the API returns it. Icon, description and
+// creatorId are nullable on read, so they keep the difference between absent
+// and null. Fields this type does not name are kept in Extra and written back
+// out, so `--output json` does not lose what a newer instance sends.
 type Project struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"`
+	ID                  string                `json:"id,omitempty"`
+	Name                string                `json:"name"`
+	Type                string                `json:"type,omitempty"`
+	Icon                Nullable[ProjectIcon] `json:"icon,omitzero"`
+	Description         Nullable[string]      `json:"description,omitzero"`
+	CustomTelemetryTags []ProjectTelemetryTag `json:"customTelemetryTags,omitzero"`
+	CreatorID           Nullable[string]      `json:"creatorId,omitzero"`
+	CreatedAt           string                `json:"createdAt,omitempty"`
+	UpdatedAt           string                `json:"updatedAt,omitempty"`
+	// Role and Scopes are the caller's, returned by create only.
+	Role   string   `json:"role,omitempty"`
+	Scopes []string `json:"scopes,omitzero"`
+
+	Extra map[string]json.RawMessage `json:"-"`
 }
 
-// projectRequest is the write document for create and update. It is separate
-// from [Project] so read-only fields are never sent back to the server.
+// projectFields are the field names [Project] decodes itself.
+var projectFields = []string{
+	"id", "name", "type", "icon", "description", "customTelemetryTags",
+	"creatorId", "createdAt", "updatedAt", "role", "scopes",
+}
+
+// UnmarshalJSON decodes the named fields and keeps the rest in Extra.
+func (p *Project) UnmarshalJSON(data []byte) error {
+	type plain Project
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	rest, err := unknownFields(data, projectFields)
+	if err != nil {
+		return err
+	}
+	*p = Project(decoded)
+	p.Extra = rest
+	return nil
+}
+
+// MarshalJSON writes the named fields followed by Extra in sorted order.
+func (p Project) MarshalJSON() ([]byte, error) {
+	type plain Project
+	base, err := json.Marshal(plain(p))
+	if err != nil {
+		return nil, err
+	}
+	return appendExtra(base, p.Extra)
+}
+
+// Project icon types.
+const (
+	ProjectIconEmoji = "emoji"
+	ProjectIconIcon  = "icon"
+)
+
+// ProjectIcon is a project's icon: an emoji or a named icon, with an optional
+// color.
+type ProjectIcon struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+	Color string `json:"color,omitempty"`
+}
+
+// ProjectTelemetryTag is one key/value pair attached to a project's
+// telemetry.
+type ProjectTelemetryTag struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// Project field limits from the contract.
+const (
+	MaxProjectName        = 255
+	MaxProjectID          = 36
+	MaxProjectDescription = 512
+)
+
+// CreateProjectRequest is the write document for POST /projects. Only Name
+// is required; the instance generates the ID when it is empty. It is separate
+// from [Project] so read-only fields are never sent.
+type CreateProjectRequest struct {
+	Name                string                `json:"name"`
+	ID                  string                `json:"id,omitempty"`
+	Icon                *ProjectIcon          `json:"icon,omitempty"`
+	Description         string                `json:"description,omitempty"`
+	CustomTelemetryTags []ProjectTelemetryTag `json:"customTelemetryTags,omitempty"`
+}
+
+// Validate rejects a creation the API would reject.
+func (r CreateProjectRequest) Validate() error {
+	if err := validateProjectName(r.Name); err != nil {
+		return err
+	}
+	if r.ID != "" {
+		if err := validateProjectText("ID", r.ID, true); err != nil {
+			return err
+		}
+		if n := utf8.RuneCountInString(r.ID); n > MaxProjectID {
+			return fmt.Errorf("project ID is %d characters; the API accepts at most %d", n, MaxProjectID)
+		}
+	}
+	if r.Icon != nil {
+		if r.Icon.Type != ProjectIconEmoji && r.Icon.Type != ProjectIconIcon {
+			return fmt.Errorf("project icon type %q is invalid: use %s or %s", r.Icon.Type, ProjectIconEmoji, ProjectIconIcon)
+		}
+		if r.Icon.Value == "" {
+			return fmt.Errorf("project icon value is required")
+		}
+	}
+	if n := utf8.RuneCountInString(r.Description); n > MaxProjectDescription {
+		return fmt.Errorf("project description is %d characters; the API accepts at most %d", n, MaxProjectDescription)
+	}
+	for i, tag := range r.CustomTelemetryTags {
+		if strings.TrimSpace(tag.Key) == "" {
+			return fmt.Errorf("telemetry tag %d has an empty key", i+1)
+		}
+	}
+	return nil
+}
+
+// projectRequest is the write document for update, whose only writable field
+// is the name.
 type projectRequest struct {
 	Name string `json:"name"`
 }
@@ -66,18 +184,18 @@ func (c *Client) ListProjects(ctx context.Context, opts ListOptions) (Page[Proje
 	return page, nil
 }
 
-// CreateProject creates a project. The contract declares a 201 with no
-// documented body, so the returned project carries whatever the instance sent
-// and may be empty; list the projects to recover the ID in that case.
-func (c *Client) CreateProject(ctx context.Context, name string) (*Project, error) {
-	if err := validateProjectName(name); err != nil {
+// CreateProject creates a team project and returns it with the caller's role
+// and scopes in it. Older instances answered 201 with no body, so the
+// returned project may be empty; list the projects to recover the ID then.
+func (c *Client) CreateProject(ctx context.Context, request CreateProjectRequest) (*Project, error) {
+	if err := request.Validate(); err != nil {
 		return nil, err
 	}
 	var created Project
 	if _, err := c.Do(ctx, Request{
 		Method: http.MethodPost,
 		Path:   ProjectsPath,
-		Body:   projectRequest{Name: name},
+		Body:   request,
 	}, &created); err != nil {
 		return nil, err
 	}
@@ -206,7 +324,15 @@ func validateProjectListOptions(opts ListOptions) error {
 
 func validateProjectID(id string) error { return validateProjectText("ID", id, true) }
 
-func validateProjectName(name string) error { return validateProjectText("name", name, true) }
+func validateProjectName(name string) error {
+	if err := validateProjectText("name", name, true); err != nil {
+		return err
+	}
+	if n := utf8.RuneCountInString(name); n > MaxProjectName {
+		return fmt.Errorf("project name is %d characters; the API accepts at most %d", n, MaxProjectName)
+	}
+	return nil
+}
 
 func validateProjectText(field, value string, required bool) error {
 	if required && strings.TrimSpace(value) == "" {

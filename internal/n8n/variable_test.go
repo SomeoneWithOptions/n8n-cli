@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -163,6 +164,38 @@ func TestVariableWriteErrorsRedactSubmittedValue(t *testing.T) {
 	}
 }
 
+func TestVariableKeyRulesDifferBetweenCreateAndUpdate(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusNoContent, ``))
+	client := server.client(t)
+	// Update accepts a leading digit, create does not.
+	if err := client.UpdateVariable(context.Background(), "id", VariableRequest{Key: "1KEY", Value: strings.Repeat("é", 1000)}); err != nil {
+		t.Errorf("update with a leading digit and a 1000-character value: %v", err)
+	}
+	if err := client.CreateVariable(context.Background(), VariableRequest{Key: "_" + strings.Repeat("K", 49), Value: ""}); err != nil {
+		t.Errorf("create with a 50-character underscore key: %v", err)
+	}
+	if len(server.requests) != 2 {
+		t.Errorf("%d requests, want both valid writes sent", len(server.requests))
+	}
+}
+
+func TestVariableProjectKeepsFullProject(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, `{"data":[{"id":"v-1","key":"K","value":"","project":{"id":"p-1","name":"Ops","type":"team","icon":null,"description":"Runbooks","customTelemetryTags":[],"creatorId":null,"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"}}],"nextCursor":null}`))
+	page, err := server.client(t).ListVariables(context.Background(), ListVariablesOptions{})
+	if err != nil {
+		t.Fatalf("ListVariables: %v", err)
+	}
+	project := page.Data[0].Project
+	if project == nil || project.Description.Value != "Runbooks" || !project.Icon.Null || project.CreatedAt == "" {
+		t.Fatalf("project = %+v", project)
+	}
+	encoded, err := json.Marshal(project)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	assertJSONEqual(t, `{"id":"p-1","name":"Ops","type":"team","icon":null,"description":"Runbooks","customTelemetryTags":[],"creatorId":null,"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"}`, string(encoded))
+}
+
 func TestVariableValidationBeforeRequest(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, `{}`))
 	client := server.client(t)
@@ -187,6 +220,24 @@ func TestVariableValidationBeforeRequest(t *testing.T) {
 		},
 		"padded write project": func() error {
 			return client.CreateVariable(context.Background(), VariableRequest{Key: "KEY", Value: "allowed", ProjectID: " project"})
+		},
+		"create key with leading digit": func() error {
+			return client.CreateVariable(context.Background(), VariableRequest{Key: "1KEY", Value: "allowed"})
+		},
+		"create key with dash": func() error {
+			return client.CreateVariable(context.Background(), VariableRequest{Key: "API-HOST", Value: "allowed"})
+		},
+		"long key": func() error {
+			return client.CreateVariable(context.Background(), VariableRequest{Key: strings.Repeat("K", 51), Value: "allowed"})
+		},
+		"long value": func() error {
+			return client.CreateVariable(context.Background(), VariableRequest{Key: "KEY", Value: strings.Repeat("v", 1001)})
+		},
+		"long project ID": func() error {
+			return client.CreateVariable(context.Background(), VariableRequest{Key: "KEY", Value: "allowed", ProjectID: strings.Repeat("p", 37)})
+		},
+		"update key with dash": func() error {
+			return client.UpdateVariable(context.Background(), "id", VariableRequest{Key: "API-HOST", Value: "allowed"})
 		},
 		"empty update ID": func() error {
 			return client.UpdateVariable(context.Background(), "", VariableRequest{Key: "KEY", Value: "allowed"})

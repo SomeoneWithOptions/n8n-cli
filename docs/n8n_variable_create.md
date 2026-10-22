@@ -6,11 +6,12 @@ Create a variable
 
 Create one variable with a complete key and value. Omit --project-id for a
 global variable, or pass a project ID for project scope. A key must be unique
-within that scope; a duplicate fails with a conflict.
+within that scope; a duplicate fails with a conflict. Keys start with a letter
+or underscore, then use letters, digits and underscores, at most 50 in all.
 
---value is required, though an explicitly empty value is valid. The submitted
-value is sent to n8n but never repeated in CLI diagnostics or acknowledgement
-output. Requires variable:create.
+--value is required, though an explicitly empty value is valid; it is at most
+1000 characters. The submitted value is sent to n8n but never repeated in CLI
+diagnostics or acknowledgement output. Requires variable:create.
 
 ```
 n8n variable create <key> [flags]
@@ -30,7 +31,7 @@ n8n variable create <key> [flags]
       --context string      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
   -h, --help                help for create
       --output string       output format: text or json (acknowledgement excludes the submitted value) (default "text")
-      --project-id string   project scope ID (default: global scope; on update this replaces current scope)
+      --project-id string   project scope ID, at most 36 characters (default: global scope on create; on update see the command help)
       --url string          instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
       --value string        complete variable value; pass an empty string to store an empty value (required, not repeated in diagnostics)
 ```
