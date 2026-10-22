@@ -1749,8 +1749,8 @@
       "scope": "workflow:import",
       "availability": "both",
       "phase": 30,
-      "command": "",
-      "status": "planned"
+      "command": "n8n package import-selection",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionChanges",

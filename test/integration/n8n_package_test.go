@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SomeoneWithOptions/n8n-cli/internal/cli"
 	"github.com/SomeoneWithOptions/n8n-cli/internal/config"
@@ -120,4 +122,146 @@ func TestN8nPackageImportValidation(t *testing.T) {
 		t.Errorf("error = %v, want a 400 or 422 validation rejection", err)
 	}
 	t.Logf("invalid archive rejected as expected: %v", err)
+}
+
+// TestN8nPackageImportSelectionValidation posts a malformed archive to the
+// selection endpoint, which must reject it before writing anything.
+func TestN8nPackageImportSelectionValidation(t *testing.T) {
+	instance := integration.Require(t)
+	client := instance.Client(t)
+
+	_, err := client.ImportPackageSelection(context.Background(), n8n.ImportPackageSelectionRequest{
+		ProjectID:        integration.ResourcePrefix + "missing-project",
+		WorkflowIDs:      []string{integration.ResourcePrefix + "missing-workflow"},
+		WorkflowIDPolicy: n8n.ImportWorkflowIDSource,
+	}, strings.NewReader("not-a-gzip-package"), "invalid.n8np")
+	if n8n.IsForbidden(err) || n8n.IsNotFound(err) || n8n.IsStatus(err, http.StatusServiceUnavailable) {
+		t.Skip("integration instance does not serve package import-selection")
+	}
+	if err == nil {
+		t.Fatal("ImportPackageSelection(invalid archive): want a rejection, got success")
+	}
+	if !n8n.IsStatus(err, http.StatusBadRequest) && !n8n.IsImportUnprocessable(err) {
+		t.Errorf("error = %v, want a 400 or 422 validation rejection", err)
+	}
+	t.Logf("invalid archive rejected as expected: %v", err)
+}
+
+// TestN8nPackageImportSelectionRoundTrip creates a prefixed project with two
+// workflows, exports it as a project package, and imports one workflow back
+// while archiving the other. It only touches what it created, and cleanup is
+// registered before the first assertion.
+func TestN8nPackageImportSelectionRoundTrip(t *testing.T) {
+	instance := integration.RequireDestructive(t)
+	client := instance.Client(t)
+	ctx := context.Background()
+	stamp := time.Now().UnixNano()
+	name := fmt.Sprintf("%spackage-selection-%d", integration.ResourcePrefix, stamp)
+
+	project, err := client.CreateProject(ctx, n8n.CreateProjectRequest{Name: name})
+	if n8n.IsForbidden(err) || n8n.IsNotFound(err) {
+		t.Skipf("integration instance denies project creation: %v", err)
+	}
+	if err != nil {
+		t.Fatalf("CreateProject(%q): %v", name, err)
+	}
+	projectID := project.ID
+	if projectID == "" {
+		projects, err := n8n.Collect(ctx, client.ListProjects, n8n.ListOptions{Limit: 100}, 0)
+		if err != nil {
+			t.Fatalf("ListProjects after create: %v", err)
+		}
+		for _, candidate := range projects {
+			if candidate.Name == name {
+				projectID = candidate.ID
+			}
+		}
+	}
+	if projectID == "" {
+		t.Fatalf("created project %q was not found in the project list", name)
+	}
+	t.Cleanup(func() {
+		if err := client.DeleteProject(context.Background(), projectID); err != nil && !n8n.IsNotFound(err) {
+			t.Errorf("cleanup DeleteProject(%q): %v", projectID, err)
+		}
+	})
+
+	createInProject := func(suffix string) string {
+		t.Helper()
+		workflowName := fmt.Sprintf("%s-%s", name, suffix)
+		created, err := client.CreateWorkflow(ctx, workflowDefinition(workflowName, fmt.Sprintf("%s%d-%s", integration.ResourcePrefix, stamp, suffix)))
+		if err != nil {
+			t.Fatalf("CreateWorkflow(%q): %v", workflowName, err)
+		}
+		t.Cleanup(func() {
+			if _, err := client.DeleteWorkflow(context.Background(), created.ID); err != nil && !n8n.IsNotFound(err) {
+				t.Errorf("cleanup DeleteWorkflow(%q): %v", created.ID, err)
+			}
+		})
+		if err := client.TransferWorkflow(ctx, created.ID, projectID); err != nil {
+			t.Fatalf("TransferWorkflow(%q, %q): %v", created.ID, projectID, err)
+		}
+		return created.ID
+	}
+	kept := createInProject("kept")
+	removed := createInProject("removed")
+
+	var archive bytes.Buffer
+	if _, err := client.ExportPackage(ctx, n8n.ExportPackageRequest{ProjectIDs: []string{projectID}}, &archive); err != nil {
+		if n8n.IsForbidden(err) || n8n.IsNotFound(err) {
+			t.Skip("integration instance has no licensed Packages feature")
+		}
+		t.Fatalf("ExportPackage(project %q): %v", projectID, err)
+	}
+
+	result, err := client.ImportPackageSelection(ctx, n8n.ImportPackageSelectionRequest{
+		ProjectID:               projectID,
+		WorkflowIDs:             []string{kept},
+		DeletedWorkflowIDs:      []string{removed},
+		WorkflowConflictPolicy:  n8n.ImportWorkflowConflictNewVersion,
+		WorkflowIDPolicy:        n8n.ImportWorkflowIDSource,
+		OverwriteDeletionPolicy: n8n.ImportDeletionArchive,
+	}, bytes.NewReader(archive.Bytes()), "project.n8np")
+	if n8n.IsForbidden(err) || n8n.IsNotFound(err) || n8n.IsStatus(err, http.StatusServiceUnavailable) {
+		t.Skipf("integration instance does not serve package import-selection: %v", err)
+	}
+	if err != nil {
+		t.Fatalf("ImportPackageSelection: %v", err)
+	}
+	if len(result.Workflows) != 1 || result.Workflows[0].LocalID != kept || result.Workflows[0].ProjectID != projectID {
+		t.Errorf("workflows = %+v, want only %q updated in place in project %q", result.Workflows, kept, projectID)
+	}
+	if len(result.RemovedWorkflows) != 1 || result.RemovedWorkflows[0].WorkflowID != removed || result.RemovedWorkflows[0].Deletion != "archived" {
+		t.Errorf("removedWorkflows = %+v, want %q archived", result.RemovedWorkflows, removed)
+	}
+
+	path := filepath.Join(t.TempDir(), "project.n8np")
+	if err := os.WriteFile(path, archive.Bytes(), 0o600); err != nil {
+		t.Fatalf("write archive: %v", err)
+	}
+	env := map[string]string{config.EnvURL: instance.URL, config.EnvAPIKey: instance.APIKey.Reveal()}
+	interactive := false
+	var stdout, stderr strings.Builder
+	code := cli.Run(ctx, []string{"package", "import-selection", "--file", path, "--project-id", projectID,
+		"--workflow-id", kept, "--workflow-conflict-policy", "skip", "--yes", "--output", "json"}, cli.Options{
+		Streams:     cli.Streams{In: strings.NewReader(""), Out: &stdout, Err: &stderr},
+		Version:     version.Get(),
+		ConfigDir:   t.TempDir(),
+		Env:         func(name string) string { return env[name] },
+		Keyring:     config.NewMemoryStore(config.StorageKeyring),
+		Interactive: &interactive,
+	})
+	if code != cli.ExitSuccess {
+		t.Fatalf("package import-selection exit code = %d (stderr: %s)", code, stderr.String())
+	}
+	var skipped n8n.ImportPackageResult
+	if err := json.Unmarshal([]byte(stdout.String()), &skipped); err != nil {
+		t.Fatalf("stdout is not an import result: %v\n%s", err, stdout.String())
+	}
+	if len(skipped.Workflows) != 1 || skipped.Workflows[0].Status != "skipped" {
+		t.Errorf("workflows = %+v, want %q skipped under the skip policy", skipped.Workflows, kept)
+	}
+	if strings.Contains(stdout.String(), instance.APIKey.Reveal()) {
+		t.Error("API credential leaked into stdout")
+	}
 }

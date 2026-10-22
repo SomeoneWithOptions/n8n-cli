@@ -218,6 +218,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"package"},
 		{"package", "export"},
 		{"package", "import"},
+		{"package", "import-selection"},
 		{"git-connection"},
 		{"git-connection", "list"},
 		{"git-connection", "create"},

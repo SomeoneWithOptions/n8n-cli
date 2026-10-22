@@ -612,3 +612,190 @@ func TestPackageExportBetaIsVisible(t *testing.T) {
 		}
 	}
 }
+
+func TestPackageImportSelectionConfirmationAndBody(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+	before := f.requestCount()
+	f.stdin = "no\n"
+
+	args := []string{"package", "import-selection", "--file", archive, "--project-id", "src-p",
+		"--workflow-id", "wf-1", "--workflow-id", "wf-2", "--delete-workflow-id", "wf-9"}
+	got := f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "aborted") || f.requestCount() != before {
+		t.Errorf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+	for _, want := range []string{"2 workflow(s)", `project "src-p"`, "created if missing", "new-version", `"source"`, "wf-9", "archived"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("prompt = %q, want %q", got.stderr, want)
+		}
+	}
+
+	f.interactive = false
+	got = f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "pass --yes") || f.requestCount() != before {
+		t.Errorf("non-interactive result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+
+	got = f.run(append(args, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")...)
+	if got.code != ExitSuccess {
+		t.Fatalf("confirmed exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	req := f.lastRequest()
+	if req.Method != http.MethodPost || req.URL.Path != n8n.BasePath+n8n.N8nPackageImportSelectionPath {
+		t.Errorf("request = %s %s", req.Method, req.URL.Path)
+	}
+	fields, fileBytes, filename := parseCLIImportMultipart(t, f)
+	want := map[string]string{
+		"selectedProjectId":      "src-p",
+		"selectedWorkflowIds":    `["wf-1","wf-2"]`,
+		"deletedWorkflowIds":     `["wf-9"]`,
+		"workflowConflictPolicy": "skip",
+		"workflowIdPolicy":       "source",
+	}
+	for name, value := range want {
+		if fields[name] != value {
+			t.Errorf("field %s = %q, want %q (all: %v)", name, fields[name], value, fields)
+		}
+	}
+	if len(fields) != len(want) {
+		t.Errorf("fields = %v, want exactly %v", fields, want)
+	}
+	if fileBytes != cliPackageArchive || filename != "test-package.n8np" {
+		t.Errorf("package = %q (%q), want the archive bytes and base name", fileBytes, filename)
+	}
+	var result n8n.ImportPackageResult
+	if err := json.Unmarshal([]byte(got.stdout), &result); err != nil || len(result.Workflows) != 2 {
+		t.Errorf("stdout = %q, want the import result (error: %v)", got.stdout, err)
+	}
+}
+
+func TestPackageImportSelectionText(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+
+	got := f.run("package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-src", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	for _, want := range []string{"Imported:", "2 workflows", "1 created", "wf-local"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
+		}
+	}
+}
+
+func TestPackageImportSelectionHardDeleteWarnsStronger(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+	f.stdin = "no\n"
+
+	got := f.run("package", "import-selection", "--file", archive, "--project-id", "p1",
+		"--delete-workflow-id", "wf-old", "--overwrite-deletion-policy", "hard-delete")
+	if got.code != ExitError {
+		t.Fatalf("exit = %d, want a decline (stderr: %s)", got.code, got.stderr)
+	}
+	for _, want := range []string{"0 workflow(s)", "PERMANENTLY", "executions", "cannot be undone", "prefer archive", "wf-old"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("prompt = %q, want %q", got.stderr, want)
+		}
+	}
+}
+
+func TestPackageImportSelectionStdinRequiresYes(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	f.stdin = cliPackageArchive
+	before := f.requestCount()
+
+	got := f.run("package", "import-selection", "--file", "-", "--project-id", "p1", "--workflow-id", "a")
+	if got.code != ExitError || !strings.Contains(got.stderr, "--yes") || f.requestCount() != before {
+		t.Errorf("stdin without --yes result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+
+	f.stdin = cliPackageArchive
+	got = f.run("package", "import-selection", "--file", "-", "--project-id", "p1", "--workflow-id", "a", "--yes", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("stdin exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	_, fileBytes, filename := parseCLIImportMultipart(t, f)
+	if fileBytes != cliPackageArchive || filename != n8n.DefaultImportPackageFilename {
+		t.Errorf("package = %q (%q), want stdin bytes under the default name", fileBytes, filename)
+	}
+}
+
+func TestPackageImportSelectionRejectsBadInputBeforeTransport(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+	before := f.requestCount()
+
+	cmd := func(extra ...string) []string {
+		return append([]string{"package", "import-selection"}, append(extra, "--yes")...)
+	}
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{cmd("--project-id", "p", "--workflow-id", "a"), "--file is required"},
+		{cmd("--file", archive, "--workflow-id", "a"), "--project-id is required"},
+		{cmd("--file", archive, "--project-id", "p"), "nothing to import or delete"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--workflow-id", "a"), "more than once"},
+		{cmd("--file", archive, "--project-id", "p", "--delete-workflow-id", "b", "--delete-workflow-id", "b"), "more than once"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--delete-workflow-id", "a"), "both selected for import and listed for deletion"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", ""), "must not be empty"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--workflow-conflict-policy", "sometimes"), "workflow-conflict policy"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--workflow-id-policy", "sometimes"), "workflow-id policy"},
+		{cmd("--file", archive, "--project-id", "p", "--delete-workflow-id", "b", "--overwrite-deletion-policy", "purge"), "overwrite-deletion policy"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--overwrite-deletion-policy", "archive"), "only applies to deleted workflow IDs"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--output", "yaml"), "yaml"},
+		{cmd("--file", filepath.Join(t.TempDir(), "missing.n8np"), "--project-id", "p", "--workflow-id", "a"), "open package archive"},
+	}
+	for _, tc := range cases {
+		got := f.run(tc.args...)
+		if got.code != ExitError || !strings.Contains(got.stderr, tc.want) {
+			t.Errorf("%v = exit %d, stderr %q; want exit %d naming %q", tc.args, got.code, got.stderr, ExitError, tc.want)
+		}
+	}
+	if f.requestCount() != before {
+		t.Errorf("requests = %d, want %d before transport", f.requestCount(), before)
+	}
+}
+
+func TestPackageImportSelectionErrorsPointAtFix(t *testing.T) {
+	f := packageFixture(t, "")
+	archive := writePackageArchive(t, cliPackageArchive)
+	args := []string{"package", "import-selection", "--file", archive, "--project-id", "p", "--workflow-id", "a", "--delete-workflow-id", "b", "--yes"}
+
+	f.status = http.StatusConflict
+	f.body = `{"message":"overlap","issues":[{"type":"workflow-removal-conflict","workflowId":"b"}]}`
+	got := f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "409") || !strings.Contains(got.stderr, "workflow-removal-conflict") || !strings.Contains(got.stderr, "--delete-workflow-id") {
+		t.Errorf("409 result = %+v, want the removal-conflict remediation", got)
+	}
+
+	f.status = http.StatusUnprocessableEntity
+	f.body = `{"message":"denied","issues":[{"type":"workflow-removal-forbidden","workflowId":"b"}]}`
+	got = f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "422") || !strings.Contains(got.stderr, "workflow:delete") {
+		t.Errorf("422 result = %+v, want the delete-scope remediation", got)
+	}
+
+	f.status = http.StatusBadRequest
+	f.body = `{"message":"not a project package"}`
+	got = f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "400") || !strings.Contains(got.stderr, "project package") || !strings.Contains(got.stderr, "n8n package export --project-id") {
+		t.Errorf("400 result = %+v, want the project-package hint", got)
+	}
+
+	f.status = http.StatusForbidden
+	f.body = `{"message":"denied"}`
+	got = f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "workflow:import") || !strings.Contains(got.stderr, "workflow:delete") || !strings.Contains(got.stderr, "n8n discover --resource n8npackage") {
+		t.Errorf("403 result = %+v, want both scopes and the discover hint", got)
+	}
+
+	f.status = http.StatusNotFound
+	got = f.run(args...)
+	if got.code != ExitError || !strings.Contains(got.stderr, "Packages") || !strings.Contains(got.stderr, "n8n discover --resource n8npackage") {
+		t.Errorf("404 result = %+v, want the availability hint", got)
+	}
+}
