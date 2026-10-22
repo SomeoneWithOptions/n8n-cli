@@ -3,7 +3,6 @@ package n8n
 import (
 	"context"
 	"fmt"
-	"net/http"
 )
 
 // NodeTypePolicyInstancePath is the instance-scope node type policy endpoint.
@@ -28,6 +27,8 @@ type NodeTypePolicySelectorKind string
 const (
 	// NodeTypePolicySelectorName matches one node type by name.
 	NodeTypePolicySelectorName NodeTypePolicySelectorKind = "name"
+	// NodeTypePolicySelectorExtends matches a credential type and its descendants.
+	NodeTypePolicySelectorExtends NodeTypePolicySelectorKind = "extends"
 	// NodeTypePolicySelectorPackage matches every node type in a package.
 	NodeTypePolicySelectorPackage NodeTypePolicySelectorKind = "package"
 )
@@ -129,8 +130,12 @@ func (r ReplaceNodeTypePolicyRequest) Validate(scope NodeTypePolicyScope) error 
 	if *r.Version < 0 {
 		return fmt.Errorf("version must be 0 or greater, got %d", *r.Version)
 	}
-	seen := make(map[string]int, len(r.Rules))
-	for i, rule := range r.Rules {
+	return validatePolicyRules(r.Rules, scope, false)
+}
+
+func validatePolicyRules(rules []NodeTypePolicyRule, scope NodeTypePolicyScope, credential bool) error {
+	seen := make(map[string]int, len(rules))
+	for i, rule := range rules {
 		if rule.ID == "" {
 			return fmt.Errorf("rules[%d]: id is required and must not be empty", i)
 		}
@@ -143,9 +148,13 @@ func (r ReplaceNodeTypePolicyRequest) Validate(scope NodeTypePolicyScope) error 
 		}
 		switch rule.Selector.Kind {
 		case NodeTypePolicySelectorName, NodeTypePolicySelectorPackage:
+		case NodeTypePolicySelectorExtends:
+			if credential {
+				break
+			}
+			fallthrough
 		default:
-			return fmt.Errorf("rules[%d] (%s): selector.kind must be %s or %s, got %q",
-				i, rule.ID, NodeTypePolicySelectorName, NodeTypePolicySelectorPackage, rule.Selector.Kind)
+			return fmt.Errorf("rules[%d] (%s): selector.kind must be %s, got %q", i, rule.ID, selectorHelp(credential), rule.Selector.Kind)
 		}
 		if rule.Selector.Value == "" {
 			return fmt.Errorf("rules[%d] (%s): selector.value is required and must not be empty", i, rule.ID)
@@ -186,71 +195,20 @@ func (r ReplaceNodeTypePolicyRequest) normalized() ReplaceNodeTypePolicyRequest 
 
 // GetInstanceNodeTypePolicy returns the composed instance-scope policy.
 func (c *Client) GetInstanceNodeTypePolicy(ctx context.Context) (*NodeTypePolicy, error) {
-	var policy NodeTypePolicy
-	if _, err := c.Do(ctx, Request{Path: NodeTypePolicyInstancePath}, &policy); err != nil {
-		return nil, err
-	}
-	return &policy, nil
+	return c.NodeTypePolicies().GetInstance(ctx)
 }
 
-// ReplaceInstanceNodeTypePolicy replaces the instance default action and the
-// rules of its single policy document. A stale Version is rejected with 409.
+// ReplaceInstanceNodeTypePolicy replaces only the instance default and own document.
 func (c *Client) ReplaceInstanceNodeTypePolicy(ctx context.Context, request ReplaceNodeTypePolicyRequest) (*NodeTypePolicyWriteResult, error) {
-	if err := request.Validate(NodeTypePolicyScopeInstance); err != nil {
-		return nil, err
-	}
-	var result NodeTypePolicyWriteResult
-	if _, err := c.Do(ctx, Request{
-		Method: http.MethodPut,
-		Path:   NodeTypePolicyInstancePath,
-		Body:   request.normalized(),
-	}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return c.NodeTypePolicies().ReplaceInstance(ctx, request)
 }
 
-// GetProjectNodeTypePolicy returns the project's own composed policy. It is not
-// combined with the instance policy; that composition happens at evaluation.
+// GetProjectNodeTypePolicy returns the project's own composed policy.
 func (c *Client) GetProjectNodeTypePolicy(ctx context.Context, projectID string) (*NodeTypePolicy, error) {
-	if err := validateNodeTypePolicyProjectID(projectID); err != nil {
-		return nil, err
-	}
-	var policy NodeTypePolicy
-	if _, err := c.Do(ctx, Request{Path: nodeTypePolicyProjectPath(projectID)}, &policy); err != nil {
-		return nil, err
-	}
-	return &policy, nil
+	return c.NodeTypePolicies().GetProject(ctx, projectID)
 }
 
-// ReplaceProjectNodeTypePolicy replaces one project's default action and the
-// rules of its single policy document. A stale Version is rejected with 409, as
-// is a policy document shared with another scope.
+// ReplaceProjectNodeTypePolicy replaces only the project's default and own document.
 func (c *Client) ReplaceProjectNodeTypePolicy(ctx context.Context, projectID string, request ReplaceNodeTypePolicyRequest) (*NodeTypePolicyWriteResult, error) {
-	if err := validateNodeTypePolicyProjectID(projectID); err != nil {
-		return nil, err
-	}
-	if err := request.Validate(NodeTypePolicyScopeProject); err != nil {
-		return nil, err
-	}
-	var result NodeTypePolicyWriteResult
-	if _, err := c.Do(ctx, Request{
-		Method: http.MethodPut,
-		Path:   nodeTypePolicyProjectPath(projectID),
-		Body:   request.normalized(),
-	}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func nodeTypePolicyProjectPath(projectID string) string {
-	return PathJoin("node-type-policies", "projects", projectID)
-}
-
-func validateNodeTypePolicyProjectID(projectID string) error {
-	if projectID == "" {
-		return fmt.Errorf("project ID is required")
-	}
-	return nil
+	return c.NodeTypePolicies().ReplaceProject(ctx, projectID, request)
 }

@@ -57,6 +57,7 @@ func newNodePolicyCommand(opts Options) *cobra.Command {
 		newNodePolicyInstanceCommand(opts),
 		newNodePolicyProjectCommand(opts),
 	)
+	addPolicyDocuments(cmd, opts, nodePolicyGroup())
 	return cmd
 }
 
@@ -123,7 +124,7 @@ func newNodePolicyInstanceGetCommand(opts Options) *cobra.Command {
 			"with shared documents attached the round trip copies their rules too.\n\n" +
 			"scopeId identifies the scope's attachments and is null until the scope is first\n" +
 			"written. A scope that was never configured reports no rules, defaultAction allow,\n" +
-			"and version 0. Requires nodeTypePolicy:manage.",
+			"and version 0. Preview API. Requires nodeTypePolicy:manage.",
 		Example: "  n8n node-policy instance get\n" +
 			"  n8n node-policy instance get --output json\n" +
 			"  n8n node-policy instance get --output json > policy.json",
@@ -149,7 +150,7 @@ func newNodePolicyProjectGetCommand(opts Options) *cobra.Command {
 			"scopeId identifies the scope's attachments and is null until the project policy\n" +
 			"is first written. A project that was never configured reports no rules,\n" +
 			"defaultAction allow, and version 0. Use --output json as the input for 'set'.\n" +
-			"Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.",
+			"Preview API. Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.",
 		Example: "  n8n node-policy project get L5fcpzBVjoU2PKFP\n" +
 			"  n8n node-policy project get L5fcpzBVjoU2PKFP --output json > project-policy.json",
 		Args: cobra.ExactArgs(1),

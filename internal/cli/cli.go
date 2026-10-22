@@ -270,6 +270,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newEvaluationCommand(opts),
 		newInsightCommand(opts),
 		newNodePolicyCommand(opts),
+		newCredentialPolicyCommand(opts),
 		newSecurityPolicyCommand(opts),
 		newOtelCommand(opts),
 		newLogStreamCommand(opts),

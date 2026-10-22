@@ -22,6 +22,22 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n credential test`](n8n_credential_test.md) | Test stored credential data |
 | [`n8n credential transfer`](n8n_credential_transfer.md) | Transfer a credential to another project |
 | [`n8n credential update`](n8n_credential_update.md) | Update a credential from secret JSON |
+| [`n8n credential-policy attachment get`](n8n_credential-policy_attachment_get.md) | Get credential type policy attachments |
+| [`n8n credential-policy attachment set`](n8n_credential-policy_attachment_set.md) | Replace credential type policy attachments |
+| [`n8n credential-policy attachment`](n8n_credential-policy_attachment.md) | Manage attached credential type policy documents |
+| [`n8n credential-policy document create`](n8n_credential-policy_document_create.md) | Create credential type policy documents |
+| [`n8n credential-policy document delete`](n8n_credential-policy_document_delete.md) | Delete credential type policy documents |
+| [`n8n credential-policy document get`](n8n_credential-policy_document_get.md) | Get credential type policy documents |
+| [`n8n credential-policy document list`](n8n_credential-policy_document_list.md) | List credential type policy documents |
+| [`n8n credential-policy document set`](n8n_credential-policy_document_set.md) | Replace credential type policy documents |
+| [`n8n credential-policy document`](n8n_credential-policy_document.md) | Manage reusable credential type policy documents |
+| [`n8n credential-policy instance get`](n8n_credential-policy_instance_get.md) | Get the instance credential type policy |
+| [`n8n credential-policy instance set`](n8n_credential-policy_instance_set.md) | Replace the instance credential type policy |
+| [`n8n credential-policy instance`](n8n_credential-policy_instance.md) | Manage instance credential type policies |
+| [`n8n credential-policy project get`](n8n_credential-policy_project_get.md) | Get the project credential type policy |
+| [`n8n credential-policy project set`](n8n_credential-policy_project_set.md) | Replace the project credential type policy |
+| [`n8n credential-policy project`](n8n_credential-policy_project.md) | Manage project credential type policies |
+| [`n8n credential-policy`](n8n_credential-policy.md) | Manage credential type availability policies |
 | [`n8n credential`](n8n_credential.md) | Manage node credentials without exposing secrets |
 | [`n8n data-table column create`](n8n_data-table_column_create.md) | Add a column to a data table |
 | [`n8n data-table column delete`](n8n_data-table_column_delete.md) | Permanently delete a column and its data |
@@ -97,6 +113,15 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n log-stream event-type list`](n8n_log-stream_event-type_list.md) | List event names available for streaming |
 | [`n8n log-stream event-type`](n8n_log-stream_event-type.md) | Inspect streamable event types |
 | [`n8n log-stream`](n8n_log-stream.md) | Manage licensed log streaming destinations |
+| [`n8n node-policy attachment get`](n8n_node-policy_attachment_get.md) | Get node type policy attachments |
+| [`n8n node-policy attachment set`](n8n_node-policy_attachment_set.md) | Replace node type policy attachments |
+| [`n8n node-policy attachment`](n8n_node-policy_attachment.md) | Manage attached node type policy documents |
+| [`n8n node-policy document create`](n8n_node-policy_document_create.md) | Create node type policy documents |
+| [`n8n node-policy document delete`](n8n_node-policy_document_delete.md) | Delete node type policy documents |
+| [`n8n node-policy document get`](n8n_node-policy_document_get.md) | Get node type policy documents |
+| [`n8n node-policy document list`](n8n_node-policy_document_list.md) | List node type policy documents |
+| [`n8n node-policy document set`](n8n_node-policy_document_set.md) | Replace node type policy documents |
+| [`n8n node-policy document`](n8n_node-policy_document.md) | Manage reusable node type policy documents |
 | [`n8n node-policy instance get`](n8n_node-policy_instance_get.md) | Get the instance node type policy |
 | [`n8n node-policy instance set`](n8n_node-policy_instance_set.md) | Fully replace the instance node type policy |
 | [`n8n node-policy instance`](n8n_node-policy_instance.md) | Manage the instance node type policy |

@@ -12,7 +12,7 @@ with shared documents attached the round trip copies their rules too.
 
 scopeId identifies the scope's attachments and is null until the scope is first
 written. A scope that was never configured reports no rules, defaultAction allow,
-and version 0. Requires nodeTypePolicy:manage.
+and version 0. Preview API. Requires nodeTypePolicy:manage.
 
 ```
 n8n node-policy instance get [flags]

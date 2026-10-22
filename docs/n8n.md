@@ -55,6 +55,7 @@ n8n [flags]
 * [n8n completion](n8n_completion.md)	 - Generate a shell completion script
 * [n8n config](n8n_config.md)	 - Inspect and edit stored CLI configuration
 * [n8n credential](n8n_credential.md)	 - Manage node credentials without exposing secrets
+* [n8n credential-policy](n8n_credential-policy.md)	 - Manage credential type availability policies
 * [n8n data-table](n8n_data-table.md)	 - Manage data tables, their rows and their columns
 * [n8n discover](n8n_discover.md)	 - List the API capabilities available to the current credential
 * [n8n evaluation](n8n_evaluation.md)	 - Run and inspect workflow evaluations

@@ -12,7 +12,7 @@ applied on top at evaluation.
 scopeId identifies the scope's attachments and is null until the project policy
 is first written. A project that was never configured reports no rules,
 defaultAction allow, and version 0. Use --output json as the input for 'set'.
-Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.
+Preview API. Requires nodeTypePolicy:manage. Find project IDs with 'n8n project list'.
 
 ```
 n8n node-policy project get <project-id> [flags]

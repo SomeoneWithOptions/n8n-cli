@@ -1837,8 +1837,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy document list",
+      "status": "implemented"
     },
     {
       "operationId": "createNodeTypePolicyDocument",
@@ -1848,8 +1848,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy document create",
+      "status": "implemented"
     },
     {
       "operationId": "getNodeTypePolicyDocument",
@@ -1859,8 +1859,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy document get",
+      "status": "implemented"
     },
     {
       "operationId": "updateNodeTypePolicyDocument",
@@ -1870,8 +1870,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy document set",
+      "status": "implemented"
     },
     {
       "operationId": "deleteNodeTypePolicyDocument",
@@ -1881,8 +1881,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy document delete",
+      "status": "implemented"
     },
     {
       "operationId": "getNodeTypePolicyAttachments",
@@ -1892,8 +1892,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy attachment get",
+      "status": "implemented"
     },
     {
       "operationId": "replaceNodeTypePolicyAttachments",
@@ -1903,8 +1903,8 @@
       "scope": "nodeTypePolicy:manage",
       "availability": "both",
       "phase": 32,
-      "command": "",
-      "status": "planned"
+      "command": "n8n node-policy attachment set",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialTypeInstancePolicy",
@@ -1914,8 +1914,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy instance get",
+      "status": "implemented"
     },
     {
       "operationId": "putCredentialTypeInstancePolicy",
@@ -1925,8 +1925,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy instance set",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialTypeProjectPolicy",
@@ -1936,8 +1936,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy project get",
+      "status": "implemented"
     },
     {
       "operationId": "putCredentialTypeProjectPolicy",
@@ -1947,8 +1947,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy project set",
+      "status": "implemented"
     },
     {
       "operationId": "listCredentialTypePolicyDocuments",
@@ -1958,8 +1958,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy document list",
+      "status": "implemented"
     },
     {
       "operationId": "createCredentialTypePolicyDocument",
@@ -1969,8 +1969,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy document create",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialTypePolicyDocument",
@@ -1980,8 +1980,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy document get",
+      "status": "implemented"
     },
     {
       "operationId": "updateCredentialTypePolicyDocument",
@@ -1991,8 +1991,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy document set",
+      "status": "implemented"
     },
     {
       "operationId": "deleteCredentialTypePolicyDocument",
@@ -2002,8 +2002,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy document delete",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialTypePolicyAttachments",
@@ -2013,8 +2013,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy attachment get",
+      "status": "implemented"
     },
     {
       "operationId": "replaceCredentialTypePolicyAttachments",
@@ -2024,8 +2024,8 @@
       "scope": "credentialTypePolicy:manage",
       "availability": "upstream-only",
       "phase": 33,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential-policy attachment set",
+      "status": "implemented"
     }
   ]
 }
