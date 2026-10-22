@@ -379,8 +379,8 @@ func workflowCopyPublishError(err error, written *n8n.Workflow, r config.Resolut
 			r.URL, written.Name, written.ID, written.ID, contextName)
 	}
 	if n8n.IsConflict(err) {
-		return fmt.Errorf("%s refused to publish workflow %q (409): an open workflow review or a webhook path already in use is blocking it. "+
-			"The definition was copied and saved; only publication failed: %w", r.URL, written.ID, err)
+		return fmt.Errorf("%s refused to publish workflow %q (409): %s is blocking it. "+
+			"The definition was copied and saved; only publication failed: %w", r.URL, written.ID, workflowPublishConflictCause(err), err)
 	}
 	return fmt.Errorf("target: %w", workflowAPIError(err, r, "publish"))
 }

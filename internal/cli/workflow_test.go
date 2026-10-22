@@ -465,6 +465,43 @@ func TestWorkflowUpdateReplacesDefinition(t *testing.T) {
 	})
 }
 
+func TestWorkflowUpdateNamesSavedDraftAndReview(t *testing.T) {
+	t.Run("403 names the draft", func(t *testing.T) {
+		f := workflowFixture(t, cliWorkflow)
+		f.route = func(*http.Request, int) (int, string) {
+			return http.StatusForbidden, `{"message":"missing scope","reason":"insufficient_api_key_scope","versionId":"ver-9"}`
+		}
+		got := f.run("workflow", "update", "wf-1", "--input", writeWorkflowFile(t, cliWorkflow))
+		if got.code != ExitError || !strings.Contains(got.stderr, "saved as draft ver-9") {
+			t.Errorf("result = %+v, want the saved draft named", got)
+		}
+	})
+
+	t.Run("409 review keeps the draft", func(t *testing.T) {
+		f := workflowFixture(t, cliWorkflow)
+		f.route = func(*http.Request, int) (int, string) {
+			return http.StatusConflict, `{"message":"pending review","reason":"review_pending","workflowReviewRequestId":"rev-1"}`
+		}
+		got := f.run("workflow", "update", "wf-1", "--input", writeWorkflowFile(t, cliWorkflow))
+		for _, want := range []string{"409", "as a draft", "review (rev-1) is still pending", "--no-publish"} {
+			if got.code != ExitError || !strings.Contains(got.stderr, want) {
+				t.Errorf("stderr missing %q:\n%s", want, got.stderr)
+			}
+		}
+	})
+
+	t.Run("409 without review is not called a draft", func(t *testing.T) {
+		f := workflowFixture(t, cliWorkflow)
+		f.route = func(*http.Request, int) (int, string) {
+			return http.StatusConflict, `{"message":"webhook path in use"}`
+		}
+		got := f.run("workflow", "update", "wf-1", "--input", writeWorkflowFile(t, cliWorkflow))
+		if got.code != ExitError || strings.Contains(got.stderr, "as a draft") || !strings.Contains(got.stderr, "webhook path in use") {
+			t.Errorf("result = %+v", got)
+		}
+	})
+}
+
 // A 403 on update is a partial success: the draft is saved, the published
 // version stays live. The message has to say so, because nothing else will.
 func TestWorkflowUpdateExplainsPublishDenial(t *testing.T) {
@@ -534,6 +571,25 @@ func TestWorkflowPublishOptionsAndConflict(t *testing.T) {
 			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 		}
 		assertCLIJSON(t, `{"versionId":"ver-2","name":"Release","description":"retry branch"}`, f.lastBody())
+	})
+
+	t.Run("conflict names the review", func(t *testing.T) {
+		f := workflowFixture(t, cliWorkflow)
+		f.route = func(*http.Request, int) (int, string) {
+			return http.StatusConflict, `{"message":"pending review","reason":"changes_requested","workflowReviewRequestId":"rev-1"}`
+		}
+		got := f.run("workflow", "publish", "wf-1")
+		if got.code != ExitError {
+			t.Fatalf("exit = %d, want an error", got.code)
+		}
+		for _, want := range []string{"409", "review (rev-1) requested changes"} {
+			if !strings.Contains(got.stderr, want) {
+				t.Errorf("stderr missing %q:\n%s", want, got.stderr)
+			}
+		}
+		if strings.Contains(got.stderr, "webhook path") {
+			t.Errorf("stderr guesses a webhook conflict despite the reported review:\n%s", got.stderr)
+		}
 	})
 
 	t.Run("conflict explains the block", func(t *testing.T) {

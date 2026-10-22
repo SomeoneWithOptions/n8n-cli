@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -524,11 +525,22 @@ func runWorkflowUpdate(ctx context.Context, opts Options, id string, f workflowU
 	updated, err := client.UpdateWorkflow(ctx, id, doc, updateOpts)
 	if err != nil {
 		if n8n.IsForbidden(err) && !f.noPublish {
+			saved := "the new version may have been saved as a draft while the published version stays live"
+			if apiErr, ok := errors.AsType[*n8n.APIError](err); ok && apiErr.VersionID != "" {
+				saved = fmt.Sprintf("the new version was saved as draft %s while the published version stays live", apiErr.VersionID)
+			}
 			return forbiddenScopeError(err, resolution, fmt.Sprintf("publishing the update to workflow %q", id), allOf("workflow:activate"),
 				fmt.Sprintf("republishing also needs the project's workflow:publish permission.\n"+
-					"  the new version may have been saved as a draft while the published version stays live: check with 'n8n workflow get %s'.\n"+
-					"  re-run with --no-publish to save a draft without this error.", id),
+					"  %s: check with 'n8n workflow get %s'.\n"+
+					"  re-run with --no-publish to save a draft without this error.", saved, id),
 				workflowResource)
+		}
+		if n8n.IsConflict(err) && !f.noPublish {
+			if review := workflowReviewBlock(err); review != "" {
+				return fmt.Errorf("%s saved the update to workflow %q as a draft but refused to republish it (409): %s; "+
+					"the published version stays live. Resolve the review in the n8n UI, or re-run with --no-publish to save a draft without this error: %w",
+					resolution.URL, id, review, err)
+			}
 		}
 		return workflowAPIError(err, resolution, "update")
 	}
@@ -823,7 +835,7 @@ func runWorkflowPublish(ctx context.Context, opts Options, id string, f workflow
 	workflow, err := call(ctx, id, request)
 	if err != nil {
 		if n8n.IsConflict(err) {
-			return fmt.Errorf("%s refused to publish workflow %q (409): an open workflow review or a webhook path already in use is blocking it: %w", resolution.URL, id, err)
+			return fmt.Errorf("%s refused to publish workflow %q (409): %s is blocking it: %w", resolution.URL, id, workflowPublishConflictCause(err), err)
 		}
 		return workflowAPIError(err, resolution, "publish")
 	}
@@ -1375,6 +1387,38 @@ func validateWorkflowArgument(field, value string) error {
 // status code does not: workflow scopes are per-action, and a 404 can mean the
 // workflow is gone, archived out of view, or in a project the credential cannot
 // see.
+// workflowReviewBlock describes the open workflow review a 409 names, or
+// returns "" when the 409 carries no review (a webhook path conflict).
+func workflowReviewBlock(err error) string {
+	apiErr, ok := errors.AsType[*n8n.APIError](err)
+	if !ok {
+		return ""
+	}
+	review := "an open workflow review"
+	if apiErr.ReviewRequestID != "" {
+		review += " (" + apiErr.ReviewRequestID + ")"
+	}
+	switch apiErr.Reason {
+	case "review_pending":
+		return review + " is still pending"
+	case "changes_requested":
+		return review + " requested changes"
+	}
+	if apiErr.ReviewRequestID != "" {
+		return review + " is blocking publication"
+	}
+	return ""
+}
+
+// workflowPublishConflictCause names what blocked a publication: the review
+// the 409 reports, or both documented causes when it reports none.
+func workflowPublishConflictCause(err error) string {
+	if review := workflowReviewBlock(err); review != "" {
+		return review
+	}
+	return "an open workflow review or a webhook path already in use"
+}
+
 func workflowAPIError(err error, resolution config.Resolution, action string) error {
 	if n8n.IsForbidden(err) {
 		need := workflowScope(action)
