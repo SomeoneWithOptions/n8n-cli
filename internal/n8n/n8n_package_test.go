@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -569,5 +570,205 @@ func TestImportPackageOtherErrors(t *testing.T) {
 				t.Errorf("error = %v, want a plain API error, not a blocked error", err)
 			}
 		})
+	}
+}
+
+func TestImportPackageSelectionStreamsMultipart(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+
+	result, err := server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+		ProjectID:               "src-project",
+		WorkflowIDs:             []string{"wf-1", "wf-2"},
+		DeletedWorkflowIDs:      []string{"wf-3"},
+		WorkflowConflictPolicy:  ImportWorkflowConflictSkip,
+		WorkflowIDPolicy:        ImportWorkflowIDNew,
+		OverwriteDeletionPolicy: ImportDeletionHardDelete,
+	}, strings.NewReader(packageArchiveBytes), "project.n8np")
+	if err != nil {
+		t.Fatalf("ImportPackageSelection: %v", err)
+	}
+	req, raw := server.last(t)
+	if req.Method != http.MethodPost || req.URL.Path != BasePath+N8nPackageImportSelectionPath {
+		t.Errorf("request = %s %s, want POST %s", req.Method, req.URL.Path, BasePath+N8nPackageImportSelectionPath)
+	}
+	if got := req.Header.Get(HeaderAPIKey); got != "community-secret" {
+		t.Errorf("%s = %q, want API key", HeaderAPIKey, got)
+	}
+	fields, fileBytes, filename := parseMultipartImport(t, req, []byte(raw))
+	want := map[string]string{
+		"selectedProjectId":       "src-project",
+		"selectedWorkflowIds":     `["wf-1","wf-2"]`,
+		"deletedWorkflowIds":      `["wf-3"]`,
+		"workflowConflictPolicy":  ImportWorkflowConflictSkip,
+		"workflowIdPolicy":        ImportWorkflowIDNew,
+		"overwriteDeletionPolicy": ImportDeletionHardDelete,
+	}
+	if diff := cmp.Diff(want, fields); diff != "" {
+		t.Errorf("fields mismatch (-want +got):\n%s", diff)
+	}
+	if fileBytes != packageArchiveBytes || filename != "project.n8np" {
+		t.Errorf("package = %q (%q), want the streamed archive and its name", fileBytes, filename)
+	}
+	if len(result.Workflows) != 1 || result.Workflows[0].LocalID != "wf-local" {
+		t.Errorf("result = %+v, want the shared import result", result)
+	}
+}
+
+func TestImportPackageSelectionOmitsUnsetFields(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+
+	_, err := server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+		ProjectID:          "src-project",
+		DeletedWorkflowIDs: []string{"wf-3"},
+		WorkflowIDPolicy:   ImportWorkflowIDSource,
+	}, strings.NewReader(packageArchiveBytes), "")
+	if err != nil {
+		t.Fatalf("ImportPackageSelection: %v", err)
+	}
+	req, raw := server.last(t)
+	fields, _, filename := parseMultipartImport(t, req, []byte(raw))
+	want := map[string]string{
+		"selectedProjectId":   "src-project",
+		"selectedWorkflowIds": `[]`,
+		"deletedWorkflowIds":  `["wf-3"]`,
+		"workflowIdPolicy":    ImportWorkflowIDSource,
+	}
+	if diff := cmp.Diff(want, fields); diff != "" {
+		t.Errorf("delete-only fields mismatch (-want +got):\n%s", diff)
+	}
+	if filename != DefaultImportPackageFilename {
+		t.Errorf("filename = %q, want %q", filename, DefaultImportPackageFilename)
+	}
+
+	_, err = server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+		ProjectID:        "src-project",
+		WorkflowIDs:      []string{"wf-1"},
+		WorkflowIDPolicy: ImportWorkflowIDSource,
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if err != nil {
+		t.Fatalf("ImportPackageSelection: %v", err)
+	}
+	req, raw = server.last(t)
+	fields, _, _ = parseMultipartImport(t, req, []byte(raw))
+	for _, name := range []string{"deletedWorkflowIds", "workflowConflictPolicy", "overwriteDeletionPolicy"} {
+		if _, present := fields[name]; present {
+			t.Errorf("%s = present, want omitted when unset", name)
+		}
+	}
+}
+
+func TestImportPackageSelectionValidation(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+	client := server.client(t)
+
+	base := func(mutate func(*ImportPackageSelectionRequest)) ImportPackageSelectionRequest {
+		request := ImportPackageSelectionRequest{
+			ProjectID:        "p",
+			WorkflowIDs:      []string{"a"},
+			WorkflowIDPolicy: ImportWorkflowIDSource,
+		}
+		mutate(&request)
+		return request
+	}
+	cases := map[string]ImportPackageSelectionRequest{
+		"no project":           base(func(r *ImportPackageSelectionRequest) { r.ProjectID = "" }),
+		"padded project":       base(func(r *ImportPackageSelectionRequest) { r.ProjectID = " p " }),
+		"nothing selected":     base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDs = nil }),
+		"empty workflow id":    base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDs = []string{""} }),
+		"padded workflow id":   base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDs = []string{"a "} }),
+		"duplicate selected":   base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDs = []string{"a", "a"} }),
+		"duplicate deleted":    base(func(r *ImportPackageSelectionRequest) { r.DeletedWorkflowIDs = []string{"b", "b"} }),
+		"selected and deleted": base(func(r *ImportPackageSelectionRequest) { r.DeletedWorkflowIDs = []string{"a"} }),
+		"empty deleted id":     base(func(r *ImportPackageSelectionRequest) { r.DeletedWorkflowIDs = []string{" "} }),
+		"bad conflict policy":  base(func(r *ImportPackageSelectionRequest) { r.WorkflowConflictPolicy = "sometimes" }),
+		"missing id policy":    base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDPolicy = "" }),
+		"bad id policy":        base(func(r *ImportPackageSelectionRequest) { r.WorkflowIDPolicy = "sometimes" }),
+		"bad deletion policy": base(func(r *ImportPackageSelectionRequest) {
+			r.DeletedWorkflowIDs = []string{"b"}
+			r.OverwriteDeletionPolicy = "sometimes"
+		}),
+		"deletion without delete": base(func(r *ImportPackageSelectionRequest) { r.OverwriteDeletionPolicy = ImportDeletionArchive }),
+	}
+	for name, request := range cases {
+		if _, err := client.ImportPackageSelection(context.Background(), request, strings.NewReader(packageArchiveBytes), "p.n8np"); err == nil {
+			t.Errorf("%s: want a validation error", name)
+		}
+	}
+	if _, err := client.ImportPackageSelection(context.Background(), base(func(*ImportPackageSelectionRequest) {}), nil, "p.n8np"); err == nil {
+		t.Error("nil archive: want an error")
+	}
+	if len(server.requests) != 0 {
+		t.Errorf("requests = %d, want 0 before transport", len(server.requests))
+	}
+}
+
+func TestImportPackageSelectionBlocked(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		body   string
+		check  func(error) bool
+	}{
+		{http.StatusConflict, `{"message":"overlap","issues":[{"type":"workflow-removal-conflict","workflowId":"a"}]}`, IsImportConflict},
+		{http.StatusUnprocessableEntity, `{"message":"denied","issues":[{"type":"workflow-removal-forbidden","workflowId":"b"}]}`, IsImportUnprocessable},
+	} {
+		server := newCommunityPackageServer(t, packageJSONHandler(tc.status, tc.body))
+		_, err := server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+			ProjectID:          "p",
+			WorkflowIDs:        []string{"a"},
+			DeletedWorkflowIDs: []string{"b"},
+			WorkflowIDPolicy:   ImportWorkflowIDNew,
+		}, strings.NewReader(packageArchiveBytes), "p.n8np")
+		if err == nil || !tc.check(err) {
+			t.Fatalf("%d: error = %v, want a blocked error", tc.status, err)
+		}
+		blocked, _ := AsImportBlocked(err)
+		if blocked.Path != N8nPackageImportSelectionPath || len(blocked.Issues) != 1 || !strings.Contains(string(blocked.Issues[0].Raw), "workflowId") {
+			t.Errorf("%d: blocked = %+v, want the selection path and the verbatim issue", tc.status, blocked)
+		}
+		if !strings.Contains(err.Error(), "POST "+N8nPackageImportSelectionPath) {
+			t.Errorf("%d: error = %q, want the selection path", tc.status, err.Error())
+		}
+	}
+}
+
+func TestImportPackageSelectionOtherErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		check  func(error) bool
+	}{
+		{"workflow package", http.StatusBadRequest, `{"message":"import-selection needs a project package"}`, func(err error) bool { return IsStatus(err, http.StatusBadRequest) }},
+		{"forbidden", http.StatusForbidden, `{"message":"denied"}`, IsForbidden},
+		{"not found", http.StatusNotFound, `{"message":"not found"}`, IsNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newCommunityPackageServer(t, packageJSONHandler(tc.status, tc.body))
+			_, err := server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+				ProjectID:        "p",
+				WorkflowIDs:      []string{"a"},
+				WorkflowIDPolicy: ImportWorkflowIDSource,
+			}, strings.NewReader(packageArchiveBytes), "p.n8np")
+			if err == nil || !tc.check(err) {
+				t.Fatalf("error = %v, want the %d behavior", err, tc.status)
+			}
+			if !strings.Contains(err.Error(), N8nPackageImportSelectionPath) {
+				t.Errorf("error = %q, want the selection path", err.Error())
+			}
+		})
+	}
+}
+
+func TestImportPackageSelectionCancellation(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := server.client(t).ImportPackageSelection(ctx, ImportPackageSelectionRequest{
+		ProjectID:        "p",
+		WorkflowIDs:      []string{"a"},
+		WorkflowIDPolicy: ImportWorkflowIDSource,
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }

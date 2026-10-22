@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -24,8 +25,9 @@ import (
 
 // n8n package endpoints.
 const (
-	N8nPackageExportPath = "/n8n-packages/export"
-	N8nPackageImportPath = "/n8n-packages/import"
+	N8nPackageExportPath          = "/n8n-packages/export"
+	N8nPackageImportPath          = "/n8n-packages/import"
+	N8nPackageImportSelectionPath = "/n8n-packages/import-selection"
 )
 
 // ExportCountsHeader carries the JSON-serialized per-entity counts of what
@@ -487,6 +489,125 @@ func (r ImportPackageRequest) fields() map[string]string {
 	return fields
 }
 
+// ImportPackageSelectionRequest cherry-picks workflows from one source project
+// of a project package. The workflows land in the instance project whose ID
+// equals ProjectID, created if missing; there is no target-project field.
+// Folder, tag, and project policies are fixed by the server.
+//
+// WorkflowIDs are source IDs within ProjectID and may be empty for a
+// delete-only request. DeletedWorkflowIDs are destination IDs in the same
+// project, removed per OverwriteDeletionPolicy (server default archive).
+// Empty optional policies are omitted so the server default applies, except
+// WorkflowIDPolicy, which is always sent like [ImportPackageRequest].
+type ImportPackageSelectionRequest struct {
+	ProjectID               string
+	WorkflowIDs             []string
+	DeletedWorkflowIDs      []string
+	WorkflowConflictPolicy  string
+	WorkflowIDPolicy        string
+	OverwriteDeletionPolicy string
+}
+
+// Validate rejects a selection the API would reject before transport. A
+// workflow ID named both for import and for deletion is refused: the server
+// answers 409 workflow-removal-conflict when a delete matches a selected
+// workflow's destination, which under the source ID policy is the same ID.
+func (r ImportPackageSelectionRequest) Validate() error {
+	if strings.TrimSpace(r.ProjectID) == "" {
+		return fmt.Errorf("source project ID is required: pass the project ID as it appears in the package")
+	}
+	if strings.TrimSpace(r.ProjectID) != r.ProjectID {
+		return fmt.Errorf("project ID must not start or end with whitespace")
+	}
+	if len(r.WorkflowIDs) == 0 && len(r.DeletedWorkflowIDs) == 0 {
+		return fmt.Errorf("nothing to import or delete: pass at least one workflow ID to import or to delete")
+	}
+	selected := map[string]bool{}
+	for _, id := range r.WorkflowIDs {
+		if err := validateSelectionID("workflow ID", id); err != nil {
+			return err
+		}
+		if selected[id] {
+			return fmt.Errorf("workflow ID %q is selected more than once: list each workflow once", id)
+		}
+		selected[id] = true
+	}
+	deleted := map[string]bool{}
+	for _, id := range r.DeletedWorkflowIDs {
+		if err := validateSelectionID("deleted workflow ID", id); err != nil {
+			return err
+		}
+		if deleted[id] {
+			return fmt.Errorf("deleted workflow ID %q is listed more than once: list each workflow once", id)
+		}
+		if selected[id] {
+			return fmt.Errorf("workflow ID %q is both selected for import and listed for deletion: a delete must not match a selected workflow, so drop it from one list", id)
+		}
+		deleted[id] = true
+	}
+	if r.WorkflowConflictPolicy != "" && !slices.Contains(importWorkflowConflicts, r.WorkflowConflictPolicy) {
+		return fmt.Errorf("unknown workflow-conflict policy %q: use %s", r.WorkflowConflictPolicy, strings.Join(importWorkflowConflicts, ", "))
+	}
+	if !slices.Contains(importWorkflowIDPolicies, r.WorkflowIDPolicy) {
+		return fmt.Errorf("unknown workflow-id policy %q: use %s", r.WorkflowIDPolicy, strings.Join(importWorkflowIDPolicies, ", "))
+	}
+	if r.OverwriteDeletionPolicy != "" {
+		if !slices.Contains(importDeletionPolicies, r.OverwriteDeletionPolicy) {
+			return fmt.Errorf("unknown overwrite-deletion policy %q: use %s", r.OverwriteDeletionPolicy, strings.Join(importDeletionPolicies, ", "))
+		}
+		if len(r.DeletedWorkflowIDs) == 0 {
+			return fmt.Errorf("overwrite-deletion policy %q only applies to deleted workflow IDs: list the workflows to delete or drop the policy", r.OverwriteDeletionPolicy)
+		}
+	}
+	return nil
+}
+
+func validateSelectionID(name, id string) error {
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("%s must not be empty", name)
+	}
+	if strings.TrimSpace(id) != id {
+		return fmt.Errorf("%s %q must not start or end with whitespace", name, id)
+	}
+	return nil
+}
+
+// fields renders the selection as multipart form fields. The ID lists travel
+// as JSON-encoded string arrays; selectedWorkflowIds is always present, as []
+// when empty, and deletedWorkflowIds only when it names a workflow.
+func (r ImportPackageSelectionRequest) fields() (map[string]string, error) {
+	selected, err := json.Marshal(nonNilStrings(r.WorkflowIDs))
+	if err != nil {
+		return nil, fmt.Errorf("encode selected workflow IDs: %w", err)
+	}
+	fields := map[string]string{
+		"selectedProjectId":   r.ProjectID,
+		"selectedWorkflowIds": string(selected),
+		"workflowIdPolicy":    r.WorkflowIDPolicy,
+	}
+	if len(r.DeletedWorkflowIDs) > 0 {
+		deleted, err := json.Marshal(r.DeletedWorkflowIDs)
+		if err != nil {
+			return nil, fmt.Errorf("encode deleted workflow IDs: %w", err)
+		}
+		fields["deletedWorkflowIds"] = string(deleted)
+	}
+	if r.WorkflowConflictPolicy != "" {
+		fields["workflowConflictPolicy"] = r.WorkflowConflictPolicy
+	}
+	if r.OverwriteDeletionPolicy != "" {
+		fields["overwriteDeletionPolicy"] = r.OverwriteDeletionPolicy
+	}
+	return fields, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // ImportPackageResult is the import outcome: what was written, removed, and
 // how every referenced entity resolved. Names only travel for variables and
 // tags; values never travel in the response.
@@ -560,7 +681,7 @@ type ImportPublishing struct {
 }
 
 // RemovedWorkflow is a target workflow removed by folderConflictPolicy
-// overwrite. Deletion reports what actually happened: a hard-delete that
+// overwrite, or listed for deletion in an import selection. Deletion reports what actually happened: a hard-delete that
 // could not drop its row yet stays archived.
 type RemovedWorkflow struct {
 	WorkflowID     string  `json:"workflowId"`
@@ -756,6 +877,29 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
+	return c.postPackageImport(ctx, N8nPackageImportPath, request.fields(), packageData, filename)
+}
+
+// ImportPackageSelection cherry-picks workflows from one source project of a
+// project package into the instance project with the same ID, created if
+// missing. It never removes a workflow the selection omits; it deletes only
+// request.DeletedWorkflowIDs. The archive streams like [Client.ImportPackage]
+// and the result has the same shape. The caller confirms first.
+func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPackageSelectionRequest, packageData io.Reader, filename string) (*ImportPackageResult, error) {
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	fields, err := request.fields()
+	if err != nil {
+		return nil, err
+	}
+	return c.postPackageImport(ctx, N8nPackageImportSelectionPath, fields, packageData, filename)
+}
+
+// postPackageImport streams fields and the archive to an import endpoint and
+// decodes the shared import result. A 409 or 422 becomes an
+// [*ImportBlockedError] naming path.
+func (c *Client) postPackageImport(ctx context.Context, path string, fields map[string]string, packageData io.Reader, filename string) (*ImportPackageResult, error) {
 	if packageData == nil {
 		return nil, fmt.Errorf("package archive is required: pass the .n8np bytes")
 	}
@@ -771,12 +915,12 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 		defer cancel()
 	}
 
-	importEndpoint, err := c.resolve(N8nPackageImportPath, nil)
+	importEndpoint, err := c.resolve(path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	body, contentType := multipartImportBody(request, packageData, filename)
+	body, contentType := multipartImportBody(fields, packageData, filename)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, importEndpoint.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("n8n: build request: %w", err)
@@ -803,9 +947,9 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 			"error", err,
 		)
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("n8n: POST %s: %w", N8nPackageImportPath, ctxErr)
+			return nil, fmt.Errorf("n8n: POST %s: %w", path, ctxErr)
 		}
-		return nil, fmt.Errorf("n8n: POST %s: %w", N8nPackageImportPath, err)
+		return nil, fmt.Errorf("n8n: POST %s: %w", path, err)
 	}
 	defer drainAndClose(resp.Body)
 
@@ -820,21 +964,21 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 	if resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusUnprocessableEntity {
 		raw, _, err := readLimited(resp.Body, maxErrorBody)
 		if err != nil {
-			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", N8nPackageImportPath, err)
+			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", path, err)
 		}
-		return nil, newImportBlockedError(resp, N8nPackageImportPath, raw)
+		return nil, newImportBlockedError(resp, path, raw)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		raw, truncated, err := readLimited(resp.Body, maxErrorBody)
 		if err != nil {
-			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", N8nPackageImportPath, err)
+			return nil, fmt.Errorf("n8n: POST %s: read error response: %w", path, err)
 		}
-		return nil, newAPIError(resp, http.MethodPost, N8nPackageImportPath, raw, truncated)
+		return nil, newAPIError(resp, http.MethodPost, path, raw, truncated)
 	}
 
 	var result ImportPackageResult
 	if err := decodeBody(resp, &result); err != nil {
-		return nil, fmt.Errorf("n8n: POST %s: %w", N8nPackageImportPath, err)
+		return nil, fmt.Errorf("n8n: POST %s: %w", path, err)
 	}
 	return &result, nil
 }
@@ -842,20 +986,20 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 // multipartImportBody streams the policy fields and the archive through a
 // pipe: the writer side runs in a goroutine, so the HTTP transport reads
 // while the archive streams without an intermediate buffer.
-func multipartImportBody(request ImportPackageRequest, packageData io.Reader, filename string) (io.Reader, string) {
+func multipartImportBody(fields map[string]string, packageData io.Reader, filename string) (io.Reader, string) {
 	reader, writer := io.Pipe()
 	multipartWriter := multipart.NewWriter(writer)
 	contentType := multipartWriter.FormDataContentType()
 	go func() {
-		err := writeMultipartImport(multipartWriter, request, packageData, filename)
+		err := writeMultipartImport(multipartWriter, fields, packageData, filename)
 		_ = writer.CloseWithError(err)
 	}()
 	return reader, contentType
 }
 
-func writeMultipartImport(multipartWriter *multipart.Writer, request ImportPackageRequest, packageData io.Reader, filename string) error {
-	for name, value := range request.fields() {
-		if err := multipartWriter.WriteField(name, value); err != nil {
+func writeMultipartImport(multipartWriter *multipart.Writer, fields map[string]string, packageData io.Reader, filename string) error {
+	for _, name := range slices.Sorted(maps.Keys(fields)) {
+		if err := multipartWriter.WriteField(name, fields[name]); err != nil {
 			_ = multipartWriter.Close()
 			return fmt.Errorf("write import field %s: %w", name, err)
 		}

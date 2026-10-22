@@ -31,7 +31,9 @@ func newPackageCommand(opts Options) *cobra.Command {
 		Short: "Export and import n8n packages (beta)",
 		Long: "Move agents, workflows, folders, and projects between instances as gzipped tar\n" +
 			"packages (.n8np). Start with 'export' to write a package file from this\n" +
-			"instance, then 'import' to read one back into a project.\n\n" +
+			"instance, then 'import' to read one back into a project, or\n" +
+			"'import-selection' to cherry-pick chosen workflows from one project of a\n" +
+			"project package.\n\n" +
 			"The whole group is beta: breaking changes may still occur without a major\n" +
 			"version bump. Export needs the licensed Packages feature. Import can need\n" +
 			"the Variables and Folders features as well, and it may publish, archive,\n" +
@@ -40,13 +42,15 @@ func newPackageCommand(opts Options) *cobra.Command {
 			"confirmation first.",
 		Example: "  n8n package export --workflow-id abc123 --out workflows.n8np\n" +
 			"  n8n package export --project-id Ox8O54VQrmBrb4qL --out project.n8np --output json\n" +
-			"  n8n package import --file workflows.n8np --workflow-conflict-policy new-version --yes",
+			"  n8n package import --file workflows.n8np --workflow-conflict-policy new-version --yes\n" +
+			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(
 		newPackageExportCommand(opts),
 		newPackageImportCommand(opts),
+		newPackageImportSelectionCommand(opts),
 	)
 	return cmd
 }
@@ -643,9 +647,169 @@ func importedCredentialIDs(result *n8n.ImportPackageResult) []string {
 	return ids
 }
 
+type packageImportSelectionFlags struct {
+	instance         instanceFlags
+	file             string
+	projectID        string
+	workflowIDs      []string
+	deletedIDs       []string
+	workflowConflict string
+	workflowIDPolicy string
+	deletionPolicy   string
+	yes              bool
+	output           string
+}
+
+func newPackageImportSelectionCommand(opts Options) *cobra.Command {
+	var f packageImportSelectionFlags
+	cmd := &cobra.Command{
+		Use:   "import-selection",
+		Short: "Import chosen workflows from one project of an n8n package (beta)",
+		Long: "Cherry-pick workflows from one source project of a project package\n" +
+			"(.n8np) instead of importing the whole package. Send the archive with\n" +
+			"--file FILE or --file - for stdin, name the source project with\n" +
+			"--project-id as it appears in the package, and list the source workflows\n" +
+			"to import with --workflow-id. The workflows are written into the\n" +
+			"instance project with that same ID, which is created if it does not\n" +
+			"exist yet; there is no target-project or folder flag.\n\n" +
+			"Use this instead of 'n8n package import' to promote a few workflows\n" +
+			"without touching the rest of the project. The import is additive: it\n" +
+			"never removes a workflow the selection omits, and it deletes only the\n" +
+			"destination workflows listed with --delete-workflow-id (archived by\n" +
+			"default; --overwrite-deletion-policy hard-delete also drops their\n" +
+			"executions permanently, so prefer archive). --workflow-id may be omitted\n" +
+			"for a delete-only run. Selected IDs from another project are dropped,\n" +
+			"absent delete IDs are a no-op, and an ID cannot be both imported and\n" +
+			"deleted. Folder, tag, and project policies are fixed by the server; only\n" +
+			"the workflow conflict, workflow ID, and deletion policies are settable.\n" +
+			"A workflow package is rejected with a 400: export a project package with\n" +
+			"'n8n package export --project-id'.\n\n" +
+			"Beta: breaking changes may still occur without a major version bump.\n" +
+			"This mutates the instance, so interactive runs ask for confirmation and\n" +
+			"non-interactive runs require --yes; --file - also requires --yes because\n" +
+			"stdin cannot answer. Needs workflow:import, plus workflow:delete when\n" +
+			"deleting or when an update changes a workflow's archive state, and the\n" +
+			"licensed Packages feature. Output is the same import result as\n" +
+			"'n8n package import'.",
+		Example: "  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --workflow-id 7pQr3sTuVwXyZaBc --yes\n" +
+			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --delete-workflow-id 9xKp2mNqRzAbCdEf --workflow-conflict-policy fail --output json --yes\n" +
+			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --delete-workflow-id 9xKp2mNqRzAbCdEf --overwrite-deletion-policy hard-delete",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runPackageImportSelection(cmd.Context(), opts, f)
+		},
+	}
+	f.instance.register(cmd)
+	cmd.Flags().StringVar(&f.file, "file", "", "project package archive (.n8np) to import from: a file path, or - for stdin (required; stdin requires --yes)")
+	cmd.Flags().StringVar(&f.projectID, "project-id", "", "source project ID as it appears in the package; also the target project ID, created if missing (required)")
+	cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "source workflow ID to import from --project-id, repeatable (default: none, for a delete-only run with --delete-workflow-id)")
+	cmd.Flags().StringArrayVar(&f.deletedIDs, "delete-workflow-id", nil, "destination workflow ID to remove from the target project, repeatable; needs workflow:delete and must not match a --workflow-id (default: none)")
+	cmd.Flags().StringVar(&f.workflowConflict, "workflow-conflict-policy", "", "selected workflow that already exists in the target project: new-version updates it, fail rejects the import, skip leaves it unchanged (default: server default new-version)")
+	cmd.Flags().StringVar(&f.workflowIDPolicy, "workflow-id-policy", n8n.ImportWorkflowIDSource, "ID for newly created workflows, always sent: source reuses the package ID, new mints a fresh ID (default: source)")
+	cmd.Flags().StringVar(&f.deletionPolicy, "overwrite-deletion-policy", "", "how --delete-workflow-id removes workflows: archive (recoverable) or hard-delete (also drops executions permanently; prefer archive); needs --delete-workflow-id (default: server default archive)")
+	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm importing and deleting the listed workflows without prompting (required when stdin is not interactive)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full import result)")
+	return cmd
+}
+
+func runPackageImportSelection(ctx context.Context, opts Options, f packageImportSelectionFlags) error {
+	if err := validateOutput(f.output); err != nil {
+		return err
+	}
+	if strings.TrimSpace(f.file) == "" {
+		return fmt.Errorf("--file is required: pass the .n8np project package archive, or - for stdin")
+	}
+	if strings.TrimSpace(f.projectID) == "" {
+		return fmt.Errorf("--project-id is required: pass the source project ID as it appears in the package")
+	}
+	if len(f.workflowIDs) == 0 && len(f.deletedIDs) == 0 {
+		return fmt.Errorf("nothing to import or delete: pass --workflow-id, --delete-workflow-id, or both")
+	}
+	if f.file == "-" && !f.yes {
+		return fmt.Errorf("--file - consumes stdin and cannot answer the import confirmation: pass --yes after reviewing the selection and policies")
+	}
+	request := n8n.ImportPackageSelectionRequest{
+		ProjectID:               strings.TrimSpace(f.projectID),
+		WorkflowIDs:             trimmedIDs(f.workflowIDs),
+		DeletedWorkflowIDs:      trimmedIDs(f.deletedIDs),
+		WorkflowConflictPolicy:  strings.TrimSpace(f.workflowConflict),
+		WorkflowIDPolicy:        strings.TrimSpace(f.workflowIDPolicy),
+		OverwriteDeletionPolicy: strings.TrimSpace(f.deletionPolicy),
+	}
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	client, resolution, err := opts.apiClient(f.instance)
+	if err != nil {
+		return err
+	}
+	if err := opts.confirmer(f.yes).Confirm(packageImportSelectionQuestion(f.file, request, resolution)); err != nil {
+		return err
+	}
+	archive, filename, cleanup, err := openPackageArchive(opts, f.file)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	result, err := client.ImportPackageSelection(ctx, request, archive, filename)
+	if err != nil {
+		need := allOf("workflow:import")
+		if len(request.DeletedWorkflowIDs) > 0 {
+			need = allOf("workflow:import", "workflow:delete")
+		}
+		return packageAPIError(err, resolution, "import-selection", need)
+	}
+	if f.output == outputJSON {
+		return writeJSON(opts.Streams.Out, result)
+	}
+	return writePackageImportText(opts, resolution, result)
+}
+
+// trimmedIDs trims each repeatable ID flag value; empty values stay so
+// validation can name them.
+func trimmedIDs(ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	trimmed := make([]string, len(ids))
+	for i, id := range ids {
+		trimmed[i] = strings.TrimSpace(id)
+	}
+	return trimmed
+}
+
+func packageImportSelectionQuestion(file string, request n8n.ImportPackageSelectionRequest, resolution config.Resolution) string {
+	question := fmt.Sprintf("Import %d workflow(s) from source project %q of package %q into project %q on %s (the instance project with the same ID, created if missing)?",
+		len(request.WorkflowIDs), request.ProjectID, displayPackageName(file), request.ProjectID, resolution.URL)
+	if len(request.WorkflowIDs) > 0 {
+		conflict := request.WorkflowConflictPolicy
+		if conflict == "" {
+			conflict = n8n.ImportWorkflowConflictNewVersion + " (server default)"
+		}
+		question += fmt.Sprintf(" Existing workflows use %q and new workflows take %q IDs.", conflict, request.WorkflowIDPolicy)
+	}
+	switch {
+	case len(request.DeletedWorkflowIDs) == 0:
+		question += " No workflow is deleted."
+	case request.OverwriteDeletionPolicy == n8n.ImportDeletionHardDelete:
+		question += fmt.Sprintf(" Hard-delete PERMANENTLY deletes %d workflow(s) (%s) with their executions; this cannot be undone, prefer archive.",
+			len(request.DeletedWorkflowIDs), strings.Join(request.DeletedWorkflowIDs, ", "))
+	default:
+		question += fmt.Sprintf(" %d workflow(s) (%s) are archived (recoverable).",
+			len(request.DeletedWorkflowIDs), strings.Join(request.DeletedWorkflowIDs, ", "))
+	}
+	return question
+}
+
 // packageAPIError restates the fix for a failed export or import. need is the
 // scope requirement reported on a 403.
 func packageAPIError(err error, resolution config.Resolution, action string, need scopeNeed) error {
+	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import-selection" {
+		if blocked.StatusCode == http.StatusConflict {
+			return fmt.Errorf("%s rejected the selection import (409): %d conflict issue(s) and nothing was written; a workflow-removal-conflict means a --delete-workflow-id matches a selected workflow's destination, so drop it from one list, and a workflow conflict under fail needs --workflow-conflict-policy new-version or skip: %w", resolution.URL, len(blocked.Issues), err)
+		}
+		return fmt.Errorf("%s rejected the selection import (422): %d blocking issue(s); workflow-removal-forbidden needs the workflow:delete scope, and unresolved credentials or unknown node types must exist on this instance first, then retry: %w", resolution.URL, len(blocked.Issues), err)
+	}
 	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import" {
 		if blocked.StatusCode == http.StatusConflict {
 			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --workflow-conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, or --variable-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
@@ -657,11 +821,18 @@ func packageAPIError(err error, resolution config.Resolution, action string, nee
 		if action == "export" {
 			return fmt.Errorf("%s rejected the package export (400): check the selected IDs (unknown, mixed project and loose groups, agents without the agents module, or missing dependencies under --dependency-policy fail) and --version-policy: %w", resolution.URL, err)
 		}
+		if action == "import-selection" {
+			return fmt.Errorf("%s rejected the selection import (400): it needs a project package (export one with 'n8n package export --project-id'; workflow packages are rejected), a well-formed archive, and a --project-id that exists in the package: %w", resolution.URL, err)
+		}
 		return fmt.Errorf("%s rejected the package import (400): the archive is malformed, the manifest is missing, or a routing or policy field is invalid (bindings JSON, --variable-parent-policy on a project package): %w", resolution.URL, err)
 	case n8n.IsForbidden(err):
 		if action == "export" {
 			return forbiddenScopeError(err, resolution, "package export", need,
 				"variable:list is also needed when exported entities reference variables and values are included, agent exports need the agents module, and the instance needs the licensed Packages feature.", packageResource)
+		}
+		if action == "import-selection" {
+			return forbiddenScopeError(err, resolution, "package import-selection", need,
+				"workflow:delete is also needed when an update changes a workflow's archive state, and the instance needs the licensed Packages feature.", packageResource)
 		}
 		return forbiddenScopeError(err, resolution, "package import", need,
 			"the import also needs the credential (create-with-values), variable, tag, data-table (dataTable:update for schema overwrite), folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
