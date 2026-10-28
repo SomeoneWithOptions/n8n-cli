@@ -31,7 +31,8 @@ const cliLDAPConfiguration = `{
   "synchronizationInterval":60,
   "searchPageSize":1000,
   "searchTimeout":30,
-  "enforceEmailUniqueness":true
+  "enforceEmailUniqueness":true,
+  "linkExistingAccountsByEmail":false
 }`
 
 const cliLDAPDisabledInput = `{
@@ -99,6 +100,7 @@ func TestLDAPGetTextHidesPasswordAndShowsEverySetting(t *testing.T) {
 		"dc=example,dc=com", "cn=admin,dc=example,dc=com", "Binding admin password:", "configured (value hidden)",
 		"givenName", "sn", "mail", "uid", "(objectClass=inetOrgPerson)",
 		"Synchronization enabled:", "60 minutes", "1000", "30 seconds", "Enforce email uniqueness:",
+		"Link existing accounts by email:",
 	} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
@@ -106,6 +108,9 @@ func TestLDAPGetTextHidesPasswordAndShowsEverySetting(t *testing.T) {
 	}
 	if strings.Contains(got.stdout, n8n.CredentialBlankingValue) {
 		t.Error("text output printed password placeholder")
+	}
+	if !strings.Contains(got.stdout, "Link existing accounts by email:  no") {
+		t.Errorf("link setting not shown as no:\n%s", got.stdout)
 	}
 	req := f.lastRequest()
 	if req.Method != http.MethodGet || req.URL.EscapedPath() != n8n.BasePath+n8n.LDAPSettingsPath || f.lastBody() != "" {
@@ -128,6 +133,71 @@ func TestLDAPGetJSONSupportsSafeRoundTrip(t *testing.T) {
 	}
 	if strings.Contains(got.stdout, "plaintext-bind-secret") {
 		t.Error("JSON output leaked plaintext")
+	}
+}
+
+func TestLDAPGetOlderInstanceOmitsLinkExistingAccounts(t *testing.T) {
+	body := strings.Replace(cliLDAPConfiguration, `,
+  "linkExistingAccountsByEmail":false`, "", 1)
+	f := ldapFixture(t, body)
+	got := f.run("ldap", "get")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "not reported (instance does not support it)") {
+		t.Errorf("stdout missing not-reported marker:\n%s", got.stdout)
+	}
+	got = f.run("ldap", "get", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("json exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if strings.Contains(got.stdout, "linkExistingAccountsByEmail") {
+		t.Errorf("JSON reported unsupported setting:\n%s", got.stdout)
+	}
+
+	path := writeLDAPInput(t, got.stdout)
+	got = f.run("ldap", "set", "--input", path, "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("set exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if strings.Contains(f.lastBody(), "linkExistingAccountsByEmail") {
+		t.Errorf("replacement sent unsupported setting: %s", f.lastBody())
+	}
+}
+
+func TestLDAPGetSetRoundTripKeepsLinkExistingAccounts(t *testing.T) {
+	f := ldapFixture(t, cliLDAPConfiguration)
+	got := f.run("ldap", "get", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("get exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	path := writeLDAPInput(t, got.stdout)
+	got = f.run("ldap", "set", "--input", path, "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("set exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v", err)
+	}
+	if len(sent) != 21 || sent["linkExistingAccountsByEmail"] != false {
+		t.Errorf("round trip lost setting: %#v", sent)
+	}
+}
+
+func TestLDAPSetAcceptsLinkExistingAccounts(t *testing.T) {
+	f := ldapFixture(t, cliLDAPConfiguration)
+	f.stdin = strings.TrimSuffix(cliLDAPDisabledInput, "}") + `,"linkExistingAccountsByEmail":true}`
+	got := f.run("ldap", "set", "--input", "-", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(f.lastBody()), &sent); err != nil {
+		t.Fatalf("request body is not JSON: %v", err)
+	}
+	if sent["linkExistingAccountsByEmail"] != true {
+		t.Errorf("setting not sent: %#v", sent)
 	}
 }
 
@@ -380,7 +450,7 @@ func TestLDAPAPIErrorsExplainLicenseScopesAndAvailability(t *testing.T) {
 	}{
 		{name: "manage forbidden", status: http.StatusForbidden, args: []string{"ldap", "get"}, want: []string{"ldap:manage", "LDAP license", "discover --resource settingsldap"}},
 		{name: "sync forbidden", status: http.StatusForbidden, args: []string{"ldap", "sync", "history"}, want: []string{"ldap:sync", "LDAP license", "discover --resource settingsldap"}},
-		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"ldap", "set", "--input", "-", "--yes"}, input: cliLDAPDisabledInput, want: []string{"full LDAP replacement", "all 20 fields", "response details redacted"}},
+		{name: "invalid replacement", status: http.StatusBadRequest, args: []string{"ldap", "set", "--input", "-", "--yes"}, input: cliLDAPDisabledInput, want: []string{"full LDAP replacement", "all 20 core fields", "omit linkExistingAccountsByEmail", "response details redacted"}},
 		{name: "invalid sync", status: http.StatusBadRequest, args: []string{"ldap", "sync", "run", "--type", "dry"}, want: []string{"rejected the LDAP synchronization", "configuration"}},
 		{name: "not found", status: http.StatusNotFound, args: []string{"ldap", "get"}, want: []string{"LDAP endpoint", "discover --resource settingsldap"}},
 		{name: "unavailable", status: http.StatusServiceUnavailable, args: []string{"ldap", "sync", "history"}, want: []string{"LDAP service", "discover --resource settingsldap"}},

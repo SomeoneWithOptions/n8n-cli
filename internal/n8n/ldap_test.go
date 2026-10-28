@@ -28,7 +28,8 @@ const ldapConfigurationResponse = `{
   "synchronizationInterval":60,
   "searchPageSize":1000,
   "searchTimeout":30,
-  "enforceEmailUniqueness":true
+  "enforceEmailUniqueness":true,
+  "linkExistingAccountsByEmail":true
 }`
 
 const ldapHistoryResponse = `{
@@ -85,6 +86,29 @@ func TestGetLDAPConfiguration(t *testing.T) {
 	if !configuration.LoginEnabled || configuration.ConnectionSecurity != LDAPSecurityStartTLS || configuration.ConnectionPort != 389 || configuration.BindingAdminPassword != CredentialBlankingValue {
 		t.Errorf("configuration = %+v", configuration)
 	}
+	if configuration.LinkExistingAccountsByEmail == nil || !*configuration.LinkExistingAccountsByEmail {
+		t.Errorf("linkExistingAccountsByEmail = %v, want true", configuration.LinkExistingAccountsByEmail)
+	}
+}
+
+func TestGetLDAPConfigurationWithoutLinkExistingAccounts(t *testing.T) {
+	body := strings.Replace(ldapConfigurationResponse, `,
+  "linkExistingAccountsByEmail":true`, "", 1)
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+	configuration, err := server.client(t).GetLDAPConfiguration(context.Background())
+	if err != nil {
+		t.Fatalf("GetLDAPConfiguration: %v", err)
+	}
+	if configuration.LinkExistingAccountsByEmail != nil {
+		t.Errorf("linkExistingAccountsByEmail = %v, want nil for older instance", *configuration.LinkExistingAccountsByEmail)
+	}
+	encoded, err := json.Marshal(configuration)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if strings.Contains(string(encoded), "linkExistingAccountsByEmail") {
+		t.Errorf("unsupported setting was re-encoded: %s", encoded)
+	}
 }
 
 func TestGetLDAPConfigurationNeverRetainsPlaintextPassword(t *testing.T) {
@@ -121,6 +145,9 @@ func TestUpdateLDAPConfigurationFullReplacementAndSentinel(t *testing.T) {
 	if len(sent) != 20 {
 		t.Errorf("replacement has %d fields, want 20: %#v", len(sent), sent)
 	}
+	if _, ok := sent["linkExistingAccountsByEmail"]; ok {
+		t.Errorf("omitted optional setting was sent: %#v", sent)
+	}
 	if sent["loginEnabled"] != false || sent["allowUnauthorizedCerts"] != false || sent["connectionPort"] != float64(0) || sent["bindingAdminPassword"] != CredentialBlankingValue {
 		t.Errorf("false, zero, or sentinel values were not preserved: %#v", sent)
 	}
@@ -147,6 +174,26 @@ func TestUpdateLDAPConfigurationCanClearOrReplacePassword(t *testing.T) {
 				t.Errorf("password = %#v, want submitted value", sent["bindingAdminPassword"])
 			}
 		})
+	}
+}
+
+func TestUpdateLDAPConfigurationSendsLinkExistingAccounts(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, ldapConfigurationResponse))
+	request := validLDAPUpdateRequest()
+	request.LinkExistingAccountsByEmail = ptr(false)
+	if err := request.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if _, err := server.client(t).UpdateLDAPConfiguration(context.Background(), request); err != nil {
+		t.Fatalf("UpdateLDAPConfiguration: %v", err)
+	}
+	_, body := server.last(t)
+	var sent map[string]any
+	if err := json.Unmarshal([]byte(body), &sent); err != nil {
+		t.Fatalf("body is not JSON: %v", err)
+	}
+	if len(sent) != 21 || sent["linkExistingAccountsByEmail"] != false {
+		t.Errorf("explicit false was not sent: %#v", sent)
 	}
 }
 
