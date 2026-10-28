@@ -5,7 +5,10 @@ Fully replace LDAP configuration
 ### Synopsis
 
 Fully replace the instance LDAP configuration from strict JSON. This is a PUT,
-not a patch: all 20 fields are required, including false, zero, and empty values.
+not a patch: the 20 core fields are required, including false, zero, and empty
+values. linkExistingAccountsByEmail is optional and keeps its stored value when
+omitted; when false, login and synchronization skip LDAP users whose email matches
+an existing n8n account. Omit it on instances whose 'get' output does not include it.
 Start from 'n8n ldap get --output json'. Leave the returned password placeholder
 unchanged to preserve the stored bind password, replace it to set a new password,
 or use an empty string to clear it. Input files therefore require secret-safe
