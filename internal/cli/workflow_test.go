@@ -417,6 +417,51 @@ func TestWorkflowWriteNormalizesReadDocument(t *testing.T) {
 	})
 }
 
+// A 2.46 read carries settings.engineType, which the instance ignores on
+// write and older instances reject, and settings.redactCallerExecutions,
+// which is writable.
+func TestWorkflowWriteN8n246Settings(t *testing.T) {
+	read := strings.Replace(cliWorkflow, `"settings":{"executionOrder":"v1"}`,
+		`"settings":{"executionOrder":"v1","engineType":"v1","redactCallerExecutions":false}`, 1)
+
+	t.Run("get keeps both", func(t *testing.T) {
+		f := workflowFixture(t, read)
+		got := f.run("workflow", "get", "wf-1", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		var out map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(got.stdout), &out); err != nil {
+			t.Fatalf("stdout is not JSON: %v", err)
+		}
+		assertCLIJSON(t, `{"executionOrder":"v1","engineType":"v1","redactCallerExecutions":false}`, string(out["settings"]))
+	})
+
+	for _, args := range [][]string{
+		{"workflow", "create"},
+		{"workflow", "update", "wf-1"},
+	} {
+		t.Run(args[1], func(t *testing.T) {
+			f := workflowFixture(t, cliWorkflow)
+			got := f.run(append(args, "--input", writeWorkflowFile(t, read))...)
+			if got.code != ExitSuccess {
+				t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+			}
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(f.lastBody()), &body); err != nil {
+				t.Fatalf("request body is not JSON: %v", err)
+			}
+			assertCLIJSON(t, `{"executionOrder":"v1","redactCallerExecutions":false}`, string(body["settings"]))
+			if !strings.Contains(got.stderr, "settings.engineType") {
+				t.Errorf("stderr = %q, want settings.engineType reported", got.stderr)
+			}
+			if strings.Contains(got.stderr, "redactCallerExecutions") || strings.Contains(got.stderr, "nodes[]") {
+				t.Errorf("stderr = %q, want only server-owned fields reported", got.stderr)
+			}
+		})
+	}
+}
+
 func TestWorkflowUpdateReplacesDefinition(t *testing.T) {
 	t.Run("input is required", func(t *testing.T) {
 		f := workflowFixture(t, cliWorkflow)

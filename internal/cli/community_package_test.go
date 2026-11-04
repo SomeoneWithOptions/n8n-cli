@@ -118,6 +118,81 @@ func TestCommunityPackageInstallJSONNonInteractive(t *testing.T) {
 	assertCLIJSON(t, `{"name":"n8n-nodes-example"}`, f.lastBody())
 }
 
+func TestCommunityPackageInstallPolicyRestrictionsText(t *testing.T) {
+	body := strings.TrimSuffix(cliCommunityPackage, "}") + `,"policyRestrictions":{"nodeTypes":[
+	  {"type":"n8n-nodes-example.example","blockedOn":"instance","optInAvailable":true},
+	  {"type":"n8n-nodes-example.other","blockedOn":"projects","optInAvailable":false}]}}`
+	f := communityPackageFixture(t, body)
+	got := f.run("community-package", "install", "n8n-nodes-example", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	for _, want := range []string{
+		"Blocked node type:  n8n-nodes-example.example (blocked on the instance; a project can allow it)",
+		"Blocked node type:  n8n-nodes-example.other (blocked in one or more projects)",
+	} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("stdout missing %q\n%s", want, got.stdout)
+		}
+	}
+	for _, want := range []string{"block 2 node types of n8n-nodes-example", "still installed", "n8n node-policy instance get"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr missing %q\n%s", want, got.stderr)
+		}
+	}
+	if strings.Contains(got.stdout, "node-policy") {
+		t.Errorf("stdout carries the hint; it belongs on stderr\n%s", got.stdout)
+	}
+}
+
+func TestCommunityPackageInstallPolicyRestrictionsNone(t *testing.T) {
+	f := communityPackageFixture(t, strings.TrimSuffix(cliCommunityPackage, "}")+`,"policyRestrictions":{"nodeTypes":[]}}`)
+	got := f.run("community-package", "install", "n8n-nodes-example", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "Blocked node types:  none") {
+		t.Errorf("stdout missing empty policy result\n%s", got.stdout)
+	}
+	if got.stderr != "" {
+		t.Errorf("stderr = %q, want empty when nothing is blocked", got.stderr)
+	}
+}
+
+func TestCommunityPackageInstallWithoutPolicyRestrictions(t *testing.T) {
+	f := communityPackageFixture(t, cliCommunityPackage)
+	got := f.run("community-package", "install", "n8n-nodes-example", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	if strings.Contains(got.stdout, "Blocked") {
+		t.Errorf("stdout = %q, want no policy lines when the instance evaluated no policy", got.stdout)
+	}
+}
+
+func TestCommunityPackageInstallPolicyRestrictionsJSON(t *testing.T) {
+	f := communityPackageFixture(t, strings.TrimSuffix(cliCommunityPackage, "}")+
+		`,"policyRestrictions":{"nodeTypes":[{"type":"n8n-nodes-example.example","blockedOn":"instance","optInAvailable":false}]}}`)
+	got := f.run("community-package", "install", "n8n-nodes-example", "--yes", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit code = %d, want %d (stderr: %s)", got.code, ExitSuccess, got.stderr)
+	}
+	if got.stderr != "" {
+		t.Errorf("stderr = %q, want JSON output to stay quiet", got.stderr)
+	}
+	var out struct {
+		PolicyRestrictions struct {
+			NodeTypes []map[string]any `json:"nodeTypes"`
+		} `json:"policyRestrictions"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &out); err != nil {
+		t.Fatalf("stdout is not JSON: %v\n%s", err, got.stdout)
+	}
+	if len(out.PolicyRestrictions.NodeTypes) != 1 || out.PolicyRestrictions.NodeTypes[0]["blockedOn"] != "instance" {
+		t.Errorf("policyRestrictions = %+v, want the blocked node type", out.PolicyRestrictions)
+	}
+}
+
 func TestCommunityPackageInstallScopedName(t *testing.T) {
 	f := communityPackageFixture(t, cliCommunityPackage)
 	got := f.run("community-package", "install", "@acme/n8n-nodes-example", "--version", "beta", "--yes")

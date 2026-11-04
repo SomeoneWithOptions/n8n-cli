@@ -11,9 +11,10 @@ nodes, ready to be edited in the UI or filled in by a later update.
 The input may be a document produced by 'n8n workflow get --output json': the
 read-only fields (id, versionId, active, timestamps, tags, sharing, node
 timestamps) and settings set to "DEFAULT" are dropped before sending, because
-the API answers them with 400, and the dropped names are reported on stderr. A
-null settings is sent as {}. --name, --project-id and --parent-folder-id
-override what the document says.
+the API answers them with 400, and the dropped names are reported on stderr.
+settings.engineType is dropped too: n8n ignores it on write and instances
+before 2.46 reject it. A null settings is sent as {}. --name, --project-id and
+--parent-folder-id override what the document says.
 
 A created workflow is never published: publish it with 'n8n workflow publish'.
 Requires workflow:create.

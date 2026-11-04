@@ -16,9 +16,11 @@ Read-only fields in the document (id, versionId, active, timestamps, tags,
 sharing, node timestamps) and settings set to "DEFAULT" are dropped before
 sending and reported on stderr, because the API answers them with 400; an
 omitted setting keeps the instance default, which is what "DEFAULT" means.
-A null settings is sent as {}. Add "parentFolderId": "FOLDER_ID" to move
-the workflow into a folder, or "parentFolderId": null to move it to the
-project root; without the field the folder is unchanged.
+settings.engineType is dropped and reported too: n8n ignores it on write and
+instances before 2.46 reject it. A null settings is sent as {}. Add
+"parentFolderId": "FOLDER_ID" to move the workflow into a folder, or
+"parentFolderId": null to move it to the project root; without the field the
+folder is unchanged.
 
 A published workflow is republished with the new version unless --no-publish is
 given. Republishing additionally needs the workflow:activate scope and the

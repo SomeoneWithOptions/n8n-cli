@@ -12,6 +12,10 @@ such as latest or beta; omit it to let npm select the version. Whether
 unverified packages may be installed is an instance setting: when it is off,
 only versions verified by n8n install. Installed package code runs inside n8n.
 
+A node type policy does not stop the install. When the instance evaluates its
+policies, the output lists each blocked node type of the package, or "none";
+JSON output carries them as policyRestrictions.
+
 Interactive runs ask before installing. Non-interactive runs fail unless --yes
 is passed. Requires API-key authentication and communityPackage:install.
 Next step: 'n8n community-package list'.

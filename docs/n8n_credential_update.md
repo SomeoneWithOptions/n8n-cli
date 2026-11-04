@@ -7,7 +7,8 @@ Update a credential from secret JSON
 Update an owned credential from one JSON document. Accepted fields are name,
 description, type, data, isGlobal, isResolvable and isPartialData. Set
 isPartialData=true to merge provided data with stored data; false replaces the
-full data object. Changing type requires data. description is at most 512
+full data object. Changing type requires data. data fields also accept n8n
+expressions: strings that start with "=". description is at most 512
 characters; null or "" clears it and omitting it keeps it. Managed credentials
 cannot be edited.
 

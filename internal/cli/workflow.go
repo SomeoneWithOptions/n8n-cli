@@ -354,9 +354,10 @@ func newWorkflowCreateCommand(opts Options) *cobra.Command {
 			"The input may be a document produced by 'n8n workflow get --output json': the\n" +
 			"read-only fields (id, versionId, active, timestamps, tags, sharing, node\n" +
 			"timestamps) and settings set to \"DEFAULT\" are dropped before sending, because\n" +
-			"the API answers them with 400, and the dropped names are reported on stderr. A\n" +
-			"null settings is sent as {}. --name, --project-id and --parent-folder-id\n" +
-			"override what the document says.\n\n" +
+			"the API answers them with 400, and the dropped names are reported on stderr.\n" +
+			"settings.engineType is dropped too: n8n ignores it on write and instances\n" +
+			"before 2.46 reject it. A null settings is sent as {}. --name, --project-id and\n" +
+			"--parent-folder-id override what the document says.\n\n" +
 			"A created workflow is never published: publish it with 'n8n workflow publish'.\n" +
 			"Requires workflow:create.\n\n" +
 			idempotencyHelp,
@@ -472,9 +473,11 @@ func newWorkflowUpdateCommand(opts Options) *cobra.Command {
 			"sharing, node timestamps) and settings set to \"DEFAULT\" are dropped before\n" +
 			"sending and reported on stderr, because the API answers them with 400; an\n" +
 			"omitted setting keeps the instance default, which is what \"DEFAULT\" means.\n" +
-			"A null settings is sent as {}. Add \"parentFolderId\": \"FOLDER_ID\" to move\n" +
-			"the workflow into a folder, or \"parentFolderId\": null to move it to the\n" +
-			"project root; without the field the folder is unchanged.\n\n" +
+			"settings.engineType is dropped and reported too: n8n ignores it on write and\n" +
+			"instances before 2.46 reject it. A null settings is sent as {}. Add\n" +
+			"\"parentFolderId\": \"FOLDER_ID\" to move the workflow into a folder, or\n" +
+			"\"parentFolderId\": null to move it to the project root; without the field the\n" +
+			"folder is unchanged.\n\n" +
 			"A published workflow is republished with the new version unless --no-publish is\n" +
 			"given. Republishing additionally needs the workflow:activate scope and the\n" +
 			"project's workflow:publish permission; without them the new version is still\n" +

@@ -146,6 +146,70 @@ func TestInstallCommunityPackage(t *testing.T) {
 	}
 }
 
+func TestInstallCommunityPackagePolicyRestrictions(t *testing.T) {
+	body := strings.TrimSuffix(communityPackageBody, "}") + `,"policyRestrictions":{"nodeTypes":[
+	  {"type":"n8n-nodes-example.example","blockedOn":"instance","optInAvailable":true},
+	  {"type":"n8n-nodes-example.other","blockedOn":"projects","optInAvailable":false}]}}`
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+
+	installed, err := server.client(t).InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "n8n-nodes-example"})
+	if err != nil {
+		t.Fatalf("InstallCommunityPackage: %v", err)
+	}
+	want := &CommunityPackagePolicyRestrictions{NodeTypes: []CommunityPackageBlockedNodeType{
+		{Type: "n8n-nodes-example.example", BlockedOn: BlockedOnInstance, OptInAvailable: true},
+		{Type: "n8n-nodes-example.other", BlockedOn: BlockedOnProjects},
+	}}
+	if diff := cmp.Diff(want, installed.PolicyRestrictions); diff != "" {
+		t.Errorf("policyRestrictions mismatch (-want +got):\n%s", diff)
+	}
+	encoded, err := json.Marshal(installed)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"policyRestrictions":{"nodeTypes":[{"type":"n8n-nodes-example.example","blockedOn":"instance","optInAvailable":true}`) {
+		t.Errorf("encoded package = %s, want policyRestrictions kept", encoded)
+	}
+}
+
+func TestInstallCommunityPackagePolicyRestrictionsPresence(t *testing.T) {
+	tests := []struct {
+		name     string
+		extra    string
+		wantNil  bool
+		wantJSON string
+	}{
+		// Instances without licensed node type policies, and older instances,
+		// omit the field: it must stay absent in JSON output.
+		{name: "absent", wantNil: true},
+		// An empty list means a policy was evaluated and blocks nothing.
+		{name: "empty", extra: `,"policyRestrictions":{"nodeTypes":[]}`, wantJSON: `"policyRestrictions":{"nodeTypes":[]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.TrimSuffix(communityPackageBody, "}") + tt.extra + "}"
+			server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, body))
+			installed, err := server.client(t).InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "n8n-nodes-example"})
+			if err != nil {
+				t.Fatalf("InstallCommunityPackage: %v", err)
+			}
+			if got := installed.PolicyRestrictions == nil; got != tt.wantNil {
+				t.Fatalf("PolicyRestrictions nil = %t, want %t", got, tt.wantNil)
+			}
+			encoded, err := json.Marshal(installed)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if tt.wantNil && strings.Contains(string(encoded), "policyRestrictions") {
+				t.Errorf("encoded package = %s, want no policyRestrictions", encoded)
+			}
+			if !tt.wantNil && !strings.Contains(string(encoded), tt.wantJSON) {
+				t.Errorf("encoded package = %s, want %s", encoded, tt.wantJSON)
+			}
+		})
+	}
+}
+
 func TestInstallCommunityPackageOptionalFields(t *testing.T) {
 	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, communityPackageBody))
 	_, err := server.client(t).InstallCommunityPackage(context.Background(), InstallCommunityPackageRequest{Name: "n8n-nodes-example"})

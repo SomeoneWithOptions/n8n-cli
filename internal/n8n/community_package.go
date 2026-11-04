@@ -22,6 +22,34 @@ type CommunityPackage struct {
 	UpdatedAt        string                 `json:"updatedAt,omitempty"`
 	UpdateAvailable  string                 `json:"updateAvailable,omitempty"`
 	FailedLoading    bool                   `json:"failedLoading"`
+	// PolicyRestrictions is set by install only, and only when the instance
+	// evaluated its node type policies (they need a license). nil means no
+	// policy was evaluated; an empty NodeTypes means none blocks this package.
+	PolicyRestrictions *CommunityPackagePolicyRestrictions `json:"policyRestrictions,omitempty"`
+}
+
+// CommunityPackagePolicyRestrictions lists the node types of a package that a
+// node type policy blocks. The install itself does not fail because of them.
+type CommunityPackagePolicyRestrictions struct {
+	NodeTypes []CommunityPackageBlockedNodeType `json:"nodeTypes"`
+}
+
+// Node type policy scopes reported in [CommunityPackageBlockedNodeType.BlockedOn].
+const (
+	// BlockedOnInstance means the instance blocks the node type by default.
+	BlockedOnInstance = "instance"
+	// BlockedOnProjects means the instance allows the node type but one or
+	// more projects block it.
+	BlockedOnProjects = "projects"
+)
+
+// CommunityPackageBlockedNodeType is one blocked node type of a package.
+type CommunityPackageBlockedNodeType struct {
+	Type      string `json:"type"`
+	BlockedOn string `json:"blockedOn"`
+	// OptInAvailable reports that a project can allow the node type despite
+	// the instance policy.
+	OptInAvailable bool `json:"optInAvailable"`
 }
 
 // CommunityPackageNode is one node type supplied by a community package.
