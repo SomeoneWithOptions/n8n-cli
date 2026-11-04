@@ -60,7 +60,8 @@ func newLDAPGetCommand(opts Options) *cobra.Command {
 		Long: "Get every LDAP setting exposed by n8n. The binding admin password is never\n" +
 			"returned: bindingAdminPassword is empty when unset or n8n's blanking placeholder\n" +
 			"when configured. Keep that placeholder unchanged in a GET-edit-PUT workflow to\n" +
-			"preserve the stored password. Text output only reports password status.\n\n" +
+			"preserve the stored password. Text output only reports password status.\n" +
+			"linkExistingAccountsByEmail appears only on instances that support it.\n\n" +
 			"Requires ldap:manage and the LDAP license.",
 		Example: "  n8n ldap get\n" +
 			"  n8n ldap get --output json\n" +
@@ -101,7 +102,10 @@ func newLDAPSetCommand(opts Options) *cobra.Command {
 		Use:   "set",
 		Short: "Fully replace LDAP configuration",
 		Long: "Fully replace the instance LDAP configuration from strict JSON. This is a PUT,\n" +
-			"not a patch: all 20 fields are required, including false, zero, and empty values.\n" +
+			"not a patch: the 20 core fields are required, including false, zero, and empty\n" +
+			"values. linkExistingAccountsByEmail is optional and keeps its stored value when\n" +
+			"omitted; when false, login and synchronization skip LDAP users whose email matches\n" +
+			"an existing n8n account. Omit it on instances whose 'get' output does not include it.\n" +
 			"Start from 'n8n ldap get --output json'. Leave the returned password placeholder\n" +
 			"unchanged to preserve the stored bind password, replace it to set a new password,\n" +
 			"or use an empty string to clear it. Input files therefore require secret-safe\n" +
@@ -216,7 +220,15 @@ func writeLDAPConfiguration(opts Options, resolution config.Resolution, heading 
 	fmt.Fprintf(tw, "Search page size:\t%d\n", configuration.SearchPageSize)
 	fmt.Fprintf(tw, "Search timeout:\t%d seconds\n", configuration.SearchTimeout)
 	fmt.Fprintf(tw, "Enforce email uniqueness:\t%s\n", yesNo(configuration.EnforceEmailUniqueness))
+	fmt.Fprintf(tw, "Link existing accounts by email:\t%s\n", ldapOptionalYesNo(configuration.LinkExistingAccountsByEmail))
 	return tw.Flush()
+}
+
+func ldapOptionalYesNo(value *bool) string {
+	if value == nil {
+		return "not reported (instance does not support it)"
+	}
+	return yesNo(*value)
 }
 
 func ldapPasswordStatus(password string) string {
@@ -420,7 +432,7 @@ func ldapAPIError(err error, resolution config.Resolution, action string) error 
 		return forbiddenScopeError(err, resolution, "LDAP "+action, allOf(scope),
 			"the instance also needs the LDAP license.", ldapResource)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "update configuration":
-		return fmt.Errorf("%s rejected the full LDAP replacement (400): include all 20 fields and use connectionSecurity none, tls, or startTls; response details redacted", resolution.URL)
+		return fmt.Errorf("%s rejected the full LDAP replacement (400): include all 20 core fields, use connectionSecurity none, tls, or startTls, and omit linkExistingAccountsByEmail if 'n8n ldap get --output json' does not return it; response details redacted", resolution.URL)
 	case n8n.IsStatus(err, http.StatusBadRequest) && action == "run sync":
 		return fmt.Errorf("%s rejected the LDAP synchronization (400): check LDAP configuration and choose --type dry or live", resolution.URL)
 	case n8n.IsNotFound(err):
