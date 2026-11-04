@@ -5,14 +5,15 @@ Manage promotion providers
 ### Synopsis
 
 Manage promotion providers: the stored Git credentials one or more
-connections sync through. Start with 'list' to find the provider ID,
-then 'get' to read it, 'create' to add one, or 'update' to rename it
-or replace its credential. Use repositories then branches to discover
-GitLab targets before creating a connection.
+environments (n8n 2.46 and later) or connections (older) sync through.
+Start with 'list' to find the provider ID, then 'get' to read it,
+'create' to add one, or 'update' to rename it or replace its
+credential. Use repositories then branches to discover GitLab remotes
+before creating an environment or connection.
 
-Replacing a provider credential affects every connection attached to
-it, so 'update' asks for confirmation. Deleting a provider removes it
-while attached connections keep their content but lose their credential.
+Replacing a provider credential affects every environment or
+connection that uses it, so 'update' asks for confirmation. A provider
+still used by an environment or connection cannot be deleted.
 
 ```
 n8n promotion provider [flags]

@@ -5,15 +5,18 @@ Continue a reviewed connection apply after binding setup
 ### Synopsis
 
 Continue a full instance-connection apply after resolving its preflight items.
-Start with 'n8n promotion apply CONNECTION_ID --output json'. The apply
-checkout must be cloned. Every team project is synchronized: workflows,
+Connections exist before n8n 2.46; on 2.46 use 'n8n promotion environment
+apply-continue'. Start with 'n8n promotion apply CONNECTION_ID --output json'.
+The apply checkout must be cloned. Every team project is synchronized: workflows,
 folders, credentials, tables, variables, and tags can change or be removed.
 Requires gitConnection:pull and the same permissions as the initial apply.
 Use --expected-from FILE|- with changes JSON or a blocked apply result,
-or supply all three --expected-config-id, --expected-branch, --expected-commit
-flags (full lowercase 40- or 64-digit hex SHA). A null commit cannot be used.
-Expected source is required; use the blocked result's configId and git.
-The server keeps no session and provides no exactly-once guarantee.
+or supply --expected-config-id, --expected-branch, and
+--expected-commit together (full lowercase 40- or 64-digit hex SHA). A
+null commit cannot be used. --expected-from passes through the
+identifier the instance returned: configId.
+Expected source is required; use the blocked result's configId
+and git. The server keeps no session and provides no exactly-once guarantee.
 --confirm-destructive-changes permits removal or retyping of data-table
 columns and loss of their values; rows and other columns remain.
 It also permits deleting team projects with everything in them.
@@ -48,8 +51,8 @@ n8n promotion apply-continue <connection-id> [flags]
 ```
       --confirm-destructive-changes   allow all destructive changes at continue time, including unreviewed column value loss and, for full apply, team-project deletion (default: false)
       --context string                saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
-      --expected-branch string        reviewed branch name (default: omitted; requires expected config ID and commit)
-      --expected-commit string        reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires expected config ID and branch)
+      --expected-branch string        reviewed branch name (default: omitted; requires the expected ID and commit)
+      --expected-commit string        reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires the expected ID and branch)
       --expected-config-id string     reviewed config ID, 1 to 36 characters (default: omitted; requires expected branch and commit)
       --expected-from string          changes or blocked-apply JSON file, or - for stdin (default: explicit expected-source flags; stdin requires --yes)
   -h, --help                          help for apply-continue

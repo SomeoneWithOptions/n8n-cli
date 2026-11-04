@@ -12,11 +12,12 @@ providers). The auth type cannot change. A gitlab provider can change
 its base URL with config {"schemaVersion":1,"baseUrl":"..."}; a
 different API destination needs auth in the same document.
 
-Replacing the credential affects every connection attached to this
-provider, so interactive runs ask for confirmation and non-interactive
-runs require --yes. Credentials travel only as --input because secrets
-are never flags. A 409 means another request changed the provider
-first: reload it and retry. Requires gitConnection:update.
+Replacing the credential affects every environment (n8n 2.46 and
+later) or connection (older) that uses this provider, so interactive
+runs ask for confirmation and non-interactive runs require --yes.
+Credentials travel only as --input because secrets are never flags. A
+409 means another request changed the provider first: reload it and
+retry. Requires gitConnection:update.
 
 ```
 n8n promotion provider update <provider-id> [flags]
@@ -38,7 +39,7 @@ n8n promotion provider update <provider-id> [flags]
       --input string     promotion provider JSON file path, or - for stdin (required; maximum 1 MiB)
       --output string    output format: text or json (JSON is the provider returned by the API) (default "text")
       --url string       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
-      --yes              confirm credential replacement for every attached connection without prompting (required when stdin is not interactive)
+      --yes              confirm credential replacement for every environment or connection using the provider without prompting (required when stdin is not interactive)
 ```
 
 ### SEE ALSO

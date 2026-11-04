@@ -43,6 +43,9 @@ func idempotentCommands() []idempotentCommand {
 		{"project apply", fixed("promotion", "project", "apply", "proj-1", "--workflow-id", "wf", "--yes"), "/promotions/projects/proj-1/apply", applied},
 		{"project apply-continue", fixed(append([]string{"promotion", "project", "apply-continue", "proj-1", "--workflow-id", "wf", "--yes"}, expected...)...), "/promotions/projects/proj-1/apply/continue", applied},
 		{"project promote", fixed("promotion", "project", "promote", "proj-1", "--workflow-id", "wf", "--yes"), "/promotions/projects/proj-1/promote", cliPromotionPromoteBody},
+		{"environment promote", fixed("promotion", "environment", "promote", cliEnvironmentID, "--yes"), n8n.PromotionEnvironmentsPath + "/" + cliEnvironmentID + "/promote", cliEnvPromoteBody},
+		{"environment apply", fixed("promotion", "environment", "apply", cliEnvironmentID, "--yes"), n8n.PromotionEnvironmentsPath + "/" + cliEnvironmentID + "/apply", applied},
+		{"environment apply-continue", fixed(append([]string{"promotion", "environment", "apply-continue", cliEnvironmentID, "--yes"}, envExpectedFlags()...)...), n8n.PromotionEnvironmentsPath + "/" + cliEnvironmentID + "/apply/continue", applied},
 		{"package import", func(t *testing.T) []string {
 			return []string{"package", "import", "--file", writePackageArchive(t, cliPackageArchive), "--workflow-conflict-policy", "fail", "--yes"}
 		}, n8n.N8nPackageImportPath, cliPackageImportResult},

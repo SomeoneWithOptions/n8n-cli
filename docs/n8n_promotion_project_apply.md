@@ -5,14 +5,22 @@ Apply selected workflow changes from a project's branch
 ### Synopsis
 
 Start with 'n8n promotion project changes PROJECT_ID apply' to review workflow IDs.
-The project's own connection resolves first, otherwise the instance connection.
-The apply direction must be cloned. Selected IDs on the branch are imported;
-selected workflows owned by this project whose IDs are absent from the branch
-are removed. Unselected content stays unchanged. Duplicate or invalid IDs
-reject the whole request. Requires gitConnection:pull.
+The project's own apply environment (n8n 2.46 and later) or connection
+(older) resolves first, otherwise the instance one. It must be prepared:
+'n8n promotion environment connect' on 2.46, 'n8n promotion checkout
+clone' before. Selected IDs on the branch are imported; selected workflows
+owned by this project whose IDs are absent from the branch are removed.
+On 2.46 a selected workflow also moves within the project to match the
+branch, with the folders that hold it, which take the branch name; one
+the branch and the instance hold in different projects is refused with
+409 before any write. Unselected content stays unchanged. Duplicate or
+invalid IDs reject the whole request. Requires gitConnection:pull.
 Use --expected-from FILE|- with changes JSON or a blocked apply result,
-or supply all three --expected-config-id, --expected-branch, --expected-commit
-flags (full lowercase 40- or 64-digit hex SHA). A null commit cannot be used.
+or supply --expected-environment-id (n8n 2.46 and later) or
+--expected-config-id (older; mutually exclusive), --expected-branch, and
+--expected-commit together (full lowercase 40- or 64-digit hex SHA). A
+null commit cannot be used. --expected-from passes through the
+identifier the instance returned: environmentId (2.46) or configId (older).
 Expected source is optional; supply it to detect changes after review.
 Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only
 applied writes content. Resolve blocked bindings before apply-continue;
@@ -43,18 +51,19 @@ n8n promotion project apply <project-id> [flags]
 ### Options
 
 ```
-      --context string              saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
-      --expected-branch string      reviewed branch name (default: omitted; requires expected config ID and commit)
-      --expected-commit string      reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires expected config ID and branch)
-      --expected-config-id string   reviewed config ID, 1 to 36 characters (default: omitted; requires expected branch and commit)
-      --expected-from string        changes or blocked-apply JSON file, or - for stdin (default: explicit expected-source flags; stdin requires --yes)
-  -h, --help                        help for apply
-      --idempotency-key string      retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
-      --input string                request JSON file path or - for stdin, maximum 1 MiB (default: use document flags; stdin requires --yes)
-      --output string               output format: text or json (default: text; JSON is the full server result) (default "text")
-      --url string                  instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
-      --workflow-id stringArray     selected workflow ID, 1 to 36 characters; repeat for each ID (default: none; required unless --input is used)
-      --yes                         confirm content changes without prompting (default: prompt; required for non-interactive or stdin input)
+      --context string                   saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
+      --expected-branch string           reviewed branch name (default: omitted; requires the expected ID and commit)
+      --expected-commit string           reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires the expected ID and branch)
+      --expected-config-id string        reviewed config ID on n8n 2.45 and earlier, 1 to 36 characters (default: omitted; requires expected branch and commit; excludes --expected-environment-id)
+      --expected-environment-id string   reviewed environment ID on n8n 2.46 and later, 1 to 36 characters (default: omitted; requires expected branch and commit; excludes --expected-config-id)
+      --expected-from string             changes or blocked-apply JSON file, or - for stdin (default: explicit expected-source flags; stdin requires --yes)
+  -h, --help                             help for apply
+      --idempotency-key string           retry key sent as the Idempotency-Key header: 1 to 128 visible ASCII characters, or auto for a random UUID printed on stderr; rerun the same command with the same key to get the first result instead of a second run (default: none, no idempotency)
+      --input string                     request JSON file path or - for stdin, maximum 1 MiB (default: use document flags; stdin requires --yes)
+      --output string                    output format: text or json (default: text; JSON is the full server result) (default "text")
+      --url string                       instance URL override, e.g. https://n8n.example.com (falls back to N8N_URL, then the selected context URL)
+      --workflow-id stringArray          selected workflow ID, 1 to 36 characters; repeat for each ID (default: none; required unless --input is used)
+      --yes                              confirm content changes without prompting (default: prompt; required for non-interactive or stdin input)
 ```
 
 ### SEE ALSO

@@ -45,12 +45,20 @@ func newPromotionEnvironmentCommand(opts Options) *cobra.Command {
 			"and 'disconnect' removes it. Link team projects to a projects-scope\n" +
 			"environment under 'project'. The instance can have one environment for\n" +
 			"each direction.\n\n" +
+			"Sync the whole instance through the connected instance-scope\n" +
+			"environment: 'promote' pushes every team project to a promote\n" +
+			"environment; 'apply' imports an apply environment's branch, and\n" +
+			"'apply-continue' finishes an apply that preflight blocked. For selected\n" +
+			"workflows of one project use 'n8n promotion project changes', 'apply',\n" +
+			"and 'promote'.\n\n" +
 			"Deleting an environment removes its project links and local checkout;\n" +
 			"its provider is kept and nothing in Git changes.",
 		Example: "  n8n promotion environment list\n" +
 			"  n8n promotion environment get ENVIRONMENT_ID\n" +
 			"  n8n promotion environment create --input environment.json\n" +
 			"  n8n promotion environment connect ENVIRONMENT_ID\n" +
+			"  n8n promotion environment apply ENVIRONMENT_ID --yes\n" +
+			"  n8n promotion environment promote ENVIRONMENT_ID --commit-message \"sync\" --yes\n" +
 			"  n8n promotion environment project add ENVIRONMENT_ID PROJECT_ID",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
@@ -64,6 +72,9 @@ func newPromotionEnvironmentCommand(opts Options) *cobra.Command {
 		newPromotionEnvironmentConnectCommand(opts),
 		newPromotionEnvironmentDisconnectCommand(opts),
 		newPromotionEnvironmentProjectCommand(opts),
+		newPromotionEnvironmentPromoteCommand(opts),
+		newPromotionSelectionCommand(opts, "apply", promotionTargetEnvironment),
+		newPromotionSelectionCommand(opts, "apply-continue", promotionTargetEnvironment),
 	)
 	return cmd
 }
@@ -539,6 +550,101 @@ func runPromotionEnvironmentDisconnect(ctx context.Context, opts Options, id str
 		return promotionAPIError(err, resolution, "environment disconnect", promotionEnvironmentSubject(id))
 	}
 	return writePromotionEnvironmentCheckout(opts, resolution, "Disconnected", checkout, f.output)
+}
+
+// Environment promote. Apply and apply-continue share the selection command,
+// which already carries the expected-source and --input handling they need.
+
+type promotionEnvironmentPromoteFlags struct {
+	instance    instanceFlags
+	commit      string
+	force       bool
+	yes         bool
+	output      string
+	idempotency idempotencyFlag
+}
+
+func newPromotionEnvironmentPromoteCommand(opts Options) *cobra.Command {
+	var f promotionEnvironmentPromoteFlags
+	cmd := &cobra.Command{
+		Use:   "promote <environment-id>",
+		Short: "Promote team projects to an environment's Git remote",
+		Long: "Export every team project, commit it, and push through an\n" +
+			"instance-scope promote environment (n8n 2.46 and later) to its base\n" +
+			"branch or a new timestamped branch (the result names it). Before 2.46\n" +
+			"use 'n8n promotion promote' with a connection. Start with 'n8n\n" +
+			"promotion environment list --direction promote' and connect it first\n" +
+			"with 'n8n promotion environment connect'. Personal projects are\n" +
+			"ignored, and project links do not select what is promoted; for one\n" +
+			"project's workflows use 'n8n promotion project promote'. A workflow on\n" +
+			"the branch that moved to a personal project, or to another team project\n" +
+			"while its old project still exists, is refused with 400.\n\n" +
+			"--commit-message is optional (1 to 1000 characters; default: a\n" +
+			"server-generated message). Without --force a promote the remote would\n" +
+			"reject is refused with 409 and nothing is pushed; --force pushes anyway\n" +
+			"and rewrites remote history. This mutates the remote branch.\n" +
+			"Interactive runs ask for confirmation and non-interactive runs require\n" +
+			"--yes. Requires gitConnection:push, plus variable:list when workflows\n" +
+			"reference variables.\n\n" +
+			"Text shows the commit, branch, counts, and any review the Git host\n" +
+			"opened; JSON is the full result. Advisory warnings go to stderr in both\n" +
+			"formats.\n\n" +
+			idempotencyHelp,
+		Example: "  n8n promotion environment promote ENVIRONMENT_ID --commit-message \"sync workflows\"\n" +
+			"  n8n promotion environment promote ENVIRONMENT_ID --yes\n" +
+			"  n8n promotion environment promote ENVIRONMENT_ID --commit-message \"sync\" --force --yes --output json",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPromotionEnvironmentPromote(cmd.Context(), opts, args[0], f, cmd.Flags().Changed("commit-message"))
+		},
+	}
+	f.instance.register(cmd)
+	cmd.Flags().StringVar(&f.commit, "commit-message", "", "commit message for the promote, 1 to 1000 characters (default: server-generated message)")
+	cmd.Flags().BoolVar(&f.force, "force", false, "promote even when the remote would reject it, rewriting remote history (default: reject a rejected promote with 409)")
+	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm promoting every team project to the remote without prompting (required when stdin is not interactive)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the promote result with counts, commit, and any review and warnings)")
+	f.idempotency.register(cmd)
+	return cmd
+}
+
+func runPromotionEnvironmentPromote(ctx context.Context, opts Options, id string, f promotionEnvironmentPromoteFlags, hasCommit bool) error {
+	if err := validateOutput(f.output); err != nil {
+		return err
+	}
+	if err := validatePromotionEnvironmentArg(id); err != nil {
+		return err
+	}
+	request := n8n.PromotePromotionEnvironmentRequest{Force: f.force}
+	message := "a server-generated commit message"
+	if hasCommit {
+		request.CommitMessage = &f.commit
+		message = fmt.Sprintf("commit message %q", f.commit)
+	}
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	if err := f.idempotency.validate(); err != nil {
+		return err
+	}
+	client, resolution, err := opts.apiClient(f.instance)
+	if err != nil {
+		return err
+	}
+	question := fmt.Sprintf("Promote every team project on %s to the remote of promotion environment %q with %s? Team projects are committed and pushed.", resolution.URL, id, message)
+	if request.Force {
+		question = fmt.Sprintf("Force-promote every team project on %s to the remote of promotion environment %q with %s? Remote history is rewritten.", resolution.URL, id, message)
+	}
+	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
+		return err
+	}
+	result, err := client.PromotePromotionEnvironment(ctx, id, request, f.idempotency.resolve(opts.Streams.Err)...)
+	if err != nil {
+		if refused := f.idempotency.refusal(err, resolution); refused != nil {
+			return refused
+		}
+		return promotionAPIError(err, resolution, "environment promote", promotionEnvironmentSubject(id))
+	}
+	return writePromotionPromoteOutput(opts, resolution, result, f.output)
 }
 
 // Environment projects.

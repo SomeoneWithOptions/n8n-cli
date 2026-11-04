@@ -6,11 +6,13 @@ Promote team projects to the Git remote
 
 Export every team project, commit it, and push to the configured base
 branch or a new timestamped branch (the result names it). Personal
-projects are ignored. This runs on the instance connection only, so
-project links from 'n8n promotion project add' do not select what is
-promoted. The promote checkout must be cloned first: run 'n8n promotion
-checkout clone CONNECTION_ID promote'. When workflows reference
-variables, the API key also needs variable:list.
+projects are ignored. Connections exist before n8n 2.46; on 2.46 use
+'n8n promotion environment promote'. This runs on the instance
+connection only, so project links from 'n8n promotion project add' do
+not select what is promoted. The promote checkout must be cloned
+first: run 'n8n promotion checkout clone CONNECTION_ID promote'.
+When workflows reference variables, the API key also needs
+variable:list.
 
 Pass --commit-message once (1 to 1000 characters). Without --force a
 promote the remote would reject is refused with 409 and nothing is

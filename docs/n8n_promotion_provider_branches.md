@@ -7,8 +7,9 @@ List branches of a GitLab repository
 Discover GitLab repositories or branches using a saved provider with gitConnection:discover.
 Start with 'n8n promotion provider list', then repositories, then branches.
 Pass the raw fullPath (for example org/repo) or GitLab project ID to branches;
-the CLI escapes it. Use remoteUrl from repositories as a connection target.
-No saved connection is required and no content changes. Other provider types
+the CLI escapes it. Use remoteUrl from repositories as an environment remote
+(n8n 2.46 and later) or a connection target (older). No saved environment
+or connection is required and no content changes. Other provider types
 do not support discovery. Text lists repository targets or branch names and
 defaults; JSON returns data and nextCursor. Follow nextCursor even after a
 short page. --all follows cursors up to 10,000 items.

@@ -2178,8 +2178,8 @@
       "scope": "gitConnection:pull",
       "availability": "upstream-only",
       "phase": 36,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment apply",
+      "status": "implemented"
     },
     {
       "operationId": "continueApplyPackage",
@@ -2189,8 +2189,8 @@
       "scope": "gitConnection:pull",
       "availability": "upstream-only",
       "phase": 36,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment apply-continue",
+      "status": "implemented"
     },
     {
       "operationId": "promotePackage",
@@ -2200,8 +2200,8 @@
       "scope": "gitConnection:push",
       "availability": "upstream-only",
       "phase": 36,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment promote",
+      "status": "implemented"
     }
   ]
 }

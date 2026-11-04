@@ -410,3 +410,93 @@ func (c *Client) RemoveProjectFromPromotionEnvironment(ctx context.Context, id, 
 	}, nil)
 	return err
 }
+
+// ApplyPromotionEnvironmentRequest is the optional body of a full apply
+// through an environment. ExpectedSource pins the reviewed environment, branch
+// and commit; without it the apply checks whatever the branch tip is now.
+type ApplyPromotionEnvironmentRequest struct {
+	ExpectedSource *PromotionExpectedSource `json:"expectedSource,omitempty"`
+}
+
+// Validate rejects an incomplete expected source, or one that names configId,
+// before transport.
+func (r ApplyPromotionEnvironmentRequest) Validate() error {
+	if r.ExpectedSource == nil {
+		return nil
+	}
+	return r.ExpectedSource.ValidateEnvironment()
+}
+
+// ContinueApplyPromotionEnvironmentRequest rechecks a reviewed full apply
+// through an environment. The server keeps no session: the expected source is
+// required.
+type ContinueApplyPromotionEnvironmentRequest struct {
+	ExpectedSource            PromotionExpectedSource `json:"expectedSource"`
+	ConfirmDestructiveChanges *bool                   `json:"confirmDestructiveChanges,omitempty"`
+}
+
+// Validate requires a complete reviewed source that names environmentId.
+func (r ContinueApplyPromotionEnvironmentRequest) Validate() error {
+	return r.ExpectedSource.ValidateEnvironment()
+}
+
+// PromotePromotionEnvironmentRequest commits every team project and pushes
+// through an environment. Unlike the connection promote, the commit message is
+// optional: the server generates one when it is omitted.
+type PromotePromotionEnvironmentRequest struct {
+	CommitMessage *string `json:"commitMessage,omitempty"`
+	Force         bool    `json:"force,omitempty"`
+}
+
+// Validate rejects a blank or overlong commit message before transport.
+func (r PromotePromotionEnvironmentRequest) Validate() error {
+	if r.CommitMessage == nil {
+		return nil
+	}
+	return PromotePromotionRequest{CommitMessage: *r.CommitMessage}.Validate()
+}
+
+// ApplyPromotionEnvironment checks the full package at the branch tip of an
+// instance-scope apply environment and imports it, overwriting to match. The
+// environment must be connected first. Inspect the result status before
+// reading counts. opts accepts [IdempotencyKey].
+func (c *Client) ApplyPromotionEnvironment(ctx context.Context, id string, request ApplyPromotionEnvironmentRequest, opts ...CallOption) (*ApplyPromotionResult, error) {
+	if err := ValidatePromotionEnvironmentID(id); err != nil {
+		return nil, err
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	return c.applyPromotionSelection(ctx, PathJoin("promotions", "environments", id, "apply"), request, opts)
+}
+
+// ContinueApplyPromotionEnvironment rechecks bindings and applies the reviewed
+// full package of an apply environment. opts accepts [IdempotencyKey].
+func (c *Client) ContinueApplyPromotionEnvironment(ctx context.Context, id string, request ContinueApplyPromotionEnvironmentRequest, opts ...CallOption) (*ApplyPromotionResult, error) {
+	if err := ValidatePromotionEnvironmentID(id); err != nil {
+		return nil, err
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	return c.applyPromotionSelection(ctx, PathJoin("promotions", "environments", id, "apply", "continue"), request, opts)
+}
+
+// PromotePromotionEnvironment exports every team project, commits it and
+// pushes through an instance-scope promote environment. The environment must
+// be connected first. opts accepts [IdempotencyKey].
+func (c *Client) PromotePromotionEnvironment(ctx context.Context, id string, request PromotePromotionEnvironmentRequest, opts ...CallOption) (*PromotePromotionResult, error) {
+	if err := ValidatePromotionEnvironmentID(id); err != nil {
+		return nil, err
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	var result PromotePromotionResult
+	req := Request{Method: http.MethodPost, Path: PathJoin("promotions", "environments", id, "promote"), Body: request}
+	applyCallOptions(&req, opts)
+	if _, err := c.Do(ctx, req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
