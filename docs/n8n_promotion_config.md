@@ -31,7 +31,7 @@ n8n promotion config [flags]
 
 ### SEE ALSO
 
-* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 * [n8n promotion config apply](n8n_promotion_config_apply.md)	 - Manage the apply direction config
 * [n8n promotion config delete](n8n_promotion_config_delete.md)	 - Delete one direction config
 * [n8n promotion config promote](n8n_promotion_config_promote.md)	 - Manage the promote direction config

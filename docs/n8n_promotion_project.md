@@ -39,7 +39,7 @@ n8n promotion project [flags]
 
 ### SEE ALSO
 
-* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 * [n8n promotion project add](n8n_promotion_project_add.md)	 - Add a project to a promotion connection
 * [n8n promotion project apply](n8n_promotion_project_apply.md)	 - Apply selected workflow changes from a project's branch
 * [n8n promotion project apply-continue](n8n_promotion_project_apply-continue.md)	 - Continue a reviewed project apply after binding setup

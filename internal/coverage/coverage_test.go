@@ -327,7 +327,7 @@ func TestAvailabilityMatchesSpecs(t *testing.T) {
 //
 // A phase is never excused because one server does not serve its resource:
 // every phase owns operations from the union of the documents.
-const deliveredThrough = 34
+const deliveredThrough = 35
 
 // TestPhaseCounts is how a phase exit gate reads the manifest: every operation
 // a delivered phase owns must be implemented, and no later phase may have
