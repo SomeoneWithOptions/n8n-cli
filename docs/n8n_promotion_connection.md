@@ -5,7 +5,8 @@ Manage promotion connections
 ### Synopsis
 
 Manage promotion connections: one remote plus its two direction
-configs. Start with 'list' to find the connection ID, then 'get' to
+configs. n8n 2.46 and later replaced connections with environments:
+use 'n8n promotion environment' there. Start with 'list' to find the connection ID, then 'get' to
 read it, 'create' to add one on a provider, or 'update' to change its
 name, target, or provider.
 
@@ -33,7 +34,7 @@ n8n promotion connection [flags]
 
 ### SEE ALSO
 
-* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 * [n8n promotion connection create](n8n_promotion_connection_create.md)	 - Create a promotion connection
 * [n8n promotion connection delete](n8n_promotion_connection_delete.md)	 - Permanently delete a promotion connection
 * [n8n promotion connection get](n8n_promotion_connection_get.md)	 - Show one promotion connection

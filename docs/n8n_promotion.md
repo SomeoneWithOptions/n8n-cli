@@ -1,28 +1,37 @@
 ## n8n promotion
 
-Manage promotion providers, connections, and apply/promote sync
+Manage promotion providers, environments, connections, and apply/promote sync
 
 ### Synopsis
 
 Manage Promotions Git sync and selected project workflows.
-Start with 'provider list' to find a provider, then 'connection list'
-to find a connection. Create a provider first, then a connection on
-it, then a config per direction under 'config', clone each checkout
-under 'checkout', link team projects to a projects-scope connection
-under 'project', then 'promote' the instance to the remote or 'apply'
-the remote into the instance. For selected workflows, start with
-project changes, then project apply or project promote. Use apply-continue
+
+n8n 2.46 and later: start with 'provider list' to find a provider,
+then 'environment list' to find an environment. An environment is one
+remote for one direction: create one per direction on a provider with
+'environment create', prepare its checkout with 'environment connect',
+and link team projects to a projects-scope environment under
+'environment project'. 'promote', 'apply', and the project selection
+commands still address connections.
+
+Older instances serve connections instead: 'connection list' finds a
+connection; create a provider first, then a connection on it, then a
+config per direction under 'config', clone each checkout under
+'checkout', link team projects to a projects-scope connection under
+'project', then 'promote' the instance to the remote or 'apply' the
+remote into the instance. For selected workflows, start with project
+changes, then project apply or project promote. Use apply-continue
 after resolving a blocked apply.
 
 'promote' and 'apply' run on the instance connection. 'promote'
 commits and pushes every team project to the remote; 'apply' checks the
 package and imports with overwrite behavior, creating, updating, or
 removing content to match, or reports why it is blocked and writes
-nothing. Both mutate versioned
-content and ask for confirmation. Config and connection removal can
-remove local checkouts. This is the upstream Promotions generation: an
-instance that serves GitConnections instead answers 404 or 503, which
-reads as the availability diagnostic.
+nothing. Both mutate versioned content and ask for confirmation.
+Config, connection, and environment removal can remove local
+checkouts. This is the upstream Promotions generation: an instance
+that serves GitConnections instead answers 404 or 503, which reads as
+the availability diagnostic.
 
 ```
 n8n promotion [flags]
@@ -32,6 +41,8 @@ n8n promotion [flags]
 
 ```
   n8n promotion provider list
+  n8n promotion environment list
+  n8n promotion environment connect ENVIRONMENT_ID
   n8n promotion connection list
   n8n promotion provider create --input provider.json
   n8n promotion connection create --input connection.json
@@ -56,6 +67,7 @@ n8n promotion [flags]
 * [n8n promotion checkout](n8n_promotion_checkout.md)	 - Manage promotion checkouts
 * [n8n promotion config](n8n_promotion_config.md)	 - Manage promotion direction configs
 * [n8n promotion connection](n8n_promotion_connection.md)	 - Manage promotion connections
+* [n8n promotion environment](n8n_promotion_environment.md)	 - Manage promotion environments (n8n 2.46 and later)
 * [n8n promotion project](n8n_promotion_project.md)	 - Manage projects linked to a promotion connection
 * [n8n promotion promote](n8n_promotion_promote.md)	 - Promote team projects to the Git remote
 * [n8n promotion provider](n8n_promotion_provider.md)	 - Manage promotion providers

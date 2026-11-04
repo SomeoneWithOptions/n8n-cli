@@ -28,26 +28,35 @@ const (
 func newPromotionCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promotion",
-		Short: "Manage promotion providers, connections, and apply/promote sync",
-		Long: "Manage Promotions Git sync and selected project workflows.\n" +
-			"Start with 'provider list' to find a provider, then 'connection list'\n" +
-			"to find a connection. Create a provider first, then a connection on\n" +
-			"it, then a config per direction under 'config', clone each checkout\n" +
-			"under 'checkout', link team projects to a projects-scope connection\n" +
-			"under 'project', then 'promote' the instance to the remote or 'apply'\n" +
-			"the remote into the instance. For selected workflows, start with\n" +
-			"project changes, then project apply or project promote. Use apply-continue\n" +
+		Short: "Manage promotion providers, environments, connections, and apply/promote sync",
+		Long: "Manage Promotions Git sync and selected project workflows.\n\n" +
+			"n8n 2.46 and later: start with 'provider list' to find a provider,\n" +
+			"then 'environment list' to find an environment. An environment is one\n" +
+			"remote for one direction: create one per direction on a provider with\n" +
+			"'environment create', prepare its checkout with 'environment connect',\n" +
+			"and link team projects to a projects-scope environment under\n" +
+			"'environment project'. 'promote', 'apply', and the project selection\n" +
+			"commands still address connections.\n\n" +
+			"Older instances serve connections instead: 'connection list' finds a\n" +
+			"connection; create a provider first, then a connection on it, then a\n" +
+			"config per direction under 'config', clone each checkout under\n" +
+			"'checkout', link team projects to a projects-scope connection under\n" +
+			"'project', then 'promote' the instance to the remote or 'apply' the\n" +
+			"remote into the instance. For selected workflows, start with project\n" +
+			"changes, then project apply or project promote. Use apply-continue\n" +
 			"after resolving a blocked apply.\n\n" +
 			"'promote' and 'apply' run on the instance connection. 'promote'\n" +
 			"commits and pushes every team project to the remote; 'apply' checks the\n" +
 			"package and imports with overwrite behavior, creating, updating, or\n" +
 			"removing content to match, or reports why it is blocked and writes\n" +
-			"nothing. Both mutate versioned\n" +
-			"content and ask for confirmation. Config and connection removal can\n" +
-			"remove local checkouts. This is the upstream Promotions generation: an\n" +
-			"instance that serves GitConnections instead answers 404 or 503, which\n" +
-			"reads as the availability diagnostic.",
+			"nothing. Both mutate versioned content and ask for confirmation.\n" +
+			"Config, connection, and environment removal can remove local\n" +
+			"checkouts. This is the upstream Promotions generation: an instance\n" +
+			"that serves GitConnections instead answers 404 or 503, which reads as\n" +
+			"the availability diagnostic.",
 		Example: "  n8n promotion provider list\n" +
+			"  n8n promotion environment list\n" +
+			"  n8n promotion environment connect ENVIRONMENT_ID\n" +
 			"  n8n promotion connection list\n" +
 			"  n8n promotion provider create --input provider.json\n" +
 			"  n8n promotion connection create --input connection.json\n" +
@@ -61,6 +70,7 @@ func newPromotionCommand(opts Options) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newPromotionProviderCommand(opts),
+		newPromotionEnvironmentCommand(opts),
 		newPromotionConnectionCommand(opts),
 		newPromotionConfigCommand(opts),
 		newPromotionCheckoutCommand(opts),
@@ -526,7 +536,8 @@ func newPromotionConnectionCommand(opts Options) *cobra.Command {
 		Use:   "connection",
 		Short: "Manage promotion connections",
 		Long: "Manage promotion connections: one remote plus its two direction\n" +
-			"configs. Start with 'list' to find the connection ID, then 'get' to\n" +
+			"configs. n8n 2.46 and later replaced connections with environments:\n" +
+			"use 'n8n promotion environment' there. Start with 'list' to find the connection ID, then 'get' to\n" +
 			"read it, 'create' to add one on a provider, or 'update' to change its\n" +
 			"name, target, or provider.\n\n" +
 			"Deleting a connection can remove its local checkouts. Linked projects\n" +
@@ -623,7 +634,7 @@ func runPromotionConnectionList(ctx context.Context, opts Options, f promotionCo
 		page, err = client.ListPromotionConnections(ctx, listOpts)
 	}
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection list", promotionSubject{})
+		return promotionAPIError(err, resolution, "connection list", promotionSubject{alt: promotionConnectionAlt})
 	}
 	if f.output == outputJSON {
 		err = writePageJSON(opts.Streams.Out, page, collection)
@@ -718,7 +729,9 @@ func runPromotionConnectionCreate(ctx context.Context, opts Options, f promotion
 	}
 	created, err := client.CreatePromotionConnection(ctx, request)
 	if err != nil {
-		return promotionAPIError(err, resolution, "connection create", promotionProviderSubject(request.ProviderID))
+		subject := promotionProviderSubject(request.ProviderID)
+		subject.alt = promotionConnectionAlt
+		return promotionAPIError(err, resolution, "connection create", subject)
 	}
 	return writePromotionConnectionResult(opts, resolution, "Created", created, f.output)
 }
@@ -1854,8 +1867,11 @@ type promotionMutation struct {
 	Action       string `json:"action"`
 	ProviderID   string `json:"providerId,omitempty"`
 	ConnectionID string `json:"connectionId,omitempty"`
-	ProjectID    string `json:"projectId,omitempty"`
-	Direction    string `json:"direction,omitempty"`
+	// EnvironmentID is set by environment commands, which never set
+	// ConnectionID.
+	EnvironmentID string `json:"environmentId,omitempty"`
+	ProjectID     string `json:"projectId,omitempty"`
+	Direction     string `json:"direction,omitempty"`
 }
 
 func writePromotionMutation(opts Options, resolution config.Resolution, result promotionMutation, output string) error {
@@ -1869,6 +1885,9 @@ func writePromotionMutation(opts Options, resolution config.Resolution, result p
 	}
 	if result.ConnectionID != "" {
 		fmt.Fprintf(tw, "Connection:\t%s\n", result.ConnectionID)
+	}
+	if result.EnvironmentID != "" {
+		fmt.Fprintf(tw, "Environment:\t%s\n", result.EnvironmentID)
 	}
 	if result.ProjectID != "" {
 		fmt.Fprintf(tw, "Project:\t%s\n", result.ProjectID)
@@ -2121,6 +2140,17 @@ func truncatedPromotionSecret(value string) string {
 type promotionSubject struct {
 	what string // e.g. promotion connection "conn-1"
 	find string // the command that lists valid IDs
+	alt  string // the other generation's command group, hinted on a bare 404
+}
+
+// altHint is the clause a bare 404 appends: the route may exist only in the
+// other Promotions generation (connections before n8n 2.46, environments
+// from 2.46).
+func (s promotionSubject) altHint() string {
+	if s.alt == "" {
+		return ""
+	}
+	return "; " + s.alt
 }
 
 func promotionProviderSubject(id string) promotionSubject {
@@ -2128,13 +2158,14 @@ func promotionProviderSubject(id string) promotionSubject {
 }
 
 func promotionConnectionSubject(id string) promotionSubject {
-	return promotionSubject{what: fmt.Sprintf("promotion connection %q", id), find: "'n8n promotion connection list'"}
+	return promotionSubject{what: fmt.Sprintf("promotion connection %q", id), find: "'n8n promotion connection list'", alt: promotionConnectionAlt}
 }
 
 func promotionProjectLinkSubject(id, projectID string) promotionSubject {
 	return promotionSubject{
 		what: fmt.Sprintf("promotion connection %q or project %q", id, projectID),
 		find: "'n8n promotion connection list' and 'n8n project list'",
+		alt:  promotionConnectionAlt,
 	}
 }
 
@@ -2144,6 +2175,16 @@ func promotionAPIError(err error, resolution config.Resolution, action string, s
 		return fmt.Errorf("%s rejected the promotion provider delete (409): the provider still has attached connections, so nothing changed; remove them first, then delete the provider: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "project add":
 		return fmt.Errorf("%s rejected the promotion project add (409): the project is already linked to a connection, so nothing changed; remove it there first, then add it here: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && action == "environment create":
+		return fmt.Errorf("%s rejected the promotion environment create (409): the instance already has an environment for this direction, so nothing changed; find it with 'n8n promotion environment list --direction DIRECTION' and update it instead: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && action == "environment update":
+		return fmt.Errorf("%s rejected the promotion environment update (409): the provider changed during the update, so nothing changed; reload it with 'n8n promotion environment get' and retry: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && action == "environment project add":
+		return fmt.Errorf("%s rejected the promotion environment project add (409): the project already has an environment for this direction, so nothing changed; unlink it there with 'n8n promotion environment project remove', then add it here: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && strings.HasPrefix(action, "environment "):
+		return fmt.Errorf("%s rejected the promotion %s (409): the environment or project is in a conflicting state, so nothing changed; reload it with 'n8n promotion environment get' and retry: %w", resolution.URL, action, err)
+	case n8n.IsStatus(err, http.StatusUnprocessableEntity) && strings.HasPrefix(action, "environment "):
+		return fmt.Errorf("%s rejected the promotion %s (422): the instance cannot use the environment as configured; check that the remote URL belongs to the provider, the branch exists, the provider credential can reach the remote, and the project is a team project: %w", resolution.URL, action, err)
 	case n8n.IsConflict(err) && action == "provider update":
 		return fmt.Errorf("%s rejected the promotion provider update (409): another request changed the provider's credential or configuration first, so nothing changed; reload it with 'n8n promotion provider get' and retry: %w", resolution.URL, err)
 	case n8n.IsConflict(err):
@@ -2157,8 +2198,11 @@ func promotionAPIError(err error, resolution config.Resolution, action string, s
 	case n8n.IsNotFound(err) && subject.what != "" && !promotionRouteMissing(err):
 		return fmt.Errorf("%s has no %s (404): check the ID with %s: %w", resolution.URL, subject.what, subject.find, err)
 	case n8n.IsNotFound(err) && subject.what != "":
-		return fmt.Errorf("%s answered 404 for %s: either the ID does not exist (check it with %s) or the instance does not serve promotions (run %s): %w",
-			resolution.URL, subject.what, subject.find, discoverHint(promotionResource), err)
+		return fmt.Errorf("%s answered 404 for %s: either the ID does not exist (check it with %s) or the instance does not serve promotions (run %s)%s: %w",
+			resolution.URL, subject.what, subject.find, discoverHint(promotionResource), subject.altHint(), err)
+	case n8n.IsNotFound(err):
+		return fmt.Errorf("%s does not serve promotions (%d): it needs the Promotions module (a GitConnections-generation instance answers here instead); run %s to see what this instance offers%s: %w",
+			resolution.URL, n8n.StatusCodeOf(err), discoverHint(promotionResource), subject.altHint(), err)
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		return fmt.Errorf("%s does not serve promotions (%d): it needs the Promotions module (a GitConnections-generation instance answers here instead); run %s to see what this instance offers: %w",
 			resolution.URL, n8n.StatusCodeOf(err), discoverHint(promotionResource), err)
@@ -2185,19 +2229,19 @@ func promotionRouteMissing(err error) bool {
 
 func promotionScope(action string) string {
 	switch action {
-	case "provider list", "connection list":
+	case "provider list", "connection list", "environment list":
 		return "gitConnection:list"
-	case "provider create", "connection create":
+	case "provider create", "connection create", "environment create":
 		return "gitConnection:create"
-	case "provider get", "connection get", "project list":
+	case "provider get", "connection get", "project list", "environment get", "environment project list":
 		return "gitConnection:read"
-	case "provider update", "connection update", "config apply set", "config promote set", "config delete":
+	case "provider update", "connection update", "config apply set", "config promote set", "config delete", "environment update":
 		return "gitConnection:update"
-	case "provider delete", "connection delete":
+	case "provider delete", "connection delete", "environment delete":
 		return "gitConnection:delete"
-	case "checkout clone", "checkout disconnect":
+	case "checkout clone", "checkout disconnect", "environment connect", "environment disconnect":
 		return "gitConnection:clone"
-	case "project add", "project remove":
+	case "project add", "project remove", "environment project add", "environment project remove":
 		return "gitConnection:manageProjects"
 	case "promote", "project promote", "project changes promote":
 		return "gitConnection:push"

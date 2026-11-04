@@ -230,9 +230,10 @@ func (r UpdatePromotionProviderRequest) Validate() error {
 	return nil
 }
 
-// PromotionTarget is the remote a connection syncs through, as the API
-// reports it. GitLab connections also report the stored repository path,
-// which is read-only: write documents use [PromotionTargetDocument].
+// PromotionTarget is the remote a connection or environment syncs through, as
+// the API reports it. GitLab remotes also report the stored repository path,
+// which is read-only: write documents use [PromotionTargetDocument] for
+// connections and [PromotionRemoteDocument] for environments.
 type PromotionTarget struct {
 	SchemaVersion  int    `json:"schemaVersion"`
 	RemoteURL      string `json:"remoteUrl"`

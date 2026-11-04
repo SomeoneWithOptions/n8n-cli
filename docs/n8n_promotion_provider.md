@@ -35,7 +35,7 @@ n8n promotion provider [flags]
 
 ### SEE ALSO
 
-* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 * [n8n promotion provider branches](n8n_promotion_provider_branches.md)	 - List branches of a GitLab repository
 * [n8n promotion provider create](n8n_promotion_provider_create.md)	 - Create a promotion provider
 * [n8n promotion provider delete](n8n_promotion_provider_delete.md)	 - Permanently delete a promotion provider

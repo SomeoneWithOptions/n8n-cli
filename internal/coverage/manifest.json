@@ -2068,8 +2068,8 @@
       "scope": "gitConnection:list",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment list",
+      "status": "implemented"
     },
     {
       "operationId": "createPromotionEnvironment",
@@ -2079,8 +2079,8 @@
       "scope": "gitConnection:create",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment create",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionEnvironment",
@@ -2090,8 +2090,8 @@
       "scope": "gitConnection:read",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment get",
+      "status": "implemented"
     },
     {
       "operationId": "updatePromotionEnvironment",
@@ -2101,8 +2101,8 @@
       "scope": "gitConnection:update",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment update",
+      "status": "implemented"
     },
     {
       "operationId": "deletePromotionEnvironment",
@@ -2112,8 +2112,8 @@
       "scope": "gitConnection:delete",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment delete",
+      "status": "implemented"
     },
     {
       "operationId": "connectPromotionCheckout",
@@ -2123,8 +2123,8 @@
       "scope": "gitConnection:clone",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment connect",
+      "status": "implemented"
     },
     {
       "operationId": "disconnectPromotionCheckout",
@@ -2134,8 +2134,8 @@
       "scope": "gitConnection:clone",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment disconnect",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionEnvironmentProjects",
@@ -2145,8 +2145,8 @@
       "scope": "gitConnection:read",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment project list",
+      "status": "implemented"
     },
     {
       "operationId": "addProjectToPromotionEnvironment",
@@ -2156,8 +2156,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment project add",
+      "status": "implemented"
     },
     {
       "operationId": "removeProjectFromPromotionEnvironment",
@@ -2167,8 +2167,8 @@
       "scope": "gitConnection:manageProjects",
       "availability": "upstream-only",
       "phase": 35,
-      "command": "",
-      "status": "planned"
+      "command": "n8n promotion environment project remove",
+      "status": "implemented"
     },
     {
       "operationId": "applyPackage",

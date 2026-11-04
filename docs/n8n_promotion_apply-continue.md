@@ -62,5 +62,5 @@ n8n promotion apply-continue <connection-id> [flags]
 
 ### SEE ALSO
 
-* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, connections, and apply/promote sync
+* [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 
