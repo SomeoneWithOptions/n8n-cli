@@ -1527,7 +1527,7 @@
       "path": "/promotions/connections",
       "tag": "Promotions",
       "scope": "gitConnection:list",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion connection list",
       "status": "implemented"
@@ -1538,7 +1538,7 @@
       "path": "/promotions/connections",
       "tag": "Promotions",
       "scope": "gitConnection:create",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion connection create",
       "status": "implemented"
@@ -1549,7 +1549,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:delete",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion connection delete",
       "status": "implemented"
@@ -1560,7 +1560,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:read",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion connection get",
       "status": "implemented"
@@ -1571,7 +1571,7 @@
       "path": "/promotions/connections/{promotionConnectionId}",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion connection update",
       "status": "implemented"
@@ -1582,7 +1582,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/apply",
       "tag": "Promotions",
       "scope": "gitConnection:pull",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion apply",
       "status": "implemented"
@@ -1593,7 +1593,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/apply",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion config apply set",
       "status": "implemented"
@@ -1604,7 +1604,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/promote",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion config promote set",
       "status": "implemented"
@@ -1615,7 +1615,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/configs/{direction}",
       "tag": "Promotions",
       "scope": "gitConnection:update",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion config delete",
       "status": "implemented"
@@ -1626,7 +1626,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects",
       "tag": "Promotions",
       "scope": "gitConnection:read",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion project list",
       "status": "implemented"
@@ -1637,7 +1637,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
       "tag": "Promotions",
       "scope": "gitConnection:manageProjects",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion project remove",
       "status": "implemented"
@@ -1648,7 +1648,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/projects/{projectId}",
       "tag": "Promotions",
       "scope": "gitConnection:manageProjects",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion project add",
       "status": "implemented"
@@ -1659,7 +1659,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/promote",
       "tag": "Promotions",
       "scope": "gitConnection:push",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion promote",
       "status": "implemented"
@@ -1670,7 +1670,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/{direction}/clone",
       "tag": "Promotions",
       "scope": "gitConnection:clone",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion checkout clone",
       "status": "implemented"
@@ -1681,7 +1681,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/{direction}/disconnect",
       "tag": "Promotions",
       "scope": "gitConnection:clone",
-      "availability": "both",
+      "availability": "retired",
       "phase": 29,
       "command": "n8n promotion checkout disconnect",
       "status": "implemented"
@@ -1769,7 +1769,7 @@
       "path": "/promotions/connections/{promotionConnectionId}/apply/continue",
       "tag": "Promotions",
       "scope": "gitConnection:pull",
-      "availability": "both",
+      "availability": "retired",
       "phase": 31,
       "command": "n8n promotion apply-continue",
       "status": "implemented"
@@ -2026,6 +2026,182 @@
       "phase": 33,
       "command": "n8n credential-policy attachment set",
       "status": "implemented"
+    },
+    {
+      "operationId": "getWorkflowDependencies",
+      "method": "GET",
+      "path": "/workflows/{workflowId}/dependencies",
+      "tag": "Workflow",
+      "scope": "workflow:read",
+      "availability": "upstream-only",
+      "phase": 34,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getCredentialDependencies",
+      "method": "GET",
+      "path": "/credentials/{credentialId}/dependencies",
+      "tag": "Credential",
+      "scope": "credential:read",
+      "availability": "upstream-only",
+      "phase": 34,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getDataTableDependencies",
+      "method": "GET",
+      "path": "/data-tables/{dataTableId}/dependencies",
+      "tag": "DataTable",
+      "scope": "dataTable:read",
+      "availability": "upstream-only",
+      "phase": 34,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionEnvironments",
+      "method": "GET",
+      "path": "/promotions/environments",
+      "tag": "Promotions",
+      "scope": "gitConnection:list",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "createPromotionEnvironment",
+      "method": "POST",
+      "path": "/promotions/environments",
+      "tag": "Promotions",
+      "scope": "gitConnection:create",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionEnvironment",
+      "method": "GET",
+      "path": "/promotions/environments/{promotionEnvironmentId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:read",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "updatePromotionEnvironment",
+      "method": "PUT",
+      "path": "/promotions/environments/{promotionEnvironmentId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:update",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "deletePromotionEnvironment",
+      "method": "DELETE",
+      "path": "/promotions/environments/{promotionEnvironmentId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:delete",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "connectPromotionCheckout",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/connect",
+      "tag": "Promotions",
+      "scope": "gitConnection:clone",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "disconnectPromotionCheckout",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/disconnect",
+      "tag": "Promotions",
+      "scope": "gitConnection:clone",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "getPromotionEnvironmentProjects",
+      "method": "GET",
+      "path": "/promotions/environments/{promotionEnvironmentId}/projects",
+      "tag": "Promotions",
+      "scope": "gitConnection:read",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "addProjectToPromotionEnvironment",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/projects/{projectId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:manageProjects",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "removeProjectFromPromotionEnvironment",
+      "method": "DELETE",
+      "path": "/promotions/environments/{promotionEnvironmentId}/projects/{projectId}",
+      "tag": "Promotions",
+      "scope": "gitConnection:manageProjects",
+      "availability": "upstream-only",
+      "phase": 35,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "applyPackage",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/apply",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "upstream-only",
+      "phase": 36,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "continueApplyPackage",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/apply/continue",
+      "tag": "Promotions",
+      "scope": "gitConnection:pull",
+      "availability": "upstream-only",
+      "phase": 36,
+      "command": "",
+      "status": "planned"
+    },
+    {
+      "operationId": "promotePackage",
+      "method": "POST",
+      "path": "/promotions/environments/{promotionEnvironmentId}/promote",
+      "tag": "Promotions",
+      "scope": "gitConnection:push",
+      "availability": "upstream-only",
+      "phase": 36,
+      "command": "",
+      "status": "planned"
     }
   ]
 }
