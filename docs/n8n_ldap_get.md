@@ -8,6 +8,7 @@ Get every LDAP setting exposed by n8n. The binding admin password is never
 returned: bindingAdminPassword is empty when unset or n8n's blanking placeholder
 when configured. Keep that placeholder unchanged in a GET-edit-PUT workflow to
 preserve the stored password. Text output only reports password status.
+linkExistingAccountsByEmail appears only on instances that support it.
 
 Requires ldap:manage and the LDAP license.
 

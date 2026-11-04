@@ -51,6 +51,8 @@ type LDAPConfiguration struct {
 	SearchPageSize          int                    `json:"searchPageSize"`
 	SearchTimeout           int                    `json:"searchTimeout"`
 	EnforceEmailUniqueness  bool                   `json:"enforceEmailUniqueness"`
+	// LinkExistingAccountsByEmail is nil when the instance predates the setting.
+	LinkExistingAccountsByEmail *bool `json:"linkExistingAccountsByEmail,omitempty"`
 }
 
 func (c *LDAPConfiguration) redactPassword() {
@@ -61,27 +63,30 @@ func (c *LDAPConfiguration) redactPassword() {
 
 // UpdateLDAPConfigurationRequest is a full replacement document. Pointers
 // distinguish omitted required fields from valid false, zero, and empty values.
+// LinkExistingAccountsByEmail is optional: when nil it is not sent and n8n keeps
+// the stored value, and instances that predate the setting reject it.
 type UpdateLDAPConfigurationRequest struct {
-	LoginEnabled            *bool                   `json:"loginEnabled"`
-	LoginLabel              *string                 `json:"loginLabel"`
-	ConnectionURL           *string                 `json:"connectionUrl"`
-	AllowUnauthorizedCerts  *bool                   `json:"allowUnauthorizedCerts"`
-	ConnectionSecurity      *LDAPConnectionSecurity `json:"connectionSecurity"`
-	ConnectionPort          *int                    `json:"connectionPort"`
-	BaseDN                  *string                 `json:"baseDn"`
-	BindingAdminDN          *string                 `json:"bindingAdminDn"`
-	BindingAdminPassword    *string                 `json:"bindingAdminPassword"`
-	FirstNameAttribute      *string                 `json:"firstNameAttribute"`
-	LastNameAttribute       *string                 `json:"lastNameAttribute"`
-	EmailAttribute          *string                 `json:"emailAttribute"`
-	LoginIDAttribute        *string                 `json:"loginIdAttribute"`
-	LDAPIDAttribute         *string                 `json:"ldapIdAttribute"`
-	UserFilter              *string                 `json:"userFilter"`
-	SynchronizationEnabled  *bool                   `json:"synchronizationEnabled"`
-	SynchronizationInterval *int                    `json:"synchronizationInterval"`
-	SearchPageSize          *int                    `json:"searchPageSize"`
-	SearchTimeout           *int                    `json:"searchTimeout"`
-	EnforceEmailUniqueness  *bool                   `json:"enforceEmailUniqueness"`
+	LoginEnabled                *bool                   `json:"loginEnabled"`
+	LoginLabel                  *string                 `json:"loginLabel"`
+	ConnectionURL               *string                 `json:"connectionUrl"`
+	AllowUnauthorizedCerts      *bool                   `json:"allowUnauthorizedCerts"`
+	ConnectionSecurity          *LDAPConnectionSecurity `json:"connectionSecurity"`
+	ConnectionPort              *int                    `json:"connectionPort"`
+	BaseDN                      *string                 `json:"baseDn"`
+	BindingAdminDN              *string                 `json:"bindingAdminDn"`
+	BindingAdminPassword        *string                 `json:"bindingAdminPassword"`
+	FirstNameAttribute          *string                 `json:"firstNameAttribute"`
+	LastNameAttribute           *string                 `json:"lastNameAttribute"`
+	EmailAttribute              *string                 `json:"emailAttribute"`
+	LoginIDAttribute            *string                 `json:"loginIdAttribute"`
+	LDAPIDAttribute             *string                 `json:"ldapIdAttribute"`
+	UserFilter                  *string                 `json:"userFilter"`
+	SynchronizationEnabled      *bool                   `json:"synchronizationEnabled"`
+	SynchronizationInterval     *int                    `json:"synchronizationInterval"`
+	SearchPageSize              *int                    `json:"searchPageSize"`
+	SearchTimeout               *int                    `json:"searchTimeout"`
+	EnforceEmailUniqueness      *bool                   `json:"enforceEmailUniqueness"`
+	LinkExistingAccountsByEmail *bool                   `json:"linkExistingAccountsByEmail,omitempty"`
 }
 
 // Validate enforces every field required by full-replacement PUT semantics.
