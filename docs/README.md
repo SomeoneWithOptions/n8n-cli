@@ -16,6 +16,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n community-package`](n8n_community-package.md) | Manage community node packages |
 | [`n8n credential create`](n8n_credential_create.md) | Create a credential from secret JSON |
 | [`n8n credential delete`](n8n_credential_delete.md) | Permanently delete a credential |
+| [`n8n credential dependencies`](n8n_credential_dependencies.md) | List the workflows and agents that use a credential |
 | [`n8n credential get`](n8n_credential_get.md) | Get credential metadata |
 | [`n8n credential list`](n8n_credential_list.md) | List credential metadata |
 | [`n8n credential schema`](n8n_credential_schema.md) | Show credential data JSON Schema |
@@ -46,6 +47,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n data-table column`](n8n_data-table_column.md) | Manage the columns of a data table |
 | [`n8n data-table create`](n8n_data-table_create.md) | Create a data table |
 | [`n8n data-table delete`](n8n_data-table_delete.md) | Permanently delete a data table and every row in it |
+| [`n8n data-table dependencies`](n8n_data-table_dependencies.md) | List the workflows that use a data table |
 | [`n8n data-table get`](n8n_data-table_get.md) | Show one data table and its columns |
 | [`n8n data-table list`](n8n_data-table_list.md) | List data tables |
 | [`n8n data-table row clear`](n8n_data-table_row_clear.md) | Permanently delete every row of a data table |
@@ -229,6 +231,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n workflow archive`](n8n_workflow_archive.md) | Archive a workflow, the reversible soft delete |
 | [`n8n workflow create`](n8n_workflow_create.md) | Create a workflow from a definition or as an empty one |
 | [`n8n workflow delete`](n8n_workflow_delete.md) | Permanently delete a workflow |
+| [`n8n workflow dependencies`](n8n_workflow_dependencies.md) | List what a workflow uses and what uses it |
 | [`n8n workflow get`](n8n_workflow_get.md) | Show one workflow with its definition |
 | [`n8n workflow history`](n8n_workflow_history.md) | List the saved versions of a workflow |
 | [`n8n workflow list`](n8n_workflow_list.md) | List workflows |

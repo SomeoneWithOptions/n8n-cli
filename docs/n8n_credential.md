@@ -38,6 +38,7 @@ n8n credential [flags]
 * [n8n](n8n.md)	 - Command-line client for the n8n API
 * [n8n credential create](n8n_credential_create.md)	 - Create a credential from secret JSON
 * [n8n credential delete](n8n_credential_delete.md)	 - Permanently delete a credential
+* [n8n credential dependencies](n8n_credential_dependencies.md)	 - List the workflows and agents that use a credential
 * [n8n credential get](n8n_credential_get.md)	 - Get credential metadata
 * [n8n credential list](n8n_credential_list.md)	 - List credential metadata
 * [n8n credential schema](n8n_credential_schema.md)	 - Show credential data JSON Schema

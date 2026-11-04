@@ -350,3 +350,12 @@ func redactCredentialAPIError(err error) error {
 	clone.Truncated = false
 	return &clone
 }
+
+// CredentialDependencies returns one page of the workflows and agents that use
+// the credential. No credential data is requested or returned.
+func (c *Client) CredentialDependencies(ctx context.Context, id string, opts ListOptions) (DependencyPage, error) {
+	if err := validateCredentialID(id); err != nil {
+		return DependencyPage{}, err
+	}
+	return c.listDependencies(ctx, PathJoin("credentials", id, "dependencies"), opts)
+}

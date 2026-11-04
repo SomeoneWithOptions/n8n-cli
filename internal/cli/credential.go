@@ -43,6 +43,7 @@ func newCredentialCommand(opts Options) *cobra.Command {
 		newCredentialListCommand(opts),
 		newCredentialCreateCommand(opts),
 		newCredentialGetCommand(opts),
+		newCredentialDependenciesCommand(opts),
 		newCredentialUpdateCommand(opts),
 		newCredentialDeleteCommand(opts),
 		newCredentialTestCommand(opts),
@@ -615,7 +616,7 @@ func credentialScope(action string) scopeNeed {
 	switch action {
 	case "list":
 		return allOf("credential:list")
-	case "get", "test":
+	case "get", "test", dependencyAction:
 		return allOf("credential:read")
 	case "create":
 		return allOf("credential:create")

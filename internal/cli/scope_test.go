@@ -69,6 +69,7 @@ func TestScopeMappersMatchManifest(t *testing.T) {
 
 		{"n8n credential list", credentialScope("list")},
 		{"n8n credential get", credentialScope("get")},
+		{"n8n credential dependencies", credentialScope(dependencyAction)},
 		{"n8n credential test", credentialScope("test")},
 		{"n8n credential create", credentialScope("create")},
 		{"n8n credential update", credentialScope("update")},
@@ -77,6 +78,7 @@ func TestScopeMappersMatchManifest(t *testing.T) {
 
 		{"n8n data-table list", dataTableScope("list")},
 		{"n8n data-table get", dataTableScope("read")},
+		{"n8n data-table dependencies", dataTableScope(dependencyAction)},
 		{"n8n data-table create", dataTableScope("create")},
 		{"n8n data-table update", dataTableScope("update")},
 		{"n8n data-table delete", dataTableScope("delete")},
@@ -94,6 +96,7 @@ func TestScopeMappersMatchManifest(t *testing.T) {
 		{"n8n workflow list", workflowScope("list")},
 		{"n8n workflow get", workflowScope("read")},
 		{"n8n workflow get", workflowScope("get")},
+		{"n8n workflow dependencies", workflowScope(dependencyAction)},
 		{"n8n workflow create", workflowScope("create")},
 		{"n8n workflow update", workflowScope("update")},
 		{"n8n workflow delete", workflowScope("delete")},
