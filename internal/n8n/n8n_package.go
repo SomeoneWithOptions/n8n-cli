@@ -19,6 +19,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -300,6 +301,10 @@ const (
 	ImportCredentialMissingCreateStub       = "create-stub"
 	ImportCredentialMissingCreateWithValues = "create-with-values"
 
+	ImportCredentialConflictKeep      = "keep-existing"
+	ImportCredentialConflictOverwrite = "overwrite"
+	ImportCredentialConflictFail      = "fail"
+
 	ImportWorkflowConflictNewVersion = "new-version"
 	ImportWorkflowConflictFail       = "fail"
 	ImportWorkflowConflictSkip       = "skip"
@@ -360,6 +365,7 @@ const (
 var (
 	importCredentialMatchModes   = []string{ImportCredentialMatchIDOnly, ImportCredentialMatchNameAndType, ImportCredentialMatchTypeOnly}
 	importCredentialMissingModes = []string{ImportCredentialMissingMustPreexist, ImportCredentialMissingCreateStub, ImportCredentialMissingCreateWithValues}
+	importCredentialConflicts    = []string{ImportCredentialConflictKeep, ImportCredentialConflictOverwrite, ImportCredentialConflictFail}
 	importWorkflowConflicts      = []string{ImportWorkflowConflictNewVersion, ImportWorkflowConflictFail, ImportWorkflowConflictSkip}
 	importWorkflowIDPolicies     = []string{ImportWorkflowIDNew, ImportWorkflowIDSource}
 	importMissingNodeModes       = []string{ImportMissingNodeFail, ImportMissingNodeImportAnyway}
@@ -387,6 +393,7 @@ type ImportPackageRequest struct {
 	FolderID                 string `json:"-"`
 	CredentialMatchingMode   string `json:"-"`
 	CredentialMissingMode    string `json:"-"`
+	CredentialConflict       string `json:"-"` // credentialConflictPolicy; overwrite and fail need credential:update
 	Bindings                 string `json:"-"`
 	WorkflowConflictPolicy   string `json:"-"`
 	WorkflowIDPolicy         string `json:"-"`
@@ -427,6 +434,7 @@ func (r ImportPackageRequest) Validate() error {
 	}{
 		{r.CredentialMatchingMode, importCredentialMatchModes, "credential-matching mode"},
 		{r.CredentialMissingMode, importCredentialMissingModes, "credential-missing mode"},
+		{r.CredentialConflict, importCredentialConflicts, "credential-conflict policy"},
 		{r.MissingNodeTypeMode, importMissingNodeModes, "missing-node-type mode"},
 		{r.WorkflowPublishingPolicy, importPublishPolicies, "workflow-publishing policy"},
 		{r.ProjectConflictPolicy, importProjectConflicts, "project-conflict policy"},
@@ -472,6 +480,7 @@ func (r ImportPackageRequest) fields() map[string]string {
 	set("folderId", r.FolderID)
 	set("credentialMatchingMode", r.CredentialMatchingMode)
 	set("credentialMissingMode", r.CredentialMissingMode)
+	set("credentialConflictPolicy", r.CredentialConflict)
 	set("bindings", r.Bindings)
 	set("missingNodeTypeMode", r.MissingNodeTypeMode)
 	set("workflowPublishingPolicy", r.WorkflowPublishingPolicy)
@@ -726,15 +735,18 @@ type ImportBindings struct {
 
 // ImportCredentials groups source credential IDs by outcome: matched an
 // existing credential, created as an empty stub, created with all source data
-// (seeded), or created from bundled values the package does not confirm are
-// complete. Incomplete credentials need input and block publishing of the
-// workflows that use them (incomplete-credential). Target IDs are in
-// [ImportBindings.Credentials].
+// (seeded), created from bundled values the package does not confirm are
+// complete, or matched a credential the import changed under
+// credentialConflictPolicy overwrite (updated, not also listed as matched).
+// Incomplete credentials need input and block publishing of the workflows that
+// use them (incomplete-credential). Updated is absent before n8n 2.46 and
+// decodes as nil. Target IDs are in [ImportBindings.Credentials].
 type ImportCredentials struct {
 	Matched    []string `json:"matched"`
 	Stubbed    []string `json:"stubbed"`
 	Seeded     []string `json:"seeded"`
 	Incomplete []string `json:"incomplete"`
+	Updated    []string `json:"updated"`
 }
 
 // ImportDataTables counts matched, created, and schema-updated data tables.
@@ -762,23 +774,79 @@ type ImportTags struct {
 	Skipped    []string `json:"skipped"`
 }
 
-// ImportBlockingIssue is one reason a 409 or 422 rejected an import. Only the
-// discriminator is interpreted; the full document is preserved verbatim so new
-// issue kinds survive without a client change.
+// Import blocking issue types the client renders in detail. Every other type,
+// including ones a newer server adds, renders generically from Raw.
+const (
+	ImportIssueAgentConflict             = "agent-conflict"
+	ImportIssueAgentInvalid              = "agent-invalid"
+	ImportIssueAgentDependencyUnresolved = "agent-dependency-unresolved"
+	ImportIssueAgentPolicyViolation      = "agent-policy-violation"
+	ImportIssueWorkflowFolderConflict    = "workflow-folder-conflict"
+	ImportIssueCredentialPolicyViolation = "credential-policy-violation"
+)
+
+// ImportBlockingIssue is one reason a 409 or 422 rejected an import. The
+// discriminator and the fields of the variants rendered in detail are decoded;
+// a field a variant does not carry stays zero. The full document is preserved
+// verbatim in Raw so new issue kinds survive without a client change.
+//
+// TargetFolderID and ExistingParentFolderID are nil for the project root
+// (workflow-folder-conflict). TargetID on credential-policy-violation is set
+// only when the policy refused an update of a matched credential.
 type ImportBlockingIssue struct {
-	Type string          `json:"type"`
-	Raw  json.RawMessage `json:"-"`
+	Type                   string                 `json:"type"`
+	Kind                   string                 `json:"kind,omitempty"`
+	Name                   string                 `json:"name,omitempty"`
+	Message                string                 `json:"message,omitempty"`
+	Path                   string                 `json:"path,omitempty"`
+	ProjectID              string                 `json:"projectId,omitempty"`
+	SourceAgentID          string                 `json:"sourceAgentId,omitempty"`
+	SourceTaskID           string                 `json:"sourceTaskId,omitempty"`
+	TargetIDs              []string               `json:"targetIds,omitempty"`
+	DependencyType         string                 `json:"dependencyType,omitempty"`
+	ReferenceID            string                 `json:"referenceId,omitempty"`
+	Reason                 string                 `json:"reason,omitempty"`
+	SourceWorkflowID       string                 `json:"sourceWorkflowId,omitempty"`
+	ExistingWorkflowID     string                 `json:"existingWorkflowId,omitempty"`
+	ExistingParentFolderID *string                `json:"existingParentFolderId,omitempty"`
+	TargetFolderID         *string                `json:"targetFolderId,omitempty"`
+	SourceID               string                 `json:"sourceId,omitempty"`
+	TargetID               string                 `json:"targetId,omitempty"`
+	CredentialType         string                 `json:"credentialType,omitempty"`
+	Violations             []ImportIssueViolation `json:"violations,omitempty"`
+	Raw                    json.RawMessage        `json:"-"`
 }
 
-// UnmarshalJSON keeps the discriminator and the verbatim document.
+// ImportIssueViolation is one policy check that refused an agent, workflow, or
+// credential in a *-policy-violation issue.
+type ImportIssueViolation struct {
+	Kind           string `json:"kind"`
+	CheckID        string `json:"checkId"`
+	Message        string `json:"message"`
+	Subject        string `json:"subject,omitempty"`
+	SubjectType    string `json:"subjectType,omitempty"`
+	Scope          string `json:"scope,omitempty"`
+	MatchedRuleID  string `json:"matchedRuleId,omitempty"`
+	ProjectID      string `json:"projectId,omitempty"`
+	OptInAvailable bool   `json:"optInAvailable,omitempty"`
+}
+
+// UnmarshalJSON decodes the named fields and keeps the verbatim document. A
+// field whose shape differs from the named one (a variant this client does not
+// know reusing a name) is left zero rather than failing the whole error.
 func (issue *ImportBlockingIssue) UnmarshalJSON(data []byte) error {
-	var typed struct {
-		Type string `json:"type"`
+	type plain ImportBlockingIssue
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		var typed struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(data, &typed); err != nil {
+			return err
+		}
+		decoded = plain{Type: typed.Type}
 	}
-	if err := json.Unmarshal(data, &typed); err != nil {
-		return err
-	}
-	issue.Type = typed.Type
+	*issue = ImportBlockingIssue(decoded)
 	issue.Raw = append([]byte(nil), data...)
 	return nil
 }
@@ -788,9 +856,139 @@ func (issue ImportBlockingIssue) MarshalJSON() ([]byte, error) {
 	if len(issue.Raw) > 0 {
 		return issue.Raw, nil
 	}
-	return json.Marshal(struct {
-		Type string `json:"type"`
-	}{Type: issue.Type})
+	type plain ImportBlockingIssue
+	return json.Marshal(plain(issue))
+}
+
+// Describe renders the issue as one human-readable line starting with its
+// type. Agent issues, workflow-folder-conflict, and
+// credential-policy-violation get a sentence; every other type lists its
+// scalar fields from Raw as key=value pairs, so unknown types still read.
+func (issue ImportBlockingIssue) Describe() string {
+	typ := emptyImportIssueType(issue.Type)
+	switch issue.Type {
+	case ImportIssueAgentConflict:
+		line := fmt.Sprintf("%s (%s): agent %s", typ, dashIfEmpty(issue.Kind), quoteOrDash(issue.SourceAgentID))
+		if issue.SourceTaskID != "" {
+			line += fmt.Sprintf(" task %q", issue.SourceTaskID)
+		}
+		return line + fmt.Sprintf(" in project %s matches existing agent(s) %s",
+			quoteOrDash(issue.ProjectID), joinOrDash(issue.TargetIDs))
+	case ImportIssueAgentInvalid:
+		return fmt.Sprintf("%s: agent %s at %s: %s", typ, quoteOrDash(issue.SourceAgentID), dashIfEmpty(issue.Path), dashIfEmpty(issue.Message))
+	case ImportIssueAgentDependencyUnresolved:
+		return fmt.Sprintf("%s: agent %s in project %s: %s %s at %s is %s", typ,
+			quoteOrDash(issue.SourceAgentID), quoteOrDash(issue.ProjectID), dashIfEmpty(issue.DependencyType),
+			quoteOrDash(issue.ReferenceID), dashIfEmpty(issue.Path), dashIfEmpty(issue.Reason))
+	case ImportIssueAgentPolicyViolation:
+		return fmt.Sprintf("%s: agent %s (%s) refused: %s", typ, quoteOrDash(issue.Name), dashIfEmpty(issue.SourceAgentID), describeViolations(issue.Violations))
+	case ImportIssueWorkflowFolderConflict:
+		return fmt.Sprintf("%s: workflow %s (%s) matches existing workflow %s in %s, but the import targets %s", typ,
+			quoteOrDash(issue.Name), dashIfEmpty(issue.SourceWorkflowID), quoteOrDash(issue.ExistingWorkflowID),
+			folderOrRoot(issue.ExistingParentFolderID), folderOrRoot(issue.TargetFolderID))
+	case ImportIssueCredentialPolicyViolation:
+		line := fmt.Sprintf("%s: credential %s (%s, type %s", typ, quoteOrDash(issue.Name), dashIfEmpty(issue.SourceID), dashIfEmpty(issue.CredentialType))
+		if issue.TargetID != "" {
+			line += fmt.Sprintf(", update of target %q", issue.TargetID)
+		}
+		return line + ") refused: " + describeViolations(issue.Violations)
+	}
+	return typ + describeScalarFields(issue.Raw)
+}
+
+func describeViolations(violations []ImportIssueViolation) string {
+	if len(violations) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(violations))
+	for _, violation := range violations {
+		part := dashIfEmpty(violation.CheckID) + ": " + dashIfEmpty(violation.Message)
+		if violation.OptInAvailable {
+			part += " (opt-in available)"
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// describeScalarFields renders the string, number, and boolean fields of an
+// issue document, plus arrays of those, as sorted key=value pairs. Nulls,
+// nested objects, and arrays of objects are left out.
+func describeScalarFields(raw json.RawMessage) string {
+	var fields map[string]any
+	if len(raw) == 0 || json.Unmarshal(raw, &fields) != nil {
+		return ""
+	}
+	parts := []string{}
+	for _, key := range slices.Sorted(maps.Keys(fields)) {
+		if key == "type" {
+			continue
+		}
+		if value, ok := scalarText(fields[key]); ok {
+			parts = append(parts, key+"="+value)
+			continue
+		}
+		list, ok := fields[key].([]any)
+		if !ok || len(list) == 0 {
+			continue
+		}
+		items := make([]string, 0, len(list))
+		for _, item := range list {
+			text, ok := scalarText(item)
+			if !ok {
+				items = nil
+				break
+			}
+			items = append(items, text)
+		}
+		if items != nil {
+			parts = append(parts, key+"="+strings.Join(items, ","))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return ": " + strings.Join(parts, " ")
+}
+
+func scalarText(value any) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		return strconv.Quote(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	}
+	return "", false
+}
+
+func folderOrRoot(id *string) string {
+	if id == nil || *id == "" {
+		return "the project root"
+	}
+	return fmt.Sprintf("folder %q", *id)
+}
+
+func quoteOrDash(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return strconv.Quote(value)
+}
+
+func dashIfEmpty(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return value
+}
+
+func joinOrDash(values []string) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	return strings.Join(values, ", ")
 }
 
 // ImportBlockedError is a 409 (conflict) or 422 (unprocessable) import
