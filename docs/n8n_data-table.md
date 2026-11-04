@@ -42,6 +42,7 @@ n8n data-table [flags]
 * [n8n data-table column](n8n_data-table_column.md)	 - Manage the columns of a data table
 * [n8n data-table create](n8n_data-table_create.md)	 - Create a data table
 * [n8n data-table delete](n8n_data-table_delete.md)	 - Permanently delete a data table and every row in it
+* [n8n data-table dependencies](n8n_data-table_dependencies.md)	 - List the workflows that use a data table
 * [n8n data-table get](n8n_data-table_get.md)	 - Show one data table and its columns
 * [n8n data-table list](n8n_data-table_list.md)	 - List data tables
 * [n8n data-table row](n8n_data-table_row.md)	 - Read and change the rows of a data table

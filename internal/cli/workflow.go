@@ -67,6 +67,7 @@ func newWorkflowCommand(opts Options) *cobra.Command {
 		newWorkflowUnpublishCommand(opts),
 		newWorkflowTransferCommand(opts),
 		newWorkflowHistoryCommand(opts),
+		newWorkflowDependenciesCommand(opts),
 		newWorkflowVersionCommand(opts),
 		newWorkflowTagCommand(opts),
 		newWorkflowActivateCommand(opts),
@@ -1449,7 +1450,7 @@ func workflowScope(action string) scopeNeed {
 	switch action {
 	case "list":
 		return allOf("workflow:list")
-	case "read", "get":
+	case "read", "get", dependencyAction:
 		return allOf("workflow:read")
 	case "create":
 		return allOf("workflow:create")

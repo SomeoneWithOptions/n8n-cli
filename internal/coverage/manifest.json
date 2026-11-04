@@ -2035,8 +2035,8 @@
       "scope": "workflow:read",
       "availability": "upstream-only",
       "phase": 34,
-      "command": "",
-      "status": "planned"
+      "command": "n8n workflow dependencies",
+      "status": "implemented"
     },
     {
       "operationId": "getCredentialDependencies",
@@ -2046,8 +2046,8 @@
       "scope": "credential:read",
       "availability": "upstream-only",
       "phase": 34,
-      "command": "",
-      "status": "planned"
+      "command": "n8n credential dependencies",
+      "status": "implemented"
     },
     {
       "operationId": "getDataTableDependencies",
@@ -2057,8 +2057,8 @@
       "scope": "dataTable:read",
       "availability": "upstream-only",
       "phase": 34,
-      "command": "",
-      "status": "planned"
+      "command": "n8n data-table dependencies",
+      "status": "implemented"
     },
     {
       "operationId": "getPromotionEnvironments",

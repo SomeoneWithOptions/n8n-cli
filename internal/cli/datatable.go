@@ -53,6 +53,7 @@ func newDataTableCommand(opts Options) *cobra.Command {
 		newDataTableListCommand(opts),
 		newDataTableCreateCommand(opts),
 		newDataTableGetCommand(opts),
+		newDataTableDependenciesCommand(opts),
 		newDataTableUpdateCommand(opts),
 		newDataTableDeleteCommand(opts),
 		newDataTableRowCommand(opts),
@@ -1561,7 +1562,7 @@ func dataTableScope(action string) scopeNeed {
 	switch action {
 	case "list":
 		return allOf("dataTable:list")
-	case "read":
+	case "read", dependencyAction:
 		return allOf("dataTable:read")
 	case "create":
 		return allOf("dataTable:create")

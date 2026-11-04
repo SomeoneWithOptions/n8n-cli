@@ -924,3 +924,12 @@ func isBareWord(trimmed string) bool {
 	}
 	return trimmed != "true" && trimmed != "false" && trimmed != "null"
 }
+
+// DataTableDependencies returns one page of the workflows that use the data
+// table.
+func (c *Client) DataTableDependencies(ctx context.Context, id string, opts ListOptions) (DependencyPage, error) {
+	if err := validateDataTableID(id); err != nil {
+		return DependencyPage{}, err
+	}
+	return c.listDependencies(ctx, PathJoin("data-tables", id, "dependencies"), opts)
+}

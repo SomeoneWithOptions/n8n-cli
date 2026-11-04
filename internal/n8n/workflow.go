@@ -776,3 +776,13 @@ func validateWorkflowText(field, value string, required bool) error {
 	}
 	return nil
 }
+
+// WorkflowDependencies returns one page of what the workflow uses (credentials,
+// data tables, sub-workflows, its error workflow) and what uses it (parent
+// workflows, workflows that use it as error workflow, agents).
+func (c *Client) WorkflowDependencies(ctx context.Context, id string, opts ListOptions) (DependencyPage, error) {
+	if err := validateWorkflowID(id); err != nil {
+		return DependencyPage{}, err
+	}
+	return c.listDependencies(ctx, PathJoin("workflows", id, "dependencies"), opts)
+}
