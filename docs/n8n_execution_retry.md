@@ -9,8 +9,10 @@ workflow definition stored with the original execution, making the retry
 reproducible. --latest-workflow instead loads the workflow currently saved on
 the instance.
 
-The original execution is retained and the response identifies the new run. A
-run that cannot be retried returns a conflict. This starts workflow work and may
+The original execution is retained and the response identifies the new run. Its
+run data, workflowData and customData are absent when the caller cannot read the
+workflow's executions; the retry still starts. A run that cannot be retried
+returns a conflict. This starts workflow work and may
 repeat its external side effects. Requires execution:retry.
 
 --idempotency-key KEY makes a retry after a timeout or lost response safe:

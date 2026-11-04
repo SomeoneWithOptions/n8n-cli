@@ -17,7 +17,9 @@ const ExecutionsPath = "/executions"
 
 // Execution is one workflow run. Data, WorkflowData and CustomData stay raw:
 // their shape depends on the workflow and can be large. They are absent unless
-// detailed data was requested (except for retry, whose response includes them).
+// detailed data was requested. Retry includes them without asking, except when
+// the caller cannot read the workflow's executions (n8n 2.46+): then they and
+// Annotation are absent.
 type Execution struct {
 	ID                     string               `json:"id"`
 	Finished               bool                 `json:"finished"`

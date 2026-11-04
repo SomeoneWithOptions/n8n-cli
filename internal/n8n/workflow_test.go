@@ -306,6 +306,64 @@ func TestWorkflowDocumentForWriteNormalizesReadShapes(t *testing.T) {
 	}
 }
 
+// n8n 2.46 added settings.engineType (server-owned, ignored on write) and
+// settings.redactCallerExecutions (writable), and stopped returning node
+// timestamps.
+func TestWorkflowSettingsFromN8n246(t *testing.T) {
+	const read = `{"id":"wf-1","name":"x","active":false,"isArchived":false,` +
+		`"nodes":[{"id":"n-1","name":"Webhook"}],"connections":{},` +
+		`"settings":{"executionOrder":"v1","engineType":"v1","redactCallerExecutions":false}}`
+	var workflow Workflow
+	if err := json.Unmarshal([]byte(read), &workflow); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	encoded, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &out); err != nil {
+		t.Fatalf("decode re-encoded: %v", err)
+	}
+	assertJSONEqual(t, `{"executionOrder":"v1","engineType":"v1","redactCallerExecutions":false}`, string(out["settings"]))
+	assertJSONEqual(t, `[{"id":"n-1","name":"Webhook"}]`, string(out["nodes"]))
+
+	doc, err := workflow.Document()
+	if err != nil {
+		t.Fatalf("Document: %v", err)
+	}
+	for name, forWrite := range map[string]func() (WorkflowDocument, []string){
+		"create": doc.ForCreate,
+		"update": doc.ForUpdate,
+	} {
+		t.Run(name, func(t *testing.T) {
+			kept, dropped := forWrite()
+			if slices.Contains(dropped, "nodes[].createdAt") || slices.Contains(dropped, "nodes[].updatedAt") {
+				t.Errorf("dropped = %v, want no node timestamps when the instance sent none", dropped)
+			}
+			if !slices.Contains(dropped, "settings.engineType") {
+				t.Errorf("dropped = %v, want settings.engineType reported", dropped)
+			}
+			assertJSONEqual(t, `{"executionOrder":"v1","redactCallerExecutions":false}`, string(kept["settings"]))
+			assertJSONEqual(t, `[{"id":"n-1","name":"Webhook"}]`, string(kept["nodes"]))
+		})
+	}
+}
+
+func TestWorkflowDocumentEngineTypeAnyValue(t *testing.T) {
+	for name, value := range map[string]string{"string": `"v2"`, "null": `null`} {
+		t.Run(name, func(t *testing.T) {
+			doc := writeDocument()
+			doc["settings"] = json.RawMessage(`{"engineType":` + value + `,"redactCallerExecutions":true}`)
+			kept, dropped := doc.ForUpdate()
+			if !slices.Equal(dropped, []string{"settings.engineType"}) {
+				t.Errorf("dropped = %v, want [settings.engineType]", dropped)
+			}
+			assertJSONEqual(t, `{"redactCallerExecutions":true}`, string(kept["settings"]))
+		})
+	}
+}
+
 func TestWorkflowParentFolderID(t *testing.T) {
 	for name, tt := range map[string]struct {
 		body   string

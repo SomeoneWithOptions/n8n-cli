@@ -139,6 +139,9 @@ func newCommunityPackageInstallCommand(opts Options) *cobra.Command {
 			"such as latest or beta; omit it to let npm select the version. Whether\n" +
 			"unverified packages may be installed is an instance setting: when it is off,\n" +
 			"only versions verified by n8n install. Installed package code runs inside n8n.\n\n" +
+			"A node type policy does not stop the install. When the instance evaluates its\n" +
+			"policies, the output lists each blocked node type of the package, or \"none\";\n" +
+			"JSON output carries them as policyRestrictions.\n\n" +
 			"Interactive runs ask before installing. Non-interactive runs fail unless --yes\n" +
 			"is passed. Requires API-key authentication and communityPackage:install.\n" +
 			"Next step: 'n8n community-package list'.",
@@ -332,7 +335,43 @@ func writeCommunityPackageText(opts Options, resolution config.Resolution, actio
 	if pkg.FailedLoading {
 		fmt.Fprintln(tw, "Status:\tfailed to load")
 	}
-	return tw.Flush()
+	if restrictions := pkg.PolicyRestrictions; restrictions != nil {
+		if len(restrictions.NodeTypes) == 0 {
+			fmt.Fprintln(tw, "Blocked node types:\tnone")
+		}
+		for _, blocked := range restrictions.NodeTypes {
+			fmt.Fprintf(tw, "Blocked node type:\t%s (%s)\n", blocked.Type, describeBlockedNodeType(blocked))
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	if pkg.PolicyRestrictions != nil && len(pkg.PolicyRestrictions.NodeTypes) > 0 {
+		count := fmt.Sprintf("%d node types", len(pkg.PolicyRestrictions.NodeTypes))
+		if len(pkg.PolicyRestrictions.NodeTypes) == 1 {
+			count = "1 node type"
+		}
+		fmt.Fprintf(opts.Streams.Err, "Node type policies block %s of %s; the package is still %s. Review the policies with 'n8n node-policy instance get' or 'n8n node-policy project get PROJECT_ID'.\n", count, pkg.PackageName, strings.ToLower(action))
+	}
+	return nil
+}
+
+// describeBlockedNodeType says where a policy blocks a node type and whether a
+// project can still allow it.
+func describeBlockedNodeType(blocked n8n.CommunityPackageBlockedNodeType) string {
+	var where string
+	switch blocked.BlockedOn {
+	case n8n.BlockedOnInstance:
+		where = "blocked on the instance"
+	case n8n.BlockedOnProjects:
+		where = "blocked in one or more projects"
+	default:
+		where = "blocked on " + emptyDash(blocked.BlockedOn)
+	}
+	if blocked.OptInAvailable {
+		where += "; a project can allow it"
+	}
+	return where
 }
 
 func validateCommunityPackageArgument(name string) error {

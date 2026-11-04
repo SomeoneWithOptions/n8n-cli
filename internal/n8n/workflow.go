@@ -43,7 +43,16 @@ var (
 	nullableWorkflowFields = []string{"staticData", "pinData", "parentFolderId"}
 	// readOnlyNodeFields are server-owned timestamps a node may carry on
 	// read; the write schema marks them read-only.
+	//
+	// n8n 2.46 stopped returning them, but the write schema still lists them
+	// and older instances still send them, so they are still stripped.
 	readOnlyNodeFields = []string{"createdAt", "updatedAt"}
+	// ignoredWorkflowSettings are server-owned settings: n8n 2.46+ returns
+	// engineType for reference and ignores any value written, while older
+	// instances reject it as an unknown setting (settings allow no extra keys).
+	// Dropping it keeps a 2.46 read writable everywhere, e.g. 'workflow copy'
+	// onto an older instance. redactCallerExecutions is writable and is kept.
+	ignoredWorkflowSettings = []string{"engineType"}
 )
 
 // workflowSettingDefault is the read-side value that means "use the instance
@@ -88,8 +97,9 @@ func (d WorkflowDocument) Set(field string, value any) error {
 // names: silently discarding part of a user's document would be worse than the
 // 400 it prevents.
 //
-// Within the kept fields, settings whose value is "DEFAULT" (reported as
-// settings.NAME) and node timestamps (reported as nodes[].createdAt and
+// Within the kept fields, settings whose value is "DEFAULT" and the
+// server-owned settings.engineType (reported as settings.NAME) and node
+// timestamps (reported as nodes[].createdAt and
 // nodes[].updatedAt) are removed too, and a null settings becomes {}: reads
 // may carry all three, writes reject them.
 func (d WorkflowDocument) ForCreate() (WorkflowDocument, []string) {
@@ -116,7 +126,7 @@ func (d WorkflowDocument) forWrite(allowed []string) (WorkflowDocument, []string
 		case isJSONNull(raw) && !slices.Contains(nullableWorkflowFields, field):
 			dropped = append(dropped, field)
 		case field == "settings":
-			settings, removed := withoutDefaultSettings(raw)
+			settings, removed := withoutReadOnlySettings(raw)
 			kept[field] = settings
 			dropped = append(dropped, removed...)
 		case field == "nodes":
@@ -131,11 +141,12 @@ func (d WorkflowDocument) forWrite(allowed []string) (WorkflowDocument, []string
 	return kept, dropped
 }
 
-// withoutDefaultSettings removes settings whose value is the read-only
-// "DEFAULT" marker and returns the removed names as settings.NAME. Settings
-// that are not an object are returned unchanged for the server to judge; so
-// are settings with nothing to remove, byte for byte.
-func withoutDefaultSettings(raw json.RawMessage) (json.RawMessage, []string) {
+// withoutReadOnlySettings removes settings whose value is the read-only
+// "DEFAULT" marker, and the server-owned [ignoredWorkflowSettings] whatever
+// their value, and returns the removed names as settings.NAME. Settings that
+// are not an object are returned unchanged for the server to judge; so are
+// settings with nothing to remove, byte for byte.
+func withoutReadOnlySettings(raw json.RawMessage) (json.RawMessage, []string) {
 	var settings map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &settings); err != nil {
 		return raw, nil
@@ -143,7 +154,8 @@ func withoutDefaultSettings(raw json.RawMessage) (json.RawMessage, []string) {
 	var removed []string
 	for name, value := range settings {
 		var text string
-		if json.Unmarshal(value, &text) == nil && text == workflowSettingDefault {
+		if slices.Contains(ignoredWorkflowSettings, name) ||
+			(json.Unmarshal(value, &text) == nil && text == workflowSettingDefault) {
 			delete(settings, name)
 			removed = append(removed, "settings."+name)
 		}

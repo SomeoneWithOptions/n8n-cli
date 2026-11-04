@@ -633,8 +633,10 @@ func newExecutionRetryCommand(opts Options) *cobra.Command {
 			"workflow definition stored with the original execution, making the retry\n" +
 			"reproducible. --latest-workflow instead loads the workflow currently saved on\n" +
 			"the instance.\n\n" +
-			"The original execution is retained and the response identifies the new run. A\n" +
-			"run that cannot be retried returns a conflict. This starts workflow work and may\n" +
+			"The original execution is retained and the response identifies the new run. Its\n" +
+			"run data, workflowData and customData are absent when the caller cannot read the\n" +
+			"workflow's executions; the retry still starts. A run that cannot be retried\n" +
+			"returns a conflict. This starts workflow work and may\n" +
 			"repeat its external side effects. Requires execution:retry.\n\n" +
 			idempotencyHelp,
 		Example: "  n8n execution retry EXECUTION_ID\n" +
@@ -679,7 +681,13 @@ func runExecutionRetry(ctx context.Context, opts Options, id string, f execution
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, execution)
 	}
-	return writeExecutionDetail(opts, resolution, "New execution", execution)
+	if err := writeExecutionDetail(opts, resolution, "New execution", execution); err != nil {
+		return err
+	}
+	if len(execution.Data) == 0 {
+		fmt.Fprintf(opts.Streams.Err, "The retry started, but %s returned no run data: the caller cannot read this workflow's executions. Follow it with 'n8n execution get %s' from a user who can.\n", resolution.URL, emptyDash(execution.ID))
+	}
+	return nil
 }
 
 func newExecutionTagCommand(opts Options) *cobra.Command {

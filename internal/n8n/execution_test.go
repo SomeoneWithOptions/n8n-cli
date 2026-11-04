@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -195,6 +196,34 @@ func TestExecutionRequests(t *testing.T) {
 				assertJSONEqual(t, tt.body, body)
 			}
 		})
+	}
+}
+
+// retryWithoutDataResponse is a 2.46+ retry answered to a caller that cannot
+// read the workflow's executions: data, workflowData, customData and
+// annotation are left out.
+const retryWithoutDataResponse = `{"id":"1001","mode":"retry","startedAt":"2026-09-17T10:00:01Z","workflowId":"wf-1","finished":false,"retryOf":"1000","status":"running","storedAt":"db"}`
+
+func TestRetryExecutionWithoutRunData(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, retryWithoutDataResponse))
+	execution, err := server.client(t).RetryExecution(context.Background(), "1000", RetryExecutionOptions{})
+	if err != nil {
+		t.Fatalf("RetryExecution: %v", err)
+	}
+	if execution.ID != "1001" || execution.RetryOf == nil || *execution.RetryOf != "1000" || execution.Status != "running" {
+		t.Errorf("execution = %+v, want the new run", execution)
+	}
+	if execution.Data != nil || execution.WorkflowData != nil || execution.CustomData != nil || execution.Annotation != nil {
+		t.Errorf("execution = %+v, want data, workflowData, customData and annotation absent", execution)
+	}
+	encoded, err := json.Marshal(execution)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	for _, field := range []string{`"data"`, `"workflowData"`, `"customData"`, `"annotation"`} {
+		if strings.Contains(string(encoded), field) {
+			t.Errorf("encoded execution = %s, want no %s", encoded, field)
+		}
 	}
 }
 

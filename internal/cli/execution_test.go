@@ -303,6 +303,65 @@ func TestExecutionStopAndRetry(t *testing.T) {
 			t.Errorf("stdout = %q (error: %v)", got.stdout, err)
 		}
 	})
+
+	t.Run("retry text with run data", func(t *testing.T) {
+		f := executionFixture(t, cliExecution)
+		got := f.run("execution", "retry", "1000")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		if !strings.Contains(got.stdout, "Data included:   true") {
+			t.Errorf("stdout = %q, want data included", got.stdout)
+		}
+		if got.stderr != "" {
+			t.Errorf("stderr = %q, want empty", got.stderr)
+		}
+	})
+
+	// n8n 2.46+ leaves data, workflowData and customData out when the caller
+	// cannot read the workflow's executions.
+	const withoutData = `{"id":"1001","mode":"retry","startedAt":"2026-09-17T10:00:01Z","workflowId":"wf-1","finished":false,"retryOf":"1000","status":"running","storedAt":"db"}`
+
+	t.Run("retry text without run data", func(t *testing.T) {
+		f := executionFixture(t, withoutData)
+		got := f.run("execution", "retry", "1000")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		for _, want := range []string{"New execution:", "1001", "Retry of:", "1000", "running", "Data included:   false"} {
+			if !strings.Contains(got.stdout, want) {
+				t.Errorf("stdout missing %q\n%s", want, got.stdout)
+			}
+		}
+		for _, want := range []string{"no run data", "cannot read this workflow's executions", "n8n execution get 1001"} {
+			if !strings.Contains(got.stderr, want) {
+				t.Errorf("stderr missing %q\n%s", want, got.stderr)
+			}
+		}
+	})
+
+	t.Run("retry json without run data", func(t *testing.T) {
+		f := executionFixture(t, withoutData)
+		got := f.run("execution", "retry", "1000", "--output", "json")
+		if got.code != ExitSuccess {
+			t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+		}
+		if got.stderr != "" {
+			t.Errorf("stderr = %q, want JSON output to stay quiet", got.stderr)
+		}
+		var out map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(got.stdout), &out); err != nil {
+			t.Fatalf("stdout is not JSON: %v\n%s", err, got.stdout)
+		}
+		if string(out["id"]) != `"1001"` {
+			t.Errorf("id = %s, want \"1001\"", out["id"])
+		}
+		for _, field := range []string{"data", "workflowData", "customData", "annotation"} {
+			if _, ok := out[field]; ok {
+				t.Errorf("stdout carries %s = %s, want it absent", field, out[field])
+			}
+		}
+	})
 }
 
 func TestExecutionTags(t *testing.T) {

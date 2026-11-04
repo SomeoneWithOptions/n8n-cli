@@ -220,8 +220,9 @@ func newCredentialCreateCommand(opts Options) *cobra.Command {
 			"data; optional fields are projectId, isResolvable, description (plain text, at\n" +
 			"most 512 characters; ignored when the instance has descriptions disabled) and\n" +
 			"id (1 to 16 letters, digits, underscores or hyphens, kept exactly; omit it to\n" +
-			"have one generated). Because data contains secrets, JSON is accepted only\n" +
-			"through --file or piped --stdin, never argv.\n\n" +
+			"have one generated). data fields also accept n8n expressions: strings that\n" +
+			"start with \"=\". Because data contains secrets, JSON is accepted only through\n" +
+			"--file or piped --stdin, never argv.\n\n" +
 			"The request body is excluded from debug logs. Output contains metadata only.\n" +
 			"Requires credential:create; project creation can have additional role restrictions.",
 		Example: "  n8n credential create --file credential.json\n" +
@@ -265,7 +266,8 @@ func newCredentialUpdateCommand(opts Options) *cobra.Command {
 		Long: "Update an owned credential from one JSON document. Accepted fields are name,\n" +
 			"description, type, data, isGlobal, isResolvable and isPartialData. Set\n" +
 			"isPartialData=true to merge provided data with stored data; false replaces the\n" +
-			"full data object. Changing type requires data. description is at most 512\n" +
+			"full data object. Changing type requires data. data fields also accept n8n\n" +
+			"expressions: strings that start with \"=\". description is at most 512\n" +
 			"characters; null or \"\" clears it and omitting it keeps it. Managed credentials\n" +
 			"cannot be edited.\n\n" +
 			"Secret JSON is accepted only through --file or piped --stdin and is excluded from\n" +
