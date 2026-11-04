@@ -365,6 +365,7 @@ type packageImportFlags struct {
 	folderID           string
 	credentialMatching string
 	credentialMissing  string
+	credentialConflict string
 	bindings           string
 	workflowConflict   string
 	workflowIDPolicy   string
@@ -404,13 +405,16 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 			"workflows the package does not contain (archive is recoverable,\n" +
 			"hard-delete also drops executions permanently, so prefer archive),\n" +
 			"missing credentials become empty stubs unless --credential-missing-mode\n" +
-			"is must-preexist or create-with-values, --data-table-schema-policy\n" +
+			"is must-preexist or create-with-values, --credential-conflict-policy\n" +
+			"overwrite writes the package's credential name and expression values\n" +
+			"to matched credentials, --data-table-schema-policy\n" +
 			"overwrite permanently drops the values in removed or retyped columns,\n" +
 			"and folders, tags, variables, or tables may be created or overwritten.\n" +
 			"Interactive runs ask for confirmation and non-interactive runs require\n" +
 			"--yes; --file - also requires --yes because stdin cannot answer.\n" +
 			"Credentials created from incomplete package data are reported on\n" +
-			"stderr and keep their workflows unpublished until completed. Needs\n" +
+			"stderr and keep their workflows unpublished until completed. When the\n" +
+			"import is blocked (409 or 422), each issue is listed on stderr. Needs\n" +
 			"workflow:import plus, depending on the package and the policies,\n" +
 			"credential, variable, tag, data-table, folder, and delete scopes, and\n" +
 			"the Packages, Variables, and Folders features where the contents\n" +
@@ -431,6 +435,7 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.folderID, "folder-id", "", "folder within the target project, from 'n8n folder list PROJECT_ID' (default: the project root)")
 	cmd.Flags().StringVar(&f.credentialMatching, "credential-matching-mode", "", "how package credential references match: id-only, name-and-type, or type-only (default: server default id-only)")
 	cmd.Flags().StringVar(&f.credentialMissing, "credential-missing-mode", "", "unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders, create-with-values seeds them from the package's expression values (needs credential:create; unconfirmed data lands in credentials.incomplete and blocks publishing) (default: server default create-stub)")
+	cmd.Flags().StringVar(&f.credentialConflict, "credential-conflict-policy", "", "matched credential whose package values differ: keep-existing never changes it, overwrite writes the package name and expression values to credentials a project of the import owns (keeps secrets, other fields, and OAuth connections; reported in credentials.updated), fail rejects the import with a 409 credential-conflict; overwrite and fail need credential:update on matched credentials (default: server default keep-existing)")
 	cmd.Flags().StringVar(&f.bindings, "bindings", "", "explicit credential bindings as JSON, e.g. '{\"credentials\":{\"pkg-id\":\"target-id\"}}' (default: server default {})")
 	cmd.Flags().StringVar(&f.workflowConflict, "workflow-conflict-policy", "", "matching workflow handling, required: new-version, fail, or skip")
 	cmd.Flags().StringVar(&f.workflowIDPolicy, "workflow-id-policy", n8n.ImportWorkflowIDSource, "ID for newly created workflows, always sent: source reuses the package ID for promotions, new mints a fresh ID for repeat imports (default: source)")
@@ -468,6 +473,7 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 		FolderID:                 strings.TrimSpace(f.folderID),
 		CredentialMatchingMode:   strings.TrimSpace(f.credentialMatching),
 		CredentialMissingMode:    strings.TrimSpace(f.credentialMissing),
+		CredentialConflict:       strings.TrimSpace(f.credentialConflict),
 		Bindings:                 strings.TrimSpace(f.bindings),
 		WorkflowConflictPolicy:   strings.TrimSpace(f.workflowConflict),
 		WorkflowIDPolicy:         strings.TrimSpace(f.workflowIDPolicy),
@@ -508,6 +514,7 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 		if refused := f.idempotency.refusal(err, resolution); refused != nil {
 			return refused
 		}
+		writeImportIssues(opts.Streams.Err, err)
 		return packageAPIError(err, resolution, "import", allOf("workflow:import"))
 	}
 	if f.output == outputJSON {
@@ -559,6 +566,9 @@ func packageImportQuestion(f packageImportFlags, resolution config.Resolution) s
 	default:
 		question += " " + credentials + ", and folders, tags, variables, or tables may be created or overwritten."
 	}
+	if strings.TrimSpace(f.credentialConflict) == n8n.ImportCredentialConflictOverwrite {
+		question += " Credential overwrite writes the package's names and expression values to matched credentials that differ."
+	}
 	if strings.TrimSpace(f.dataTableSchema) == n8n.ImportDataTableSchemaOverwrite {
 		question += " Data-table schema overwrite reshapes matched tables to the package and permanently deletes the values in removed or retyped columns, for every workflow using those tables."
 	}
@@ -602,8 +612,8 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	fmt.Fprintf(tw, "Imported:\t%d workflows (%d created, %d updated, %d skipped)\n", len(result.Workflows), created, updated, skipped)
 	fmt.Fprintf(tw, "Removed:\t%d workflows, %d folders\n", len(result.RemovedWorkflows), len(result.RemovedFolders))
 	fmt.Fprintf(tw, "Shells:\t%d folders, %d projects\n", len(result.Folders), len(result.Projects))
-	fmt.Fprintf(tw, "Credentials:\t%d matched, %d stubbed, %d seeded, %d incomplete\n",
-		len(result.Credentials.Matched), len(result.Credentials.Stubbed), len(result.Credentials.Seeded), len(result.Credentials.Incomplete))
+	fmt.Fprintf(tw, "Credentials:\t%d matched, %d updated, %d stubbed, %d seeded, %d incomplete\n",
+		len(result.Credentials.Matched), len(result.Credentials.Updated), len(result.Credentials.Stubbed), len(result.Credentials.Seeded), len(result.Credentials.Incomplete))
 	fmt.Fprintf(tw, "Data tables:\t%d matched, %d created, %d updated\n", result.DataTables.Matched, result.DataTables.Created, result.DataTables.Updated)
 	fmt.Fprintf(tw, "Variables:\t%d matched, %d created, %d stubbed, %d updated, %d missing\n",
 		len(result.Variables.Matched), len(result.Variables.Created), len(result.Variables.Stubbed), len(result.Variables.Updated), len(result.Variables.Missing))
@@ -623,7 +633,11 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	}
 	if len(result.Credentials.Incomplete) > 0 {
 		fmt.Fprintf(opts.Streams.Err, "%d credential(s) created from package data that may be incomplete (%s): workflows using them stay unpublished until you complete each with 'n8n credential update <credential-id>'; see credentials.incomplete in --output json.\n",
-			len(result.Credentials.Incomplete), strings.Join(importedCredentialIDs(result), ", "))
+			len(result.Credentials.Incomplete), strings.Join(targetCredentialIDs(result, result.Credentials.Incomplete), ", "))
+	}
+	if len(result.Credentials.Updated) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "%d matched credential(s) overwritten with package values (%s): see credentials.updated in --output json.\n",
+			len(result.Credentials.Updated), strings.Join(targetCredentialIDs(result, result.Credentials.Updated), ", "))
 	}
 	if len(result.Variables.Missing) > 0 {
 		fmt.Fprintf(opts.Streams.Err, "%d variable(s) still unresolved: workflows referencing them may fail until the variables exist.\n", len(result.Variables.Missing))
@@ -643,11 +657,11 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	return nil
 }
 
-// importedCredentialIDs maps the incomplete source credential IDs to their IDs
-// on this instance, keeping the source ID when no binding names one.
-func importedCredentialIDs(result *n8n.ImportPackageResult) []string {
-	ids := make([]string, 0, len(result.Credentials.Incomplete))
-	for _, source := range result.Credentials.Incomplete {
+// targetCredentialIDs maps source credential IDs to their IDs on this
+// instance, keeping the source ID when no binding names one.
+func targetCredentialIDs(result *n8n.ImportPackageResult, sources []string) []string {
+	ids := make([]string, 0, len(sources))
+	for _, source := range sources {
 		if target := result.Bindings.Credentials[source]; target != "" {
 			ids = append(ids, target)
 			continue
@@ -655,6 +669,19 @@ func importedCredentialIDs(result *n8n.ImportPackageResult) []string {
 		ids = append(ids, source)
 	}
 	return ids
+}
+
+// writeImportIssues lists each issue of a blocked import on w, one line per
+// issue; other errors write nothing.
+func writeImportIssues(w io.Writer, err error) {
+	blocked, ok := n8n.AsImportBlocked(err)
+	if !ok || len(blocked.Issues) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "Blocking issues (%d):\n", len(blocked.Issues))
+	for _, issue := range blocked.Issues {
+		fmt.Fprintf(w, "  - %s\n", issue.Describe())
+	}
 }
 
 type packageImportSelectionFlags struct {
@@ -773,6 +800,7 @@ func runPackageImportSelection(ctx context.Context, opts Options, f packageImpor
 		if refused := f.idempotency.refusal(err, resolution); refused != nil {
 			return refused
 		}
+		writeImportIssues(opts.Streams.Err, err)
 		need := allOf("workflow:import")
 		if len(request.DeletedWorkflowIDs) > 0 {
 			need = allOf("workflow:import", "workflow:delete")
@@ -832,9 +860,9 @@ func packageAPIError(err error, resolution config.Resolution, action string, nee
 	}
 	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import" {
 		if blocked.StatusCode == http.StatusConflict {
-			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --workflow-conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, or --variable-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
+			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --workflow-conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, --variable-conflict-policy, or --credential-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
 		}
-		return fmt.Errorf("%s rejected the package import (422): %d blocking issue(s) such as unresolved credentials or variables, unknown node types, or variable quota; create the missing references, pass --credential-missing-mode, --missing-node-type-mode import-anyway, or a variable mode that creates them, and retry: %w", resolution.URL, len(blocked.Issues), err)
+		return fmt.Errorf("%s rejected the package import (422): %d blocking issue(s) such as unresolved credentials or variables, unknown node types, or variable quota; create the missing references, pass --credential-missing-mode, --missing-node-type-mode import-anyway, or a variable mode that creates them (credential-update-forbidden needs credential:update on the matched credential, or --credential-conflict-policy keep-existing), and retry: %w", resolution.URL, len(blocked.Issues), err)
 	}
 	switch {
 	case n8n.IsStatus(err, http.StatusBadRequest):
@@ -855,7 +883,7 @@ func packageAPIError(err error, resolution config.Resolution, action string, nee
 				"workflow:delete is also needed when an update changes a workflow's archive state, and the instance needs the licensed Packages feature.", packageResource)
 		}
 		return forbiddenScopeError(err, resolution, "package import", need,
-			"the import also needs the credential (create-with-values), variable, tag, data-table (dataTable:update for schema overwrite), folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
+			"the import also needs the credential (credential:create for create-with-values, credential:update for --credential-conflict-policy overwrite or fail), variable, tag, data-table (dataTable:update for schema overwrite), folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
 	case n8n.IsNotFound(err):
 		return fmt.Errorf("%s does not serve n8n packages (404): it needs the licensed Packages feature; run %s to see what this instance offers: %w",
 			resolution.URL, discoverHint(packageResource), err)

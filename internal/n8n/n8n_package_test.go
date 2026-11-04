@@ -772,3 +772,221 @@ func TestImportPackageSelectionCancellation(t *testing.T) {
 		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }
+
+func TestImportPackageCredentialConflictPolicy(t *testing.T) {
+	server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, packageImportResultJSON))
+	client := server.client(t)
+
+	for _, policy := range []string{ImportCredentialConflictKeep, ImportCredentialConflictOverwrite, ImportCredentialConflictFail} {
+		_, err := client.ImportPackage(context.Background(), ImportPackageRequest{
+			WorkflowConflictPolicy: ImportWorkflowConflictSkip,
+			WorkflowIDPolicy:       ImportWorkflowIDSource,
+			CredentialConflict:     policy,
+		}, strings.NewReader(packageArchiveBytes), "p.n8np")
+		if err != nil {
+			t.Fatalf("ImportPackage(%s): %v", policy, err)
+		}
+		req, raw := server.last(t)
+		fields, _, _ := parseMultipartImport(t, req, []byte(raw))
+		if fields["credentialConflictPolicy"] != policy {
+			t.Errorf("credentialConflictPolicy = %q, want %q", fields["credentialConflictPolicy"], policy)
+		}
+	}
+
+	_, err := client.ImportPackage(context.Background(), ImportPackageRequest{
+		WorkflowConflictPolicy: ImportWorkflowConflictSkip,
+		WorkflowIDPolicy:       ImportWorkflowIDSource,
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if err != nil {
+		t.Fatalf("ImportPackage(unset): %v", err)
+	}
+	req, raw := server.last(t)
+	fields, _, _ := parseMultipartImport(t, req, []byte(raw))
+	if _, sent := fields["credentialConflictPolicy"]; sent {
+		t.Errorf("credentialConflictPolicy = present, want omitted when unset for older instances")
+	}
+
+	before := len(server.requests)
+	_, err = client.ImportPackage(context.Background(), ImportPackageRequest{
+		WorkflowConflictPolicy: ImportWorkflowConflictSkip,
+		WorkflowIDPolicy:       ImportWorkflowIDSource,
+		CredentialConflict:     "replace",
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if err == nil || !strings.Contains(err.Error(), "credential-conflict policy") || !strings.Contains(err.Error(), "keep-existing, overwrite, fail") {
+		t.Errorf("error = %v, want the unknown policy named with the allowed values", err)
+	}
+	if len(server.requests) != before {
+		t.Errorf("requests = %d, want %d: validation runs before transport", len(server.requests), before)
+	}
+}
+
+func TestImportPackageResultCredentialsUpdated(t *testing.T) {
+	body := `{
+  "package":{"sourceN8nVersion":"2.46.4","sourceId":"pkg-3","exportedAt":"2026-11-01T00:00:00.000Z"},
+  "workflows":[],"removedWorkflows":[],"removedFolders":[],"folders":[],"projects":[],
+  "bindings":{"workflows":{},"credentials":{"c-up":"t-up"}},
+  "credentials":{"matched":["c-ok"],"stubbed":[],"seeded":[],"incomplete":[],"updated":["c-up"]},
+  "dataTables":{"matched":0,"created":0,"updated":0},
+  "variables":{"matched":[],"missing":[],"created":[],"stubbed":[],"updated":[]},
+  "tags":{"matched":[],"created":[],"renamed":[],"reconciled":[],"skipped":[]}
+}`
+	for _, tc := range []struct {
+		name string
+		body string
+		want []string
+	}{
+		{"present", body, []string{"c-up"}},
+		{"absent before 2.46", packageImportResultJSON, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := newCommunityPackageServer(t, packageJSONHandler(http.StatusOK, tc.body))
+			result, err := server.client(t).ImportPackageSelection(context.Background(), ImportPackageSelectionRequest{
+				ProjectID:        "p",
+				WorkflowIDs:      []string{"a"},
+				WorkflowIDPolicy: ImportWorkflowIDSource,
+			}, strings.NewReader(packageArchiveBytes), "p.n8np")
+			if err != nil {
+				t.Fatalf("ImportPackageSelection: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, result.Credentials.Updated); diff != "" {
+				t.Errorf("credentials.updated mismatch (-want +got):\n%s", diff)
+			}
+			encoded, err := json.Marshal(result)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if tc.want != nil && !strings.Contains(string(encoded), `"updated":["c-up"]`) {
+				t.Errorf("json = %s, want credentials.updated kept", encoded)
+			}
+		})
+	}
+}
+
+func TestImportBlockingIssueDescribe(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{
+			"agent-conflict",
+			`{"type":"agent-conflict","kind":"task-id","sourceAgentId":"ag-1","projectId":"p1","sourceTaskId":"task-9","targetIds":["ag-x","ag-y"]}`,
+			[]string{"agent-conflict (task-id)", `agent "ag-1"`, `task "task-9"`, `project "p1"`, "ag-x, ag-y"},
+		},
+		{
+			"agent-conflict without task",
+			`{"type":"agent-conflict","kind":"existing","sourceAgentId":"ag-1","projectId":"p1","targetIds":["ag-x"]}`,
+			[]string{"agent-conflict (existing)", "matches existing agent(s) ag-x"},
+		},
+		{
+			"agent-invalid",
+			`{"type":"agent-invalid","sourceAgentId":"ag-2","path":"agents/ag-2.json","message":"missing model"}`,
+			[]string{"agent-invalid", `agent "ag-2"`, "agents/ag-2.json", "missing model"},
+		},
+		{
+			"agent-dependency-unresolved",
+			`{"type":"agent-dependency-unresolved","sourceAgentId":"ag-3","projectId":"p1","dependencyType":"workflow","referenceId":"wf-7","path":"tools[0]","reason":"inaccessible"}`,
+			[]string{"agent-dependency-unresolved", `agent "ag-3"`, `workflow "wf-7"`, "tools[0]", "is inaccessible"},
+		},
+		{
+			"agent-policy-violation",
+			`{"type":"agent-policy-violation","sourceAgentId":"ag-4","name":"Helper","violations":[{"kind":"block","checkId":"no-shell","message":"shell tool not allowed","optInAvailable":true},{"kind":"block","checkId":"model","message":"model not allowed"}]}`,
+			[]string{"agent-policy-violation", `agent "Helper" (ag-4)`, "no-shell: shell tool not allowed (opt-in available)", "; model: model not allowed"},
+		},
+		{
+			"workflow-folder-conflict null target",
+			`{"type":"workflow-folder-conflict","sourceWorkflowId":"wf-1","existingWorkflowId":"wf-9","existingParentFolderId":"f-old","targetFolderId":null,"name":"Flow"}`,
+			[]string{"workflow-folder-conflict", `workflow "Flow" (wf-1)`, `"wf-9"`, `in folder "f-old"`, "targets the project root"},
+		},
+		{
+			"workflow-folder-conflict folder target",
+			`{"type":"workflow-folder-conflict","sourceWorkflowId":"wf-1","existingWorkflowId":"wf-9","existingParentFolderId":null,"targetFolderId":"f-new","name":"Flow"}`,
+			[]string{"in the project root", `targets folder "f-new"`},
+		},
+		{
+			"credential-policy-violation with target",
+			`{"type":"credential-policy-violation","sourceId":"c-1","targetId":"t-1","name":"Slack","credentialType":"slackApi","usedBy":[],"violations":[{"kind":"deny","checkId":"no-update","message":"updates refused"}]}`,
+			[]string{"credential-policy-violation", `credential "Slack" (c-1, type slackApi, update of target "t-1")`, "no-update: updates refused"},
+		},
+		{
+			"credential-policy-violation without target",
+			`{"type":"credential-policy-violation","sourceId":"c-2","credentialType":"httpBasicAuth","usedBy":[],"violations":[{"kind":"deny","checkId":"type","message":"type not allowed"}]}`,
+			[]string{`credential - (c-2, type httpBasicAuth) refused: type: type not allowed`},
+		},
+		{
+			"known variant renders generically",
+			`{"type":"workflow-conflict","sourceWorkflowId":"a","existingWorkflowId":"b","name":"Example"}`,
+			[]string{`workflow-conflict: existingWorkflowId="b" name="Example" sourceWorkflowId="a"`},
+		},
+		{
+			"unknown variant renders generically",
+			`{"type":"future-thing","count":3,"ok":false,"ids":["x","y"],"nested":{"a":1},"gone":null,"usedBy":[{"id":"w"}]}`,
+			[]string{`future-thing: count=3 ids="x","y" ok=false`},
+		},
+		{
+			"unknown variant with conflicting field shape",
+			`{"type":"future-thing","violations":"not-an-array","name":"N"}`,
+			[]string{`future-thing: name="N" violations="not-an-array"`},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var issue ImportBlockingIssue
+			if err := json.Unmarshal([]byte(tc.raw), &issue); err != nil {
+				t.Fatalf("Unmarshal: %v", err)
+			}
+			got := issue.Describe()
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("Describe() = %q, want %q", got, want)
+				}
+			}
+			if strings.Contains(got, "null") || strings.Contains(got, "<nil>") || strings.Contains(got, "%!") {
+				t.Errorf("Describe() = %q, want no raw null or format noise", got)
+			}
+			encoded, err := json.Marshal(issue)
+			if err != nil || string(encoded) != tc.raw {
+				t.Errorf("Marshal = %s (error %v), want the verbatim issue", encoded, err)
+			}
+		})
+	}
+}
+
+func TestImportPackageBlockedDecodesNewIssues(t *testing.T) {
+	body := `{"message":"import blocked","issues":[
+{"type":"agent-conflict","kind":"id","sourceAgentId":"ag-1","projectId":"p1","targetIds":["ag-x"]},
+{"type":"workflow-folder-conflict","sourceWorkflowId":"wf-1","existingWorkflowId":"wf-9","existingParentFolderId":null,"targetFolderId":null,"name":"Flow"},
+{"type":"credential-policy-violation","sourceId":"c-1","targetId":"t-1","credentialType":"slackApi","usedBy":[],"violations":[{"kind":"deny","checkId":"x","message":"no"}]}]}`
+	for _, tc := range []struct {
+		status int
+		check  func(error) bool
+	}{
+		{http.StatusConflict, IsImportConflict},
+		{http.StatusUnprocessableEntity, IsImportUnprocessable},
+	} {
+		server := newCommunityPackageServer(t, packageJSONHandler(tc.status, body))
+		_, err := server.client(t).ImportPackage(context.Background(), ImportPackageRequest{
+			WorkflowConflictPolicy: ImportWorkflowConflictFail,
+			WorkflowIDPolicy:       ImportWorkflowIDSource,
+			CredentialConflict:     ImportCredentialConflictOverwrite,
+		}, strings.NewReader(packageArchiveBytes), "p.n8np")
+		if !tc.check(err) {
+			t.Fatalf("%d: error = %v, want a blocked error", tc.status, err)
+		}
+		blocked, _ := AsImportBlocked(err)
+		if len(blocked.Issues) != 3 {
+			t.Fatalf("%d: issues = %d, want 3", tc.status, len(blocked.Issues))
+		}
+		if got := blocked.Issues[0].TargetIDs; len(got) != 1 || got[0] != "ag-x" {
+			t.Errorf("%d: agent-conflict targetIds = %v, want [ag-x]", tc.status, got)
+		}
+		if blocked.Issues[1].TargetFolderID != nil || blocked.Issues[1].ExistingParentFolderID != nil {
+			t.Errorf("%d: workflow-folder-conflict folders = %v, %v, want nil for the project root", tc.status, blocked.Issues[1].TargetFolderID, blocked.Issues[1].ExistingParentFolderID)
+		}
+		if blocked.Issues[2].TargetID != "t-1" || len(blocked.Issues[2].Violations) != 1 {
+			t.Errorf("%d: credential-policy-violation = %+v, want targetId and violations", tc.status, blocked.Issues[2])
+		}
+		if !strings.Contains(err.Error(), "agent-conflict, workflow-folder-conflict, credential-policy-violation") {
+			t.Errorf("%d: error = %q, want the issue types", tc.status, err.Error())
+		}
+	}
+}

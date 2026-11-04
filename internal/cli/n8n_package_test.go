@@ -421,7 +421,7 @@ func TestPackageImportReportsIncompleteCredentials(t *testing.T) {
 	if fields["credentialMissingMode"] != "create-with-values" || fields["dataTableSchemaConflictPolicy"] != "overwrite-non-destructive" {
 		t.Errorf("fields = %v, want the new modes sent", fields)
 	}
-	for _, want := range []string{"1 matched, 0 stubbed, 1 seeded, 1 incomplete", "1 matched, 0 created, 2 updated"} {
+	for _, want := range []string{"1 matched, 0 updated, 0 stubbed, 1 seeded, 1 incomplete", "1 matched, 0 created, 2 updated"} {
 		if !strings.Contains(got.stdout, want) {
 			t.Errorf("stdout missing %q:\n%s", want, got.stdout)
 		}
@@ -797,5 +797,164 @@ func TestPackageImportSelectionErrorsPointAtFix(t *testing.T) {
 	got = f.run(args...)
 	if got.code != ExitError || !strings.Contains(got.stderr, "Packages") || !strings.Contains(got.stderr, "n8n discover --resource n8npackage") {
 		t.Errorf("404 result = %+v, want the availability hint", got)
+	}
+}
+
+const cliPackageImportResultUpdated = `{
+  "package":{"sourceN8nVersion":"2.46.4","sourceId":"pkg-3","exportedAt":"2026-11-01T00:00:00.000Z"},
+  "workflows":[],"removedWorkflows":[],"removedFolders":[],"folders":[],"projects":[],
+  "bindings":{"workflows":{},"credentials":{"c-up":"t-up"}},
+  "credentials":{"matched":["c-ok"],"stubbed":[],"seeded":[],"incomplete":[],"updated":["c-up"]},
+  "dataTables":{"matched":0,"created":0,"updated":0},
+  "variables":{"matched":[],"missing":[],"created":[],"stubbed":[],"updated":[]},
+  "tags":{"matched":[],"created":[],"renamed":[],"reconciled":[],"skipped":[]}
+}`
+
+func TestPackageImportCredentialConflictPolicy(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResultUpdated)
+	archive := writePackageArchive(t, cliPackageArchive)
+	before := f.requestCount()
+
+	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "replace", "--yes")
+	if got.code != ExitError || f.requestCount() != before {
+		t.Fatalf("bad policy result = %+v, requests = %d want %d", got, f.requestCount(), before)
+	}
+	for _, want := range []string{`unknown credential-conflict policy "replace"`, "keep-existing, overwrite, fail"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr = %q, want %q", got.stderr, want)
+		}
+	}
+
+	f.stdin = "no\n"
+	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "overwrite")
+	if got.code != ExitError || f.requestCount() != before || !strings.Contains(got.stderr, "Credential overwrite writes the package's names and expression values") {
+		t.Errorf("declined overwrite result = %+v, want the overwrite warning in the prompt and no request", got)
+	}
+
+	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "overwrite", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	fields, _, _ := parseCLIImportMultipart(t, f)
+	if fields["credentialConflictPolicy"] != "overwrite" {
+		t.Errorf("fields = %v, want credentialConflictPolicy overwrite", fields)
+	}
+	if !strings.Contains(got.stdout, "1 matched, 1 updated, 0 stubbed, 0 seeded, 0 incomplete") {
+		t.Errorf("stdout missing the updated count:\n%s", got.stdout)
+	}
+	for _, want := range []string{"1 matched credential(s) overwritten", "t-up", "credentials.updated"} {
+		if !strings.Contains(got.stderr, want) {
+			t.Errorf("stderr missing %q:\n%s", want, got.stderr)
+		}
+	}
+	if strings.Contains(got.stdout, "overwritten") {
+		t.Errorf("stdout = %q, want the overwrite note on stderr only", got.stdout)
+	}
+
+	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("unset exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	fields, _, _ = parseCLIImportMultipart(t, f)
+	if _, sent := fields["credentialConflictPolicy"]; sent {
+		t.Errorf("fields = %v, want credentialConflictPolicy omitted when the flag is unset", fields)
+	}
+
+	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")
+	if got.code != ExitSuccess {
+		t.Fatalf("json exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	var decoded struct {
+		Credentials struct {
+			Updated []string `json:"updated"`
+		} `json:"credentials"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &decoded); err != nil || len(decoded.Credentials.Updated) != 1 || decoded.Credentials.Updated[0] != "c-up" {
+		t.Errorf("json = %s (error %v), want credentials.updated kept", got.stdout, err)
+	}
+}
+
+func TestPackageImportToleratesAbsentCredentialsUpdated(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResult)
+	archive := writePackageArchive(t, cliPackageArchive)
+
+	for _, args := range [][]string{
+		{"package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes"},
+		{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-src", "--yes"},
+	} {
+		got := f.run(args...)
+		if got.code != ExitSuccess {
+			t.Fatalf("%v exit = %d, stderr: %s", args, got.code, got.stderr)
+		}
+		if !strings.Contains(got.stdout, "0 matched, 0 updated, 1 stubbed") || strings.Contains(got.stderr, "overwritten") {
+			t.Errorf("%v output:\n--- stdout ---\n%s\n--- stderr ---\n%s\nwant 0 updated and no overwrite note", args, got.stdout, got.stderr)
+		}
+	}
+}
+
+func TestPackageImportSelectionReportsCredentialsUpdated(t *testing.T) {
+	f := packageFixture(t, cliPackageImportResultUpdated)
+	archive := writePackageArchive(t, cliPackageArchive)
+
+	got := f.run("package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-src", "--yes")
+	if got.code != ExitSuccess {
+		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "1 updated") || !strings.Contains(got.stderr, "t-up") {
+		t.Errorf("output:\n--- stdout ---\n%s\n--- stderr ---\n%s\nwant the updated credential", got.stdout, got.stderr)
+	}
+}
+
+const cliPackageBlockedNewIssues = `{"message":"import blocked","issues":[
+{"type":"agent-conflict","kind":"existing","sourceAgentId":"ag-1","projectId":"p1","targetIds":["ag-x"]},
+{"type":"agent-invalid","sourceAgentId":"ag-2","path":"agents/ag-2.json","message":"missing model"},
+{"type":"agent-dependency-unresolved","sourceAgentId":"ag-3","projectId":"p1","dependencyType":"credential","referenceId":"c-9","path":"tools[1]","reason":"missing"},
+{"type":"agent-policy-violation","sourceAgentId":"ag-4","name":"Helper","violations":[{"kind":"block","checkId":"no-shell","message":"shell tool not allowed"}]},
+{"type":"workflow-folder-conflict","sourceWorkflowId":"wf-1","existingWorkflowId":"wf-9","existingParentFolderId":"f-old","targetFolderId":null,"name":"Flow"},
+{"type":"credential-policy-violation","sourceId":"c-1","targetId":"t-1","name":"Slack","credentialType":"slackApi","usedBy":[],"violations":[{"kind":"deny","checkId":"no-update","message":"updates refused"}]},
+{"type":"future-thing","detail":"kept"}]}`
+
+func TestPackageImportBlockedListsIssues(t *testing.T) {
+	archive := writePackageArchive(t, cliPackageArchive)
+	wantLines := []string{
+		"Blocking issues (7):",
+		`  - agent-conflict (existing): agent "ag-1" in project "p1" matches existing agent(s) ag-x`,
+		`  - agent-invalid: agent "ag-2" at agents/ag-2.json: missing model`,
+		`  - agent-dependency-unresolved: agent "ag-3" in project "p1": credential "c-9" at tools[1] is missing`,
+		`  - agent-policy-violation: agent "Helper" (ag-4) refused: no-shell: shell tool not allowed`,
+		`  - workflow-folder-conflict: workflow "Flow" (wf-1) matches existing workflow "wf-9" in folder "f-old", but the import targets the project root`,
+		`  - credential-policy-violation: credential "Slack" (c-1, type slackApi, update of target "t-1") refused: no-update: updates refused`,
+		`  - future-thing: detail="kept"`,
+	}
+	for _, tc := range []struct {
+		name   string
+		status int
+		args   []string
+		want   string
+	}{
+		{"import 409", http.StatusConflict, []string{"package", "import", "--file", archive, "--workflow-conflict-policy", "fail", "--yes"}, "--credential-conflict-policy"},
+		{"import 422", http.StatusUnprocessableEntity, []string{"package", "import", "--file", archive, "--workflow-conflict-policy", "fail", "--yes"}, "credential:update"},
+		{"selection 409", http.StatusConflict, []string{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-1", "--yes"}, "409"},
+		{"selection 422", http.StatusUnprocessableEntity, []string{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-1", "--yes"}, "422"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := packageFixture(t, "")
+			f.route = func(*http.Request, int) (int, string) { return tc.status, cliPackageBlockedNewIssues }
+			got := f.run(tc.args...)
+			if got.code != ExitError {
+				t.Fatalf("exit = %d, want %d (stderr: %s)", got.code, ExitError, got.stderr)
+			}
+			if got.stdout != "" {
+				t.Errorf("stdout = %q, want empty: issues are diagnostics", got.stdout)
+			}
+			for _, want := range append(wantLines, tc.want) {
+				if !strings.Contains(got.stderr, want) {
+					t.Errorf("stderr missing %q:\n%s", want, got.stderr)
+				}
+			}
+			if strings.Contains(got.stderr, "null") {
+				t.Errorf("stderr = %q, want a null target folder rendered as the project root", got.stderr)
+			}
+		})
 	}
 }

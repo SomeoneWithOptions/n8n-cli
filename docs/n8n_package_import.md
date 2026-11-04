@@ -18,13 +18,16 @@ state (archiving needs workflow:delete), folder overwrite can remove
 workflows the package does not contain (archive is recoverable,
 hard-delete also drops executions permanently, so prefer archive),
 missing credentials become empty stubs unless --credential-missing-mode
-is must-preexist or create-with-values, --data-table-schema-policy
+is must-preexist or create-with-values, --credential-conflict-policy
+overwrite writes the package's credential name and expression values
+to matched credentials, --data-table-schema-policy
 overwrite permanently drops the values in removed or retyped columns,
 and folders, tags, variables, or tables may be created or overwritten.
 Interactive runs ask for confirmation and non-interactive runs require
 --yes; --file - also requires --yes because stdin cannot answer.
 Credentials created from incomplete package data are reported on
-stderr and keep their workflows unpublished until completed. Needs
+stderr and keep their workflows unpublished until completed. When the
+import is blocked (409 or 422), each issue is listed on stderr. Needs
 workflow:import plus, depending on the package and the policies,
 credential, variable, tag, data-table, folder, and delete scopes, and
 the Packages, Variables, and Folders features where the contents
@@ -52,6 +55,7 @@ n8n package import [flags]
 ```
       --bindings string                     explicit credential bindings as JSON, e.g. '{"credentials":{"pkg-id":"target-id"}}' (default: server default {})
       --context string                      saved context name to use (falls back to N8N_CONTEXT, then the saved current context; see 'n8n config context list')
+      --credential-conflict-policy string   matched credential whose package values differ: keep-existing never changes it, overwrite writes the package name and expression values to credentials a project of the import owns (keeps secrets, other fields, and OAuth connections; reported in credentials.updated), fail rejects the import with a 409 credential-conflict; overwrite and fail need credential:update on matched credentials (default: server default keep-existing)
       --credential-matching-mode string     how package credential references match: id-only, name-and-type, or type-only (default: server default id-only)
       --credential-missing-mode string      unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders, create-with-values seeds them from the package's expression values (needs credential:create; unconfirmed data lands in credentials.incomplete and blocks publishing) (default: server default create-stub)
       --data-table-matching-mode string     data-table matching: by-id, the only mode (default: server default by-id)
