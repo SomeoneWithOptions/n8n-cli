@@ -170,6 +170,8 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion connection list`](n8n_promotion_connection_list.md) | List promotion connections |
 | [`n8n promotion connection update`](n8n_promotion_connection_update.md) | Update a promotion connection |
 | [`n8n promotion connection`](n8n_promotion_connection.md) | Manage promotion connections |
+| [`n8n promotion environment apply-continue`](n8n_promotion_environment_apply-continue.md) | Continue a reviewed environment apply after binding setup |
+| [`n8n promotion environment apply`](n8n_promotion_environment_apply.md) | Apply an environment's Git branch into this instance |
 | [`n8n promotion environment connect`](n8n_promotion_environment_connect.md) | Prepare the local checkout of a promotion environment |
 | [`n8n promotion environment create`](n8n_promotion_environment_create.md) | Create a promotion environment |
 | [`n8n promotion environment delete`](n8n_promotion_environment_delete.md) | Permanently delete a promotion environment |
@@ -180,6 +182,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion environment project list`](n8n_promotion_environment_project_list.md) | List projects linked to a promotion environment |
 | [`n8n promotion environment project remove`](n8n_promotion_environment_project_remove.md) | Unlink a project from a promotion environment |
 | [`n8n promotion environment project`](n8n_promotion_environment_project.md) | Manage projects linked to a promotion environment |
+| [`n8n promotion environment promote`](n8n_promotion_environment_promote.md) | Promote team projects to an environment's Git remote |
 | [`n8n promotion environment update`](n8n_promotion_environment_update.md) | Update a promotion environment |
 | [`n8n promotion environment`](n8n_promotion_environment.md) | Manage promotion environments (n8n 2.46 and later) |
 | [`n8n promotion project add`](n8n_promotion_project_add.md) | Add a project to a promotion connection |

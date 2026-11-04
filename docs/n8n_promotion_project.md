@@ -14,10 +14,12 @@ A project can belong to only one connection, so adding a linked
 project elsewhere answers 409. Removing unlinks the project; its
 instance content is untouched. Project IDs come from 'n8n project
 list'. Adding and listing need gitConnection:read for reads and
-gitConnection:manageProjects for writes. For selected workflow sync,
-start with changes PROJECT_ID apply|promote, then apply or promote.
-Selection commands take a project ID first and resolve its own connection
-before falling back to the instance connection.
+gitConnection:manageProjects for writes; on n8n 2.46 and later link
+projects with 'n8n promotion environment project' instead. For selected
+workflow sync on either generation, start with changes PROJECT_ID
+apply|promote, then apply or promote. Selection commands take a project
+ID first and resolve its own environment (2.46) or connection (older)
+before falling back to the instance one.
 
 ```
 n8n promotion project [flags]

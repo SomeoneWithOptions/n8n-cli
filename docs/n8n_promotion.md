@@ -11,23 +11,27 @@ then 'environment list' to find an environment. An environment is one
 remote for one direction: create one per direction on a provider with
 'environment create', prepare its checkout with 'environment connect',
 and link team projects to a projects-scope environment under
-'environment project'. 'promote', 'apply', and the project selection
-commands still address connections.
+'environment project'. Sync the whole instance with 'environment
+promote' and 'environment apply' (then 'environment apply-continue'
+after resolving a blocked apply) on the instance-scope environment.
 
 Older instances serve connections instead: 'connection list' finds a
 connection; create a provider first, then a connection on it, then a
 config per direction under 'config', clone each checkout under
 'checkout', link team projects to a projects-scope connection under
 'project', then 'promote' the instance to the remote or 'apply' the
-remote into the instance. For selected workflows, start with project
-changes, then project apply or project promote. Use apply-continue
-after resolving a blocked apply.
+remote into the instance, and 'apply-continue' after resolving a
+blocked apply. These run on the instance connection.
 
-'promote' and 'apply' run on the instance connection. 'promote'
-commits and pushes every team project to the remote; 'apply' checks the
-package and imports with overwrite behavior, creating, updating, or
-removing content to match, or reports why it is blocked and writes
-nothing. Both mutate versioned content and ask for confirmation.
+On both generations, start selected-workflow sync with 'project
+changes', then 'project apply' or 'project promote'; the project's own
+environment or connection resolves before the instance one.
+
+Promote commits and pushes every team project to the remote; apply
+checks the package and imports with overwrite behavior, creating,
+updating, or removing content to match, or reports why it is blocked
+and writes nothing. Both mutate versioned content and ask for
+confirmation.
 Config, connection, and environment removal can remove local
 checkouts. This is the upstream Promotions generation: an instance
 that serves GitConnections instead answers 404 or 503, which reads as
@@ -43,6 +47,8 @@ n8n promotion [flags]
   n8n promotion provider list
   n8n promotion environment list
   n8n promotion environment connect ENVIRONMENT_ID
+  n8n promotion environment apply ENVIRONMENT_ID --yes
+  n8n promotion environment promote ENVIRONMENT_ID --commit-message "sync" --yes
   n8n promotion connection list
   n8n promotion provider create --input provider.json
   n8n promotion connection create --input connection.json

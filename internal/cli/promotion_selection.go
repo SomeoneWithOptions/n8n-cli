@@ -25,8 +25,9 @@ func newPromotionDiscoveryCommand(opts Options, branches bool) *cobra.Command {
 		Long: "Discover GitLab repositories or branches using a saved provider with gitConnection:discover.\n" +
 			"Start with 'n8n promotion provider list', then repositories, then branches.\n" +
 			"Pass the raw fullPath (for example org/repo) or GitLab project ID to branches;\n" +
-			"the CLI escapes it. Use remoteUrl from repositories as a connection target.\n" +
-			"No saved connection is required and no content changes. Other provider types\n" +
+			"the CLI escapes it. Use remoteUrl from repositories as an environment remote\n" +
+			"(n8n 2.46 and later) or a connection target (older). No saved environment\n" +
+			"or connection is required and no content changes. Other provider types\n" +
 			"do not support discovery. Text lists repository targets or branch names and\n" +
 			"defaults; JSON returns data and nextCursor. Follow nextCursor even after a\n" +
 			"short page. --all follows cursors up to 10,000 items.\n\n" + cursorCollectionHelp,
@@ -122,13 +123,17 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "changes <project-id> <apply|promote>", Short: "List workflow changes for a project's promotion branch",
 		Long: "Compare a team project with its resolved promotion branch without changing content.\n" +
-			"Start with 'n8n project list' for the project ID. The project's own connection\n" +
-			"takes precedence over the instance connection; clone the chosen direction\n" +
-			"first with 'n8n promotion checkout clone'. Apply requires gitConnection:pull;\n" +
-			"promote requires gitConnection:push. Text lists workflow IDs, statuses, and\n" +
-			"dependency counts; JSON includes changes, source, and nullable commitSha.\n" +
-			"Review the IDs before project apply or promote. Save apply JSON for\n" +
-			"--expected-from to reject a branch that moves after review.",
+			"Start with 'n8n project list' for the project ID. The project's own\n" +
+			"environment (n8n 2.46 and later) or connection (older) for the direction\n" +
+			"takes precedence over the instance one. Prepare the checkout first: 'n8n\n" +
+			"promotion environment connect' on 2.46, 'n8n promotion checkout clone'\n" +
+			"before. Apply requires gitConnection:pull; promote requires\n" +
+			"gitConnection:push. Text lists workflow IDs, statuses, and dependency\n" +
+			"counts; JSON includes changes, source (environmentId on 2.46, configId\n" +
+			"before), and nullable commitSha. On 2.46 a deleted or new promote row can\n" +
+			"be a workflow that moved between projects; promoting it is refused until\n" +
+			"it moves back. Review the IDs before project apply or promote. Save apply\n" +
+			"JSON for --expected-from to reject a branch that moves after review.",
 		Example: "  n8n promotion project changes PROJECT_ID apply --output json > changes.json\n" +
 			"  n8n promotion project changes PROJECT_ID promote --sort updatedAt --order desc",
 		Args: cobra.ExactArgs(2),
@@ -158,7 +163,12 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 			if result.CommitSHA != nil {
 				commit = *result.CommitSHA
 			}
-			fmt.Fprintf(tw, "Config:\t%s\nBranch:\t%s\nCommit:\t%s\n", result.Source.ConfigID, result.Source.BranchName, commit)
+			if result.Source.EnvironmentID != "" {
+				fmt.Fprintf(tw, "Environment:\t%s\n", result.Source.EnvironmentID)
+			} else {
+				fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.Source.ConfigID))
+			}
+			fmt.Fprintf(tw, "Branch:\t%s\nCommit:\t%s\n", result.Source.BranchName, commit)
 			fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tDEPENDENCIES")
 			for _, row := range result.Changes {
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", row.ID, row.Name, row.Status, row.DependencyCount)
@@ -174,6 +184,14 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 	return cmd
 }
 
+// What a selection or apply-continue command addresses. Connections exist only
+// before n8n 2.46, environments only from 2.46; projects exist on both.
+const (
+	promotionTargetConnection  = "connection"
+	promotionTargetProject     = "project"
+	promotionTargetEnvironment = "environment"
+)
+
 type promotionSelectionFlags struct {
 	instance                    instanceFlags
 	input, output, expectedFrom string
@@ -185,15 +203,24 @@ type promotionSelectionFlags struct {
 }
 
 // Separate commands keep the required source and selection explicit at continue time.
-func newPromotionSelectionCommand(opts Options, action string, project bool) *cobra.Command {
+func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Command {
 	var f promotionSelectionFlags
-	target, prefix := "project", "n8n promotion project "
-	if !project {
-		target, prefix = "connection", "n8n promotion "
+	project := target == promotionTargetProject
+	environment := target == promotionTargetEnvironment
+	prefix := "n8n promotion " + target + " "
+	if target == promotionTargetConnection {
+		prefix = "n8n promotion "
 	}
 	isContinue := action == "apply-continue"
 	isPromote := action == "promote"
+	// Which expected-source identifier flags exist: each generation accepts
+	// only its own field, and projects are served by both.
+	configFlag := !environment
+	environmentFlag := target != promotionTargetConnection
 	short := "Apply selected workflow changes from a project's branch"
+	if environment {
+		short = "Apply an environment's Git branch into this instance"
+	}
 	if isContinue {
 		short = "Continue a reviewed " + target + " apply after binding setup"
 	}
@@ -201,33 +228,79 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 		short = "Promote selected project workflows to the remote branch"
 	}
 	long := "Start with 'n8n promotion project changes PROJECT_ID apply' to review workflow IDs.\n" +
-		"The project's own connection resolves first, otherwise the instance connection.\n" +
-		"The apply direction must be cloned. Selected IDs on the branch are imported;\n" +
-		"selected workflows owned by this project whose IDs are absent from the branch\n" +
-		"are removed. Unselected content stays unchanged. Duplicate or invalid IDs\n" +
-		"reject the whole request. Requires gitConnection:pull.\n"
-	if !project {
+		"The project's own apply environment (n8n 2.46 and later) or connection\n" +
+		"(older) resolves first, otherwise the instance one. It must be prepared:\n" +
+		"'n8n promotion environment connect' on 2.46, 'n8n promotion checkout\n" +
+		"clone' before. Selected IDs on the branch are imported; selected workflows\n" +
+		"owned by this project whose IDs are absent from the branch are removed.\n" +
+		"On 2.46 a selected workflow also moves within the project to match the\n" +
+		"branch, with the folders that hold it, which take the branch name; one\n" +
+		"the branch and the instance hold in different projects is refused with\n" +
+		"409 before any write. Unselected content stays unchanged. Duplicate or\n" +
+		"invalid IDs reject the whole request. Requires gitConnection:pull.\n"
+	switch {
+	case target == promotionTargetConnection:
 		long = "Continue a full instance-connection apply after resolving its preflight items.\n" +
-			"Start with 'n8n promotion apply CONNECTION_ID --output json'. The apply\n" +
-			"checkout must be cloned. Every team project is synchronized: workflows,\n" +
+			"Connections exist before n8n 2.46; on 2.46 use 'n8n promotion environment\n" +
+			"apply-continue'. Start with 'n8n promotion apply CONNECTION_ID --output json'.\n" +
+			"The apply checkout must be cloned. Every team project is synchronized: workflows,\n" +
 			"folders, credentials, tables, variables, and tags can change or be removed.\n" +
 			"Requires gitConnection:pull and the same permissions as the initial apply.\n"
+	case environment && isContinue:
+		long = "Continue a full environment apply (n8n 2.46 and later) after resolving its\n" +
+			"preflight items. Start with 'n8n promotion environment apply ENVIRONMENT_ID\n" +
+			"--output json'. The instance-scope apply environment must still be\n" +
+			"connected. Every team project is synchronized: workflows, folders,\n" +
+			"credentials, tables, variables, and tags can be created, updated, moved,\n" +
+			"renamed, or removed to match. Requires gitConnection:pull and the same\n" +
+			"permissions as the initial apply.\n\n"
+	case environment:
+		long = "Check the full package at the branch tip of an instance-scope apply\n" +
+			"environment (n8n 2.46 and later) and import it into the instance,\n" +
+			"overwriting to match. Before 2.46 use 'n8n promotion apply' with a\n" +
+			"connection. Start with 'n8n promotion environment list --direction\n" +
+			"apply' and connect it first with 'n8n promotion environment connect'.\n" +
+			"Personal projects are ignored. An applied run rewrites every team\n" +
+			"project from the branch and cannot be undone: workflows, folders,\n" +
+			"credentials, data tables, variables, and tags are created, updated,\n" +
+			"or removed to match, workflows and folders move within their project,\n" +
+			"folders take the branch name, and credential gaps become stubs.\n" +
+			"Existing variable values are kept. A workflow or folder the branch and\n" +
+			"the instance hold in different projects is refused with 409 before any\n" +
+			"write. Requires gitConnection:pull.\n\n"
 	}
 	if isPromote {
 		long = "Start with 'n8n promotion project changes PROJECT_ID promote' to review IDs.\n" +
 			"Push the current state of selected workflows to the project's resolved\n" +
-			"promotion connection (its own, otherwise the instance connection). Clone\n" +
-			"the promote direction first. Archived workflows remain archived on the\n" +
-			"branch; workflows no longer owned by the project leave the branch. Unknown\n" +
-			"deletions reject the whole request. Requires gitConnection:push, plus\n" +
-			"variable:list when workflows use variables. Commit message is optional;\n" +
-			"the server supplies a default. Force pushing is not supported.\n"
+			"promote environment (n8n 2.46 and later) or connection (older): its own,\n" +
+			"otherwise the instance one. Prepare it first: 'n8n promotion environment\n" +
+			"connect' on 2.46, 'n8n promotion checkout clone' before. Archived\n" +
+			"workflows remain archived on the branch; workflows gone from the instance\n" +
+			"leave the branch. On 2.46 a workflow that moved into or out of the\n" +
+			"project since the branch was written is refused with 400; move it back\n" +
+			"first. Unknown deletions reject the whole request. Requires\n" +
+			"gitConnection:push, plus variable:list when workflows use variables.\n" +
+			"Commit message is optional; the server supplies a default. Force pushing\n" +
+			"is not supported. The result can name a review the Git host opened;\n" +
+			"advisory warnings go to stderr.\n"
 	} else {
+		var idFlags, idField string
+		switch target {
+		case promotionTargetConnection:
+			idFlags, idField = "--expected-config-id", "configId"
+		case promotionTargetEnvironment:
+			idFlags, idField = "--expected-environment-id", "environmentId"
+		default:
+			idFlags = "--expected-environment-id (n8n 2.46 and later) or\n--expected-config-id (older; mutually exclusive)"
+			idField = "environmentId (2.46) or configId (older)"
+		}
 		long += "Use --expected-from FILE|- with changes JSON or a blocked apply result,\n" +
-			"or supply all three --expected-config-id, --expected-branch, --expected-commit\n" +
-			"flags (full lowercase 40- or 64-digit hex SHA). A null commit cannot be used.\n"
+			"or supply " + idFlags + ", --expected-branch, and\n" +
+			"--expected-commit together (full lowercase 40- or 64-digit hex SHA). A\n" +
+			"null commit cannot be used. --expected-from passes through the\n" +
+			"identifier the instance returned: " + idField + ".\n"
 		if isContinue {
-			long += "Expected source is required; use the blocked result's configId and git.\n" +
+			long += "Expected source is required; use the blocked result's " + idField + "\nand git. " +
 				"The server keeps no session and provides no exactly-once guarantee.\n"
 			if project {
 				long += "Resend the same full workflow ID selection used for the initial apply.\n"
@@ -278,10 +351,26 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 		documentFlags = append(documentFlags, "commit-message")
 	} else {
 		cmd.Flags().StringVar(&f.expectedFrom, "expected-from", "", "changes or blocked-apply JSON file, or - for stdin (default: explicit expected-source flags; stdin requires --yes)")
-		cmd.Flags().StringVar(&f.source.ConfigID, "expected-config-id", "", "reviewed config ID, 1 to 36 characters (default: omitted; requires expected branch and commit)")
-		cmd.Flags().StringVar(&f.source.BranchName, "expected-branch", "", "reviewed branch name (default: omitted; requires expected config ID and commit)")
-		cmd.Flags().StringVar(&f.source.CommitSHA, "expected-commit", "", "reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires expected config ID and branch)")
-		documentFlags = append(documentFlags, "expected-from", "expected-config-id", "expected-branch", "expected-commit")
+		documentFlags = append(documentFlags, "expected-from")
+		if environmentFlag {
+			usage := "reviewed environment ID, 1 to 36 characters (default: omitted; requires expected branch and commit)"
+			if project {
+				usage = "reviewed environment ID on n8n 2.46 and later, 1 to 36 characters (default: omitted; requires expected branch and commit; excludes --expected-config-id)"
+			}
+			cmd.Flags().StringVar(&f.source.EnvironmentID, "expected-environment-id", "", usage)
+			documentFlags = append(documentFlags, "expected-environment-id")
+		}
+		if configFlag {
+			usage := "reviewed config ID, 1 to 36 characters (default: omitted; requires expected branch and commit)"
+			if project {
+				usage = "reviewed config ID on n8n 2.45 and earlier, 1 to 36 characters (default: omitted; requires expected branch and commit; excludes --expected-environment-id)"
+			}
+			cmd.Flags().StringVar(&f.source.ConfigID, "expected-config-id", "", usage)
+			documentFlags = append(documentFlags, "expected-config-id")
+		}
+		cmd.Flags().StringVar(&f.source.BranchName, "expected-branch", "", "reviewed branch name (default: omitted; requires the expected ID and commit)")
+		cmd.Flags().StringVar(&f.source.CommitSHA, "expected-commit", "", "reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires the expected ID and branch)")
+		documentFlags = append(documentFlags, "expected-branch", "expected-commit")
 	}
 	if isContinue {
 		cmd.Flags().BoolVar(&f.destructive, "confirm-destructive-changes", false, "allow all destructive changes at continue time, including unreviewed column value loss and, for full apply, team-project deletion (default: false)")
@@ -291,7 +380,11 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 		if err := validateOutput(f.output); err != nil {
 			return err
 		}
-		if strings.TrimSpace(args[0]) != args[0] || args[0] == "" || utf8.RuneCountInString(args[0]) > 36 {
+		if environment {
+			if err := validatePromotionEnvironmentArg(args[0]); err != nil {
+				return err
+			}
+		} else if strings.TrimSpace(args[0]) != args[0] || args[0] == "" || utf8.RuneCountInString(args[0]) > 36 {
 			return fmt.Errorf("%s ID must contain 1 to 36 characters without surrounding whitespace", target)
 		}
 		if cmd.Flags().Changed("input") {
@@ -312,7 +405,11 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 		}
 		var source *n8n.PromotionExpectedSource
 		if !isPromote && f.input == "" {
-			explicit := cmd.Flags().Changed("expected-config-id") || cmd.Flags().Changed("expected-branch") || cmd.Flags().Changed("expected-commit")
+			if cmd.Flags().Changed("expected-config-id") && cmd.Flags().Changed("expected-environment-id") {
+				return fmt.Errorf("--expected-config-id and --expected-environment-id are mutually exclusive: use --expected-environment-id on n8n 2.46 and later, --expected-config-id on n8n 2.45 and earlier")
+			}
+			explicit := cmd.Flags().Changed("expected-config-id") || cmd.Flags().Changed("expected-environment-id") ||
+				cmd.Flags().Changed("expected-branch") || cmd.Flags().Changed("expected-commit")
 			if cmd.Flags().Changed("expected-from") {
 				if explicit {
 					return fmt.Errorf("--expected-from and explicit expected-source flags are mutually exclusive")
@@ -344,12 +441,20 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 				r.ExpectedSource = *source
 			}
 			request = r
+		case isContinue && environment:
+			r := &n8n.ContinueApplyPromotionEnvironmentRequest{ConfirmDestructiveChanges: destructive}
+			if source != nil {
+				r.ExpectedSource = *source
+			}
+			request = r
 		case isContinue:
 			r := &n8n.ContinueApplyPromotionRequest{ConfirmDestructiveChanges: destructive}
 			if source != nil {
 				r.ExpectedSource = *source
 			}
 			request = r
+		case environment:
+			request = &n8n.ApplyPromotionEnvironmentRequest{ExpectedSource: source}
 		default:
 			request = &n8n.ApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedSource: source}
 		}
@@ -366,6 +471,10 @@ func newPromotionSelectionCommand(opts Options, action string, project bool) *co
 	return cmd
 }
 
+// readPromotionExpectedSource reads the reviewed source from 'project changes'
+// JSON or a blocked apply result. It passes through whichever identifier the
+// instance returned (environmentId from n8n 2.46, configId before); the
+// request's own validation then checks it fits the route.
 func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpectedSource, error) {
 	var fields map[string]json.RawMessage
 	if err := readPromotionDocument(opts, path, &fields); err != nil {
@@ -379,15 +488,34 @@ func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpec
 		}
 		return json.Unmarshal(raw, dst)
 	}
+	// sourceID decodes environmentId or configId, whichever the object has.
+	sourceID := func(object map[string]json.RawMessage, where string) error {
+		_, hasEnvironment := object["environmentId"]
+		_, hasConfig := object["configId"]
+		switch {
+		case hasEnvironment && hasConfig:
+			return fmt.Errorf("%senvironmentId and %sconfigId are both present: keep the one the instance returned", where, where)
+		case hasEnvironment:
+			if err := decode(object["environmentId"], &result.EnvironmentID); err != nil {
+				return fmt.Errorf("%senvironmentId: %w", where, err)
+			}
+		default:
+			if err := decode(object["configId"], &result.ConfigID); err != nil {
+				return fmt.Errorf("%sconfigId (or environmentId on n8n 2.46 and later): %w", where, err)
+			}
+		}
+		return nil
+	}
 	if raw, ok := fields["source"]; ok {
 		var source map[string]json.RawMessage
 		if err := decode(raw, &source); err != nil {
 			return nil, err
 		}
-		for key, dst := range map[string]*string{"configId": &result.ConfigID, "branchName": &result.BranchName} {
-			if err := decode(source[key], dst); err != nil {
-				return nil, fmt.Errorf("source.%s: %w", key, err)
-			}
+		if err := sourceID(source, "source."); err != nil {
+			return nil, err
+		}
+		if err := decode(source["branchName"], &result.BranchName); err != nil {
+			return nil, fmt.Errorf("source.branchName: %w", err)
 		}
 		if err := decode(fields["commitSha"], &result.CommitSHA); err != nil {
 			return nil, fmt.Errorf("commitSha: %w", err)
@@ -397,8 +525,8 @@ func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpec
 		if err := decode(fields["status"], &status); err != nil || status != n8n.PromotionApplyStatusBlocked {
 			return nil, fmt.Errorf("--expected-from requires changes JSON or a blocked apply result")
 		}
-		if err := decode(fields["configId"], &result.ConfigID); err != nil {
-			return nil, fmt.Errorf("configId: %w", err)
+		if err := sourceID(fields, ""); err != nil {
+			return nil, err
 		}
 		var git map[string]json.RawMessage
 		if err := decode(fields["git"], &git); err != nil {
@@ -422,8 +550,11 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 		return err
 	}
 	subject := promotionProjectSubject(id)
+	target := promotionTargetProject
 	action := "project apply"
 	question := fmt.Sprintf("Apply selected workflow changes to project %q on %s? Selected workflows absent from the branch are deleted; selected content and dependencies are overwritten.", id, resolution.URL)
+	fullApply := " Every team project's workflows, folders, credentials, tables, variables, and tags may be overwritten or removed."
+	allDestructive := " ALL team-project deletions with everything in them and destructive data-table column changes at continue time are allowed, including unreviewed changes; column values are lost."
 	switch r := request.(type) {
 	case *n8n.PromoteProjectSelectionRequest:
 		action = "project promote"
@@ -434,10 +565,19 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 			question += " ALL destructive data-table column changes at continue time are allowed, including unreviewed changes; removed or retyped column values are lost."
 		}
 	case *n8n.ContinueApplyPromotionRequest:
-		action, subject = "apply-continue", promotionConnectionSubject(id)
-		question = fmt.Sprintf("Continue applying connection %q into %s? Every team project's workflows, folders, credentials, tables, variables, and tags may be overwritten or removed.", id, resolution.URL)
+		action, subject, target = "apply-continue", promotionConnectionSubject(id), promotionTargetConnection
+		question = fmt.Sprintf("Continue applying connection %q into %s?", id, resolution.URL) + fullApply
 		if r.ConfirmDestructiveChanges != nil && *r.ConfirmDestructiveChanges {
-			question += " ALL team-project deletions with everything in them and destructive data-table column changes at continue time are allowed, including unreviewed changes; column values are lost."
+			question += allDestructive
+		}
+	case *n8n.ApplyPromotionEnvironmentRequest:
+		action, subject, target = "environment apply", promotionEnvironmentSubject(id), promotionTargetEnvironment
+		question = fmt.Sprintf("Apply the remote of promotion environment %q into %s and overwrite instance projects to match? Workflows, folders, credentials, tables, variables, and tags change; this cannot be undone.", id, resolution.URL)
+	case *n8n.ContinueApplyPromotionEnvironmentRequest:
+		action, subject, target = "environment apply-continue", promotionEnvironmentSubject(id), promotionTargetEnvironment
+		question = fmt.Sprintf("Continue applying environment %q into %s?", id, resolution.URL) + fullApply
+		if r.ConfirmDestructiveChanges != nil && *r.ConfirmDestructiveChanges {
+			question += allDestructive
 		}
 	}
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
@@ -454,16 +594,17 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 			}
 			return promotionAPIError(err, resolution, action, subject)
 		}
-		if f.output == outputJSON {
-			return writeJSON(opts.Streams.Out, promoted)
-		}
-		return writePromotionPromoteResult(opts, resolution, promoted)
+		return writePromotionPromoteOutput(opts, resolution, promoted, f.output)
 	case *n8n.ApplyProjectSelectionRequest:
 		result, err = client.ApplyProjectSelection(ctx, id, *r, callOpts...)
 	case *n8n.ContinueApplyProjectSelectionRequest:
 		result, err = client.ContinueApplyProjectSelection(ctx, id, *r, callOpts...)
 	case *n8n.ContinueApplyPromotionRequest:
 		result, err = client.ContinueApplyPackage(ctx, id, *r, callOpts...)
+	case *n8n.ApplyPromotionEnvironmentRequest:
+		result, err = client.ApplyPromotionEnvironment(ctx, id, *r, callOpts...)
+	case *n8n.ContinueApplyPromotionEnvironmentRequest:
+		result, err = client.ContinueApplyPromotionEnvironment(ctx, id, *r, callOpts...)
 	}
 	if err != nil {
 		if refused := f.idempotency.refusal(err, resolution); refused != nil {
@@ -479,7 +620,7 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 	if err != nil {
 		return err
 	}
-	return finishPromotionApplyTarget(opts, id, result, strings.HasPrefix(action, "project "))
+	return finishPromotionApplyTarget(opts, id, result, target)
 }
 
 func promotionProjectSubject(id string) promotionSubject {

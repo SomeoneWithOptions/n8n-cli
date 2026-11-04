@@ -120,6 +120,18 @@ func TestIdempotencyKeyHeader(t *testing.T) {
 			_, err := c.PromoteProjectSelection(ctx, "proj-1", PromoteProjectSelectionRequest{WorkflowIDs: []string{"wf"}, CommitMessage: &message}, opts...)
 			return err
 		}},
+		{"environment promote", "/promotions/environments/" + testEnvironmentID + "/promote", envPromoteResultBody, func(ctx context.Context, c *Client, opts ...CallOption) error {
+			_, err := c.PromotePromotionEnvironment(ctx, testEnvironmentID, PromotePromotionEnvironmentRequest{CommitMessage: &message}, opts...)
+			return err
+		}},
+		{"environment apply", "/promotions/environments/" + testEnvironmentID + "/apply", applied, func(ctx context.Context, c *Client, opts ...CallOption) error {
+			_, err := c.ApplyPromotionEnvironment(ctx, testEnvironmentID, ApplyPromotionEnvironmentRequest{}, opts...)
+			return err
+		}},
+		{"environment apply continue", "/promotions/environments/" + testEnvironmentID + "/apply/continue", applied, func(ctx context.Context, c *Client, opts ...CallOption) error {
+			_, err := c.ContinueApplyPromotionEnvironment(ctx, testEnvironmentID, ContinueApplyPromotionEnvironmentRequest{ExpectedSource: envSource()}, opts...)
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

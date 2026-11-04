@@ -568,12 +568,66 @@ type PromotionGit struct {
 	BranchName string `json:"branchName"`
 }
 
-// PromotePromotionResult is the promote acknowledgement.
+// PromotionReview is the code review a promote opened on the Git host, for
+// example a GitLab merge request. Only n8n 2.46 and later report it.
+type PromotionReview struct {
+	ReviewID string `json:"reviewId"`
+	Number   int    `json:"number"`
+	WebURL   string `json:"webUrl"`
+}
+
+// PromotionPromoteWarning is one advisory a promote reports after pushing.
+// The push already happened; a warning never means nothing was promoted.
+type PromotionPromoteWarning struct {
+	Message string `json:"message"`
+	LinkURL string `json:"linkUrl,omitempty"`
+}
+
+// PromotePromotionResult is the promote acknowledgement. Instances older than
+// n8n 2.46 identify the source with ConnectionID and ConfigID; 2.46 and later
+// with EnvironmentID, and may add Review and Warnings. Both shapes decode.
+//
+// JSON encoding re-emits the verbatim response, so --output json never
+// invents the identifier fields the other generation uses.
 type PromotePromotionResult struct {
-	ConnectionID string                 `json:"connectionId"`
-	ConfigID     string                 `json:"configId"`
-	Counts       PromotionPromoteCounts `json:"counts"`
-	Git          PromotionGit           `json:"git"`
+	ConnectionID  string                    `json:"connectionId,omitempty"`
+	ConfigID      string                    `json:"configId,omitempty"`
+	EnvironmentID string                    `json:"environmentId,omitempty"`
+	Counts        PromotionPromoteCounts    `json:"counts"`
+	Git           PromotionGit              `json:"git"`
+	Review        *PromotionReview          `json:"review,omitempty"`
+	Warnings      []PromotionPromoteWarning `json:"warnings,omitempty"`
+	raw           json.RawMessage
+}
+
+// UnmarshalJSON decodes the typed view and keeps the verbatim response.
+func (r *PromotePromotionResult) UnmarshalJSON(data []byte) error {
+	type plain PromotePromotionResult
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = PromotePromotionResult(decoded)
+	r.raw = append(json.RawMessage(nil), data...)
+	return nil
+}
+
+// MarshalJSON re-emits the verbatim response when present.
+func (r PromotePromotionResult) MarshalJSON() ([]byte, error) {
+	if len(r.raw) > 0 {
+		return r.raw, nil
+	}
+	type plain PromotePromotionResult
+	return json.Marshal(plain(r))
+}
+
+// SourceID is the connection (before n8n 2.46) or environment (2.46 and
+// later) the promote pushed through.
+func (r PromotePromotionResult) SourceID() string {
+	if r.EnvironmentID != "" {
+		return r.EnvironmentID
+	}
+	return r.ConnectionID
 }
 
 // PromotionApplyProjectCounts counts project rows created, updated, skipped or
@@ -585,11 +639,17 @@ type PromotionApplyProjectCounts struct {
 	Deleted int `json:"deleted"`
 }
 
-// PromotionApplyFolderCounts counts folders created, skipped or removed.
+// PromotionApplyFolderCounts counts folders created, skipped or removed. n8n
+// 2.46 and later also count existing folders updated to match the branch, and
+// of those, the ones moved and the ones renamed; older instances omit them,
+// so they are nil there rather than a misleading zero.
 type PromotionApplyFolderCounts struct {
-	Created int `json:"created"`
-	Skipped int `json:"skipped"`
-	Removed int `json:"removed"`
+	Created int  `json:"created"`
+	Updated *int `json:"updated,omitempty"`
+	Skipped int  `json:"skipped"`
+	Removed int  `json:"removed"`
+	Moved   *int `json:"moved,omitempty"`
+	Renamed *int `json:"renamed,omitempty"`
 }
 
 // PromotionApplyPublishingCounts counts per-workflow publishing outcomes.
@@ -602,20 +662,24 @@ type PromotionApplyPublishingCounts struct {
 }
 
 // PromotionApplyWorkflowCounts counts workflows created, updated, skipped,
-// archived or deleted by one apply.
+// archived or deleted by one apply. Moved (n8n 2.46 and later; nil before)
+// counts updated workflows that also moved to another folder of their project.
 type PromotionApplyWorkflowCounts struct {
 	Created    int                            `json:"created"`
 	Updated    int                            `json:"updated"`
 	Skipped    int                            `json:"skipped"`
 	Archived   int                            `json:"archived"`
 	Deleted    int                            `json:"deleted"`
+	Moved      *int                           `json:"moved,omitempty"`
 	Publishing PromotionApplyPublishingCounts `json:"publishing"`
 }
 
-// PromotionApplyCredentialCounts counts credentials matched or stubbed.
+// PromotionApplyCredentialCounts counts credentials matched or stubbed, and
+// from n8n 2.46 updated (nil on older instances).
 type PromotionApplyCredentialCounts struct {
-	Matched int `json:"matched"`
-	Stubbed int `json:"stubbed"`
+	Matched int  `json:"matched"`
+	Stubbed int  `json:"stubbed"`
+	Updated *int `json:"updated,omitempty"`
 }
 
 // PromotionApplyDataTableCounts counts data tables matched, created or updated.
@@ -775,20 +839,38 @@ func (p PromotionApplyPreflight) Empty() bool {
 }
 
 // PromotionExpectedSource pins the source an apply or continue may import:
-// the config, branch and full commit a review saw. A mismatch answers status
-// source-changed and writes nothing.
+// the environment or config, branch and full commit a review saw. A mismatch
+// answers status source-changed and writes nothing.
+//
+// The identifier changed with the generation: n8n 2.46 and later require
+// EnvironmentID, older instances ConfigID. Exactly one is set, and it is sent
+// as given, because each generation rejects the other's field.
 type PromotionExpectedSource struct {
-	ConfigID   string `json:"configId"`
-	BranchName string `json:"branchName"`
-	CommitSHA  string `json:"commitSha"`
+	ConfigID      string `json:"configId,omitempty"`
+	EnvironmentID string `json:"environmentId,omitempty"`
+	BranchName    string `json:"branchName"`
+	CommitSHA     string `json:"commitSha"`
 }
 
 var promotionCommitSHA = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // Validate rejects an expected source the API would reject before transport.
+// Either identifier passes; [PromotionExpectedSource.ValidateEnvironment] and
+// [PromotionExpectedSource.ValidateConfig] pin one generation.
 func (s PromotionExpectedSource) Validate() error {
-	if err := validatePromotionID(s.ConfigID, "expected source config ID"); err != nil {
-		return err
+	switch {
+	case s.ConfigID != "" && s.EnvironmentID != "":
+		return fmt.Errorf("expected source must name environmentId (n8n 2.46 and later) or configId (n8n 2.45 and earlier), not both: keep the one the instance returned")
+	case s.EnvironmentID != "":
+		if err := validatePromotionID(s.EnvironmentID, "expected source environment ID"); err != nil {
+			return err
+		}
+	case s.ConfigID != "":
+		if err := validatePromotionID(s.ConfigID, "expected source config ID"); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("expected source needs environmentId on n8n 2.46 and later (--expected-environment-id) or configId on n8n 2.45 and earlier (--expected-config-id)")
 	}
 	if strings.TrimSpace(s.BranchName) == "" {
 		return fmt.Errorf("expected source branch name is required")
@@ -799,30 +881,57 @@ func (s PromotionExpectedSource) Validate() error {
 	return nil
 }
 
+// ValidateEnvironment is Validate for environment routes, which exist only on
+// n8n 2.46 and later and accept only environmentId.
+func (s PromotionExpectedSource) ValidateEnvironment() error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if s.EnvironmentID == "" {
+		return fmt.Errorf("environment commands need expectedSource.environmentId (n8n 2.46 and later), but the source names configId, which only n8n 2.45 and earlier return: review again with 'n8n promotion environment apply' or 'n8n promotion project changes' and use that environmentId")
+	}
+	return nil
+}
+
+// ValidateConfig is Validate for connection routes, which exist only before
+// n8n 2.46 and accept only configId.
+func (s PromotionExpectedSource) ValidateConfig() error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if s.ConfigID == "" {
+		return fmt.Errorf("connection commands need expectedSource.configId (n8n 2.45 and earlier), but the source names environmentId, which only n8n 2.46 and later return: on n8n 2.46 use 'n8n promotion environment apply-continue' instead")
+	}
+	return nil
+}
+
 // ApplyPromotionResult is the apply acknowledgement. Inspect Status before
 // reading anything else: applied carries Counts and Warnings; blocked carries
 // Preflight and wrote nothing; source-changed carries neither and wrote
-// nothing. ConfigID and Git identify the source for a later continue.
+// nothing. ConfigID (before n8n 2.46) or EnvironmentID (2.46 and later) and
+// Git identify the source for a later continue; older instances also report
+// ConnectionID.
 //
 // Extra holds top-level fields this type does not name. JSON encoding
 // re-emits the verbatim response, so --output json is lossless even for
 // fields and variants newer than the client.
 type ApplyPromotionResult struct {
-	ConnectionID string                     `json:"connectionId"`
-	ConfigID     string                     `json:"configId"`
-	Status       string                     `json:"status,omitempty"`
-	Git          PromotionGit               `json:"git"`
-	Counts       *PromotionApplyCounts      `json:"counts,omitempty"`
-	Warnings     []PromotionApplyIssue      `json:"warnings,omitempty"`
-	Preflight    *PromotionApplyPreflight   `json:"preflight,omitempty"`
-	Extra        map[string]json.RawMessage `json:"-"`
-	raw          json.RawMessage
+	ConnectionID  string                     `json:"connectionId,omitempty"`
+	ConfigID      string                     `json:"configId,omitempty"`
+	EnvironmentID string                     `json:"environmentId,omitempty"`
+	Status        string                     `json:"status,omitempty"`
+	Git           PromotionGit               `json:"git"`
+	Counts        *PromotionApplyCounts      `json:"counts,omitempty"`
+	Warnings      []PromotionApplyIssue      `json:"warnings,omitempty"`
+	Preflight     *PromotionApplyPreflight   `json:"preflight,omitempty"`
+	Extra         map[string]json.RawMessage `json:"-"`
+	raw           json.RawMessage
 }
 
 // applyPromotionResultFields are the field names [ApplyPromotionResult]
 // decodes itself. Anything else lands in Extra.
 var applyPromotionResultFields = []string{
-	"connectionId", "configId", "status", "git", "counts", "warnings", "preflight",
+	"connectionId", "configId", "environmentId", "status", "git", "counts", "warnings", "preflight",
 }
 
 // UnmarshalJSON decodes by shape, keeps unknown fields in Extra, and keeps the
@@ -888,10 +997,25 @@ func (r ApplyPromotionResult) Applied() bool {
 	return r.Status == PromotionApplyStatusApplied || (r.Status == "" && r.Counts != nil)
 }
 
-// ExpectedSource returns the source a continue must name: the config and the
-// branch and commit this result was checked against.
+// ExpectedSource returns the source a continue must name: the environment or
+// config and the branch and commit this result was checked against. The
+// identifier is the one the instance returned; environmentId wins when a
+// response carries both.
 func (r ApplyPromotionResult) ExpectedSource() PromotionExpectedSource {
-	return PromotionExpectedSource{ConfigID: r.ConfigID, BranchName: r.Git.BranchName, CommitSHA: r.Git.CommitSHA}
+	source := PromotionExpectedSource{EnvironmentID: r.EnvironmentID, BranchName: r.Git.BranchName, CommitSHA: r.Git.CommitSHA}
+	if source.EnvironmentID == "" {
+		source.ConfigID = r.ConfigID
+	}
+	return source
+}
+
+// SourceID is the connection (before n8n 2.46) or environment (2.46 and
+// later) the apply read from.
+func (r ApplyPromotionResult) SourceID() string {
+	if r.EnvironmentID != "" {
+		return r.EnvironmentID
+	}
+	return r.ConnectionID
 }
 
 // ListPromotionProviders returns one cursor-paginated page of providers.

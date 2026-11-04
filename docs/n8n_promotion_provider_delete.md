@@ -4,10 +4,10 @@ Permanently delete a promotion provider
 
 ### Synopsis
 
-Permanently delete one promotion provider. Attached connections keep
-their stored content but lose their credential, so promote, apply, and
-checkout commands stop working until a provider is attached again.
-This cannot be undone.
+Permanently delete one promotion provider and its stored credential.
+A provider still used by an environment (n8n 2.46 and later) or a
+connection (older) cannot be deleted: the instance answers 409 and
+nothing changes, so delete or move those first. This cannot be undone.
 
 Interactive runs ask for confirmation; non-interactive runs require
 --yes. Requires gitConnection:delete.

@@ -270,8 +270,8 @@ func TestPromotionProviderUpdateConfirmation(t *testing.T) {
 	if got.code != ExitError || !strings.Contains(got.stderr, "aborted") || f.requestCount() != before {
 		t.Errorf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
-	if !strings.Contains(got.stderr, "every connection") {
-		t.Errorf("prompt = %q, want the attached-connection consequence", got.stderr)
+	if !strings.Contains(got.stderr, "every environment or connection") {
+		t.Errorf("prompt = %q, want the environment-or-connection consequence", got.stderr)
 	}
 
 	f.interactive = false

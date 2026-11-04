@@ -60,7 +60,8 @@ func TestPromotionRepositoryDiscovery(t *testing.T) {
 	runPromotionSelectionReadCLI(t, instance, []string{"promotion", "provider", "branches", providerID, repository.FullPath, "--limit", "10"})
 }
 
-// The supplied project must already have a resolved, cloned promotion connection.
+// The supplied project must already have a resolved, connected promotion
+// environment (n8n 2.46 and later) or cloned connection (older).
 // These tests never clone or apply/promote content on the shared instance.
 func TestPromotionProjectChanges(t *testing.T) {
 	instance := integration.Require(t)
@@ -76,8 +77,9 @@ func TestPromotionProjectChanges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if changes.Source.ConfigID == "" {
-				t.Error("changes lack source configId")
+			// n8n 2.46 and later name the environment; older instances the config.
+			if (changes.Source.EnvironmentID == "") == (changes.Source.ConfigID == "") {
+				t.Errorf("changes source = %+v, want exactly one of environmentId or configId", changes.Source)
 			}
 			for _, change := range changes.Changes {
 				if change.ID == "" || change.Type != "workflow" {

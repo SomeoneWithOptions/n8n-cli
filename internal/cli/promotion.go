@@ -35,21 +35,24 @@ func newPromotionCommand(opts Options) *cobra.Command {
 			"remote for one direction: create one per direction on a provider with\n" +
 			"'environment create', prepare its checkout with 'environment connect',\n" +
 			"and link team projects to a projects-scope environment under\n" +
-			"'environment project'. 'promote', 'apply', and the project selection\n" +
-			"commands still address connections.\n\n" +
+			"'environment project'. Sync the whole instance with 'environment\n" +
+			"promote' and 'environment apply' (then 'environment apply-continue'\n" +
+			"after resolving a blocked apply) on the instance-scope environment.\n\n" +
 			"Older instances serve connections instead: 'connection list' finds a\n" +
 			"connection; create a provider first, then a connection on it, then a\n" +
 			"config per direction under 'config', clone each checkout under\n" +
 			"'checkout', link team projects to a projects-scope connection under\n" +
 			"'project', then 'promote' the instance to the remote or 'apply' the\n" +
-			"remote into the instance. For selected workflows, start with project\n" +
-			"changes, then project apply or project promote. Use apply-continue\n" +
-			"after resolving a blocked apply.\n\n" +
-			"'promote' and 'apply' run on the instance connection. 'promote'\n" +
-			"commits and pushes every team project to the remote; 'apply' checks the\n" +
-			"package and imports with overwrite behavior, creating, updating, or\n" +
-			"removing content to match, or reports why it is blocked and writes\n" +
-			"nothing. Both mutate versioned content and ask for confirmation.\n" +
+			"remote into the instance, and 'apply-continue' after resolving a\n" +
+			"blocked apply. These run on the instance connection.\n\n" +
+			"On both generations, start selected-workflow sync with 'project\n" +
+			"changes', then 'project apply' or 'project promote'; the project's own\n" +
+			"environment or connection resolves before the instance one.\n\n" +
+			"Promote commits and pushes every team project to the remote; apply\n" +
+			"checks the package and imports with overwrite behavior, creating,\n" +
+			"updating, or removing content to match, or reports why it is blocked\n" +
+			"and writes nothing. Both mutate versioned content and ask for\n" +
+			"confirmation.\n" +
 			"Config, connection, and environment removal can remove local\n" +
 			"checkouts. This is the upstream Promotions generation: an instance\n" +
 			"that serves GitConnections instead answers 404 or 503, which reads as\n" +
@@ -57,6 +60,8 @@ func newPromotionCommand(opts Options) *cobra.Command {
 		Example: "  n8n promotion provider list\n" +
 			"  n8n promotion environment list\n" +
 			"  n8n promotion environment connect ENVIRONMENT_ID\n" +
+			"  n8n promotion environment apply ENVIRONMENT_ID --yes\n" +
+			"  n8n promotion environment promote ENVIRONMENT_ID --commit-message \"sync\" --yes\n" +
 			"  n8n promotion connection list\n" +
 			"  n8n promotion provider create --input provider.json\n" +
 			"  n8n promotion connection create --input connection.json\n" +
@@ -77,7 +82,7 @@ func newPromotionCommand(opts Options) *cobra.Command {
 		newPromotionProjectCommand(opts),
 		newPromotionPromoteCommand(opts),
 		newPromotionApplyCommand(opts),
-		newPromotionSelectionCommand(opts, "apply-continue", false),
+		newPromotionSelectionCommand(opts, "apply-continue", promotionTargetConnection),
 	)
 	return cmd
 }
@@ -89,13 +94,14 @@ func newPromotionProviderCommand(opts Options) *cobra.Command {
 		Use:   "provider",
 		Short: "Manage promotion providers",
 		Long: "Manage promotion providers: the stored Git credentials one or more\n" +
-			"connections sync through. Start with 'list' to find the provider ID,\n" +
-			"then 'get' to read it, 'create' to add one, or 'update' to rename it\n" +
-			"or replace its credential. Use repositories then branches to discover\n" +
-			"GitLab targets before creating a connection.\n\n" +
-			"Replacing a provider credential affects every connection attached to\n" +
-			"it, so 'update' asks for confirmation. Deleting a provider removes it\n" +
-			"while attached connections keep their content but lose their credential.",
+			"environments (n8n 2.46 and later) or connections (older) sync through.\n" +
+			"Start with 'list' to find the provider ID, then 'get' to read it,\n" +
+			"'create' to add one, or 'update' to rename it or replace its\n" +
+			"credential. Use repositories then branches to discover GitLab remotes\n" +
+			"before creating an environment or connection.\n\n" +
+			"Replacing a provider credential affects every environment or\n" +
+			"connection that uses it, so 'update' asks for confirmation. A provider\n" +
+			"still used by an environment or connection cannot be deleted.",
 		Example: "  n8n promotion provider list\n" +
 			"  n8n promotion provider get PROVIDER_ID\n" +
 			"  n8n promotion provider create --input provider.json\n" +
@@ -420,11 +426,12 @@ func newPromotionProviderUpdateCommand(opts Options) *cobra.Command {
 			"providers). The auth type cannot change. A gitlab provider can change\n" +
 			"its base URL with config {\"schemaVersion\":1,\"baseUrl\":\"...\"}; a\n" +
 			"different API destination needs auth in the same document.\n\n" +
-			"Replacing the credential affects every connection attached to this\n" +
-			"provider, so interactive runs ask for confirmation and non-interactive\n" +
-			"runs require --yes. Credentials travel only as --input because secrets\n" +
-			"are never flags. A 409 means another request changed the provider\n" +
-			"first: reload it and retry. Requires gitConnection:update.",
+			"Replacing the credential affects every environment (n8n 2.46 and\n" +
+			"later) or connection (older) that uses this provider, so interactive\n" +
+			"runs ask for confirmation and non-interactive runs require --yes.\n" +
+			"Credentials travel only as --input because secrets are never flags. A\n" +
+			"409 means another request changed the provider first: reload it and\n" +
+			"retry. Requires gitConnection:update.",
 		Example: "  n8n promotion provider update PROVIDER_ID --input provider-update.json\n" +
 			"  printf '%s\\n' '{\"name\":\"github-new\"}' | n8n promotion provider update PROVIDER_ID --input -\n" +
 			"  n8n promotion provider update PROVIDER_ID --input provider-update.json --yes --output json",
@@ -435,7 +442,7 @@ func newPromotionProviderUpdateCommand(opts Options) *cobra.Command {
 	}
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.input, "input", "", "promotion provider JSON file path, or - for stdin (required; maximum 1 MiB)")
-	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm credential replacement for every attached connection without prompting (required when stdin is not interactive)")
+	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm credential replacement for every environment or connection using the provider without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the provider returned by the API)")
 	return cmd
 }
@@ -464,7 +471,7 @@ func runPromotionProviderUpdate(ctx context.Context, opts Options, id string, f 
 	if err != nil {
 		return err
 	}
-	question := fmt.Sprintf("Update promotion provider %q on %s? A replaced credential affects every connection attached to it.", id, resolution.URL)
+	question := fmt.Sprintf("Update promotion provider %q on %s? A replaced credential affects every environment or connection that uses it.", id, resolution.URL)
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
@@ -486,10 +493,10 @@ func newPromotionProviderDeleteCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <provider-id>",
 		Short: "Permanently delete a promotion provider",
-		Long: "Permanently delete one promotion provider. Attached connections keep\n" +
-			"their stored content but lose their credential, so promote, apply, and\n" +
-			"checkout commands stop working until a provider is attached again.\n" +
-			"This cannot be undone.\n\n" +
+		Long: "Permanently delete one promotion provider and its stored credential.\n" +
+			"A provider still used by an environment (n8n 2.46 and later) or a\n" +
+			"connection (older) cannot be deleted: the instance answers 409 and\n" +
+			"nothing changes, so delete or move those first. This cannot be undone.\n\n" +
 			"Interactive runs ask for confirmation; non-interactive runs require\n" +
 			"--yes. Requires gitConnection:delete.",
 		Example: "  n8n promotion provider delete PROVIDER_ID\n" +
@@ -519,7 +526,7 @@ func runPromotionProviderDelete(ctx context.Context, opts Options, id string, f 
 	if err != nil {
 		return err
 	}
-	question := fmt.Sprintf("Permanently delete promotion provider %q from %s? Attached connections keep their content but lose their credential.", id, resolution.URL)
+	question := fmt.Sprintf("Permanently delete promotion provider %q from %s? Its stored credential is removed; this cannot be undone.", id, resolution.URL)
 	if err := opts.confirmer(f.yes).Confirm(question); err != nil {
 		return err
 	}
@@ -1299,10 +1306,12 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 			"project elsewhere answers 409. Removing unlinks the project; its\n" +
 			"instance content is untouched. Project IDs come from 'n8n project\n" +
 			"list'. Adding and listing need gitConnection:read for reads and\n" +
-			"gitConnection:manageProjects for writes. For selected workflow sync,\n" +
-			"start with changes PROJECT_ID apply|promote, then apply or promote.\n" +
-			"Selection commands take a project ID first and resolve its own connection\n" +
-			"before falling back to the instance connection.",
+			"gitConnection:manageProjects for writes; on n8n 2.46 and later link\n" +
+			"projects with 'n8n promotion environment project' instead. For selected\n" +
+			"workflow sync on either generation, start with changes PROJECT_ID\n" +
+			"apply|promote, then apply or promote. Selection commands take a project\n" +
+			"ID first and resolve its own environment (2.46) or connection (older)\n" +
+			"before falling back to the instance one.",
 		Example: "  n8n promotion project list CONNECTION_ID\n" +
 			"  n8n promotion project add CONNECTION_ID PROJECT_ID\n" +
 			"  n8n promotion project remove CONNECTION_ID PROJECT_ID --yes",
@@ -1314,9 +1323,9 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 		newPromotionProjectAddCommand(opts),
 		newPromotionProjectRemoveCommand(opts),
 		newPromotionProjectChangesCommand(opts),
-		newPromotionSelectionCommand(opts, "apply", true),
-		newPromotionSelectionCommand(opts, "apply-continue", true),
-		newPromotionSelectionCommand(opts, "promote", true),
+		newPromotionSelectionCommand(opts, "apply", promotionTargetProject),
+		newPromotionSelectionCommand(opts, "apply-continue", promotionTargetProject),
+		newPromotionSelectionCommand(opts, "promote", promotionTargetProject),
 	)
 	return cmd
 }
@@ -1516,11 +1525,13 @@ func newPromotionPromoteCommand(opts Options) *cobra.Command {
 		Short: "Promote team projects to the Git remote",
 		Long: "Export every team project, commit it, and push to the configured base\n" +
 			"branch or a new timestamped branch (the result names it). Personal\n" +
-			"projects are ignored. This runs on the instance connection only, so\n" +
-			"project links from 'n8n promotion project add' do not select what is\n" +
-			"promoted. The promote checkout must be cloned first: run 'n8n promotion\n" +
-			"checkout clone CONNECTION_ID promote'. When workflows reference\n" +
-			"variables, the API key also needs variable:list.\n\n" +
+			"projects are ignored. Connections exist before n8n 2.46; on 2.46 use\n" +
+			"'n8n promotion environment promote'. This runs on the instance\n" +
+			"connection only, so project links from 'n8n promotion project add' do\n" +
+			"not select what is promoted. The promote checkout must be cloned\n" +
+			"first: run 'n8n promotion checkout clone CONNECTION_ID promote'.\n" +
+			"When workflows reference variables, the API key also needs\n" +
+			"variable:list.\n\n" +
 			"Pass --commit-message once (1 to 1000 characters). Without --force a\n" +
 			"promote the remote would reject is refused with 409 and nothing is\n" +
 			"pushed; --force pushes anyway and rewrites remote history. This\n" +
@@ -1579,10 +1590,7 @@ func runPromotionPromote(ctx context.Context, opts Options, id string, f promoti
 		}
 		return promotionAPIError(err, resolution, "promote", promotionConnectionSubject(id))
 	}
-	if f.output == outputJSON {
-		return writeJSON(opts.Streams.Out, result)
-	}
-	return writePromotionPromoteResult(opts, resolution, result)
+	return writePromotionPromoteOutput(opts, resolution, result, f.output)
 }
 
 type promotionApplyFlags struct {
@@ -1599,7 +1607,8 @@ func newPromotionApplyCommand(opts Options) *cobra.Command {
 		Short: "Apply the Git remote into this instance",
 		Long: "Check the full package at the apply branch tip and import it into the\n" +
 			"instance, overwriting to match. Runs on the instance connection; the\n" +
-			"apply checkout must be cloned first.\n\n" +
+			"apply checkout must be cloned first. Connections exist before n8n\n" +
+			"2.46; on 2.46 use 'n8n promotion environment apply'.\n\n" +
 			"The server answers one of three statuses, and only one writes:\n" +
 			"  applied         content was imported; counts and warnings follow.\n" +
 			"  blocked         preflight stopped before any write: missing projects,\n" +
@@ -1677,22 +1686,21 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 // the status to its own exit code so scripts can tell these apart from
 // transport and validation errors.
 type promotionApplyStoppedError struct {
-	connectionID, status string
-	project              bool
+	id, status string
+	// target is promotionTargetConnection, promotionTargetProject, or
+	// promotionTargetEnvironment.
+	target string
 }
 
 func (e *promotionApplyStoppedError) Error() string {
-	target := "connection"
-	if e.project {
-		target = "project"
-	}
+	target := cmp.Or(e.target, promotionTargetConnection)
 	switch e.status {
 	case n8n.PromotionApplyStatusBlocked:
-		return fmt.Sprintf("promotion apply of %s %s was blocked at preflight; nothing was applied", target, e.connectionID)
+		return fmt.Sprintf("promotion apply of %s %s was blocked at preflight; nothing was applied", target, e.id)
 	case n8n.PromotionApplyStatusSourceChanged:
-		return fmt.Sprintf("promotion apply of %s %s stopped because the source branch moved; nothing was applied", target, e.connectionID)
+		return fmt.Sprintf("promotion apply of %s %s stopped because the source branch moved; nothing was applied", target, e.id)
 	default:
-		return fmt.Sprintf("promotion apply of %s %s answered unknown status %q; check the instance before assuming anything was applied", target, e.connectionID, e.status)
+		return fmt.Sprintf("promotion apply of %s %s answered unknown status %q; check the instance before assuming anything was applied", target, e.id, e.status)
 	}
 }
 
@@ -1710,14 +1718,15 @@ func (e *promotionApplyStoppedError) exitCode() int {
 // finishPromotionApply writes the next-step hint for a result that wrote
 // nothing and returns the matching error; an applied result returns nil.
 func finishPromotionApply(opts Options, id string, result *n8n.ApplyPromotionResult) error {
-	return finishPromotionApplyTarget(opts, id, result, false)
+	return finishPromotionApplyTarget(opts, id, result, promotionTargetConnection)
 }
 
-func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromotionResult, project bool) error {
+func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromotionResult, target string) error {
 	prefix := "n8n promotion "
-	if project {
-		prefix += "project "
+	if target != promotionTargetConnection {
+		prefix += target + " "
 	}
+	project := target == promotionTargetProject
 	if result.Applied() {
 		return nil
 	}
@@ -1728,8 +1737,12 @@ func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromot
 		if promotionNeedsConfirmation(result.Preflight) {
 			fmt.Fprintln(opts.Streams.Err, "project-deletion and destructive-change conflicts are applied only with explicit confirmation when the apply is continued.")
 		}
-		fmt.Fprintf(opts.Streams.Err, "Then run '%sapply-continue %s --expected-from blocked.json' using the saved --output json result (configId=%s branchName=%s commitSha=%s).\n",
-			prefix, id, emptyDash(source.ConfigID), emptyDash(source.BranchName), emptyDash(source.CommitSHA))
+		idField, idValue := "configId", source.ConfigID
+		if source.EnvironmentID != "" {
+			idField, idValue = "environmentId", source.EnvironmentID
+		}
+		fmt.Fprintf(opts.Streams.Err, "Then run '%sapply-continue %s --expected-from blocked.json' using the saved --output json result (%s=%s branchName=%s commitSha=%s).\n",
+			prefix, id, idField, emptyDash(idValue), emptyDash(source.BranchName), emptyDash(source.CommitSHA))
 		if project {
 			fmt.Fprintln(opts.Streams.Err, "Resend the same full selection with repeated --workflow-id flags or --input.")
 		}
@@ -1738,7 +1751,7 @@ func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromot
 	default:
 		fmt.Fprintln(opts.Streams.Err, "This CLI does not know the apply status; read the full result with --output json.")
 	}
-	return &promotionApplyStoppedError{connectionID: id, status: result.Status, project: project}
+	return &promotionApplyStoppedError{id: id, status: result.Status, target: target}
 }
 
 func promotionNeedsConfirmation(preflight *n8n.PromotionApplyPreflight) bool {
@@ -1912,11 +1925,40 @@ func writePromotionCheckout(opts Options, resolution config.Resolution, action s
 	return tw.Flush()
 }
 
+// writePromotionPromoteOutput prints a promote result: the verbatim JSON or
+// the text summary on stdout, then any advisory warnings on stderr in either
+// format. A warning never means the push failed.
+func writePromotionPromoteOutput(opts Options, resolution config.Resolution, result *n8n.PromotePromotionResult, output string) error {
+	var err error
+	if output == outputJSON {
+		err = writeJSON(opts.Streams.Out, result)
+	} else {
+		err = writePromotionPromoteResult(opts, resolution, result)
+	}
+	if err != nil {
+		return err
+	}
+	for _, warning := range result.Warnings {
+		if warning.LinkURL != "" {
+			fmt.Fprintf(opts.Streams.Err, "Warning: %s (see %s)\n", warning.Message, warning.LinkURL)
+		} else {
+			fmt.Fprintf(opts.Streams.Err, "Warning: %s\n", warning.Message)
+		}
+	}
+	return nil
+}
+
 func writePromotionPromoteResult(opts Options, resolution config.Resolution, result *n8n.PromotePromotionResult) error {
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "Promoted:\t%s\n", result.ConnectionID)
+	fmt.Fprintf(tw, "Promoted:\t%s\n", emptyDash(result.SourceID()))
+	if result.EnvironmentID != "" {
+		fmt.Fprintf(tw, "Environment:\t%s\n", result.EnvironmentID)
+	}
 	fmt.Fprintf(tw, "Commit:\t%s\n", emptyDash(result.Git.CommitSHA))
 	fmt.Fprintf(tw, "Branch:\t%s\n", emptyDash(result.Git.BranchName))
+	if review := result.Review; review != nil {
+		fmt.Fprintf(tw, "Review:\t#%d %s\n", review.Number, emptyDash(review.WebURL))
+	}
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
 	fmt.Fprintln(tw, "\nENTITY\tCOUNT")
 	fmt.Fprintf(tw, "workflows\t%d\n", result.Counts.Workflows)
@@ -1946,9 +1988,14 @@ func writePromotionApplyHeader(tw *tabwriter.Writer, resolution config.Resolutio
 	if result.Applied() {
 		label = "Applied"
 	}
-	fmt.Fprintf(tw, "%s:\t%s\n", label, result.ConnectionID)
+	fmt.Fprintf(tw, "%s:\t%s\n", label, result.SourceID())
 	fmt.Fprintf(tw, "Status:\t%s\n", emptyDash(result.Status))
-	fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.ConfigID))
+	// n8n 2.46 and later name an environment; older instances a config.
+	if result.EnvironmentID != "" {
+		fmt.Fprintf(tw, "Environment:\t%s\n", result.EnvironmentID)
+	} else {
+		fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.ConfigID))
+	}
 	fmt.Fprintf(tw, "Commit:\t%s\n", emptyDash(result.Git.CommitSHA))
 	fmt.Fprintf(tw, "Branch:\t%s\n", emptyDash(result.Git.BranchName))
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
@@ -1967,10 +2014,14 @@ func writePromotionAppliedResult(opts Options, resolution config.Resolution, res
 	fmt.Fprintf(tw, "projects\tskipped\t%d\n", counts.Projects.Skipped)
 	fmt.Fprintf(tw, "projects\tdeleted\t%d\n", counts.Projects.Deleted)
 	fmt.Fprintf(tw, "folders\tcreated\t%d\n", counts.Folders.Created)
+	writePromotionOptionalCount(tw, "folders", "updated", counts.Folders.Updated)
+	writePromotionOptionalCount(tw, "folders", "moved", counts.Folders.Moved)
+	writePromotionOptionalCount(tw, "folders", "renamed", counts.Folders.Renamed)
 	fmt.Fprintf(tw, "folders\tskipped\t%d\n", counts.Folders.Skipped)
 	fmt.Fprintf(tw, "folders\tremoved\t%d\n", counts.Folders.Removed)
 	fmt.Fprintf(tw, "workflows\tcreated\t%d\n", counts.Workflows.Created)
 	fmt.Fprintf(tw, "workflows\tupdated\t%d\n", counts.Workflows.Updated)
+	writePromotionOptionalCount(tw, "workflows", "moved", counts.Workflows.Moved)
 	fmt.Fprintf(tw, "workflows\tskipped\t%d\n", counts.Workflows.Skipped)
 	fmt.Fprintf(tw, "workflows\tarchived\t%d\n", counts.Workflows.Archived)
 	fmt.Fprintf(tw, "workflows\tdeleted\t%d\n", counts.Workflows.Deleted)
@@ -1981,6 +2032,7 @@ func writePromotionAppliedResult(opts Options, resolution config.Resolution, res
 	fmt.Fprintf(tw, "workflows\tfailed\t%d\n", counts.Workflows.Publishing.Failed)
 	fmt.Fprintf(tw, "credentials\tmatched\t%d\n", counts.Credentials.Matched)
 	fmt.Fprintf(tw, "credentials\tstubbed\t%d\n", counts.Credentials.Stubbed)
+	writePromotionOptionalCount(tw, "credentials", "updated", counts.Credentials.Updated)
 	fmt.Fprintf(tw, "dataTables\tmatched\t%d\n", counts.DataTables.Matched)
 	fmt.Fprintf(tw, "dataTables\tcreated\t%d\n", counts.DataTables.Created)
 	fmt.Fprintf(tw, "dataTables\tupdated\t%d\n", counts.DataTables.Updated)
@@ -2008,6 +2060,15 @@ func writePromotionAppliedResult(opts Options, resolution config.Resolution, res
 		fmt.Fprintf(opts.Streams.Err, "The apply finished with %d warning(s): see the WARNINGS table.\n", len(result.Warnings))
 	}
 	return nil
+}
+
+// writePromotionOptionalCount writes a count row only n8n 2.46 and later
+// report. An older instance omits the count, and a missing row is truer than a
+// zero it never sent.
+func writePromotionOptionalCount(tw *tabwriter.Writer, entity, detail string, count *int) {
+	if count != nil {
+		fmt.Fprintf(tw, "%s\t%s\t%d\n", entity, detail, *count)
+	}
 }
 
 func writePromotionBlockedResult(opts Options, resolution config.Resolution, result *n8n.ApplyPromotionResult) error {
@@ -2172,7 +2233,7 @@ func promotionProjectLinkSubject(id, projectID string) promotionSubject {
 func promotionAPIError(err error, resolution config.Resolution, action string, subject promotionSubject) error {
 	switch {
 	case n8n.IsConflict(err) && action == "provider delete":
-		return fmt.Errorf("%s rejected the promotion provider delete (409): the provider still has attached connections, so nothing changed; remove them first, then delete the provider: %w", resolution.URL, err)
+		return fmt.Errorf("%s rejected the promotion provider delete (409): the provider is still used by an environment (n8n 2.46 and later) or a connection (older), so nothing changed; delete them or move them to another provider with 'n8n promotion environment update' (or 'n8n promotion connection update'), then delete the provider: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "project add":
 		return fmt.Errorf("%s rejected the promotion project add (409): the project is already linked to a connection, so nothing changed; remove it there first, then add it here: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "environment create":
@@ -2181,9 +2242,15 @@ func promotionAPIError(err error, resolution config.Resolution, action string, s
 		return fmt.Errorf("%s rejected the promotion environment update (409): the provider changed during the update, so nothing changed; reload it with 'n8n promotion environment get' and retry: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "environment project add":
 		return fmt.Errorf("%s rejected the promotion environment project add (409): the project already has an environment for this direction, so nothing changed; unlink it there with 'n8n promotion environment project remove', then add it here: %w", resolution.URL, err)
+	case n8n.IsConflict(err) && promotionMovesContent(action):
+		return fmt.Errorf("%s rejected the promotion %s (409), so nothing was applied: on n8n 2.46 and later a workflow or folder that the branch and the instance hold in different projects is refused before any write; move it back into the same project on one side, then retry. Otherwise the environment, connection, or project is in a conflicting state; check it and retry: %w", resolution.URL, action, err)
+	case n8n.IsConflict(err) && action == "environment promote":
+		return fmt.Errorf("%s rejected the promotion environment promote (409): the remote would reject the push, so nothing was pushed; review the remote branch, or re-run with --force to push anyway and rewrite remote history: %w", resolution.URL, err)
+	case n8n.IsStatus(err, http.StatusBadRequest) && (action == "environment promote" || action == "project promote"):
+		return fmt.Errorf("%s rejected the promotion %s (400), so nothing was pushed: check the workflow IDs and the commit message; on n8n 2.46 and later a workflow or folder on the branch that moved to another project or to a personal project is also refused, so move it back first: %w", resolution.URL, action, err)
 	case n8n.IsConflict(err) && strings.HasPrefix(action, "environment "):
 		return fmt.Errorf("%s rejected the promotion %s (409): the environment or project is in a conflicting state, so nothing changed; reload it with 'n8n promotion environment get' and retry: %w", resolution.URL, action, err)
-	case n8n.IsStatus(err, http.StatusUnprocessableEntity) && strings.HasPrefix(action, "environment "):
+	case n8n.IsStatus(err, http.StatusUnprocessableEntity) && strings.HasPrefix(action, "environment ") && !promotionMovesContent(action):
 		return fmt.Errorf("%s rejected the promotion %s (422): the instance cannot use the environment as configured; check that the remote URL belongs to the provider, the branch exists, the provider credential can reach the remote, and the project is a team project: %w", resolution.URL, action, err)
 	case n8n.IsConflict(err) && action == "provider update":
 		return fmt.Errorf("%s rejected the promotion provider update (409): another request changed the provider's credential or configuration first, so nothing changed; reload it with 'n8n promotion provider get' and retry: %w", resolution.URL, err)
@@ -2227,6 +2294,17 @@ func promotionRouteMissing(err error) bool {
 	return message == "" || message == "not found" || strings.HasPrefix(message, "cannot ")
 }
 
+// promotionMovesContent reports apply actions that, from n8n 2.46, move
+// workflows and folders to match the branch and refuse cross-project moves
+// with 409. The connection apply predates that and keeps its own messages.
+func promotionMovesContent(action string) bool {
+	switch action {
+	case "environment apply", "environment apply-continue", "project apply", "project apply-continue":
+		return true
+	}
+	return false
+}
+
 func promotionScope(action string) string {
 	switch action {
 	case "provider list", "connection list", "environment list":
@@ -2243,9 +2321,9 @@ func promotionScope(action string) string {
 		return "gitConnection:clone"
 	case "project add", "project remove", "environment project add", "environment project remove":
 		return "gitConnection:manageProjects"
-	case "promote", "project promote", "project changes promote":
+	case "promote", "project promote", "project changes promote", "environment promote":
 		return "gitConnection:push"
-	case "apply", "apply-continue", "project apply", "project apply-continue", "project changes apply":
+	case "apply", "apply-continue", "project apply", "project apply-continue", "project changes apply", "environment apply", "environment apply-continue":
 		return "gitConnection:pull"
 	case "provider repositories", "provider branches":
 		return "gitConnection:discover"

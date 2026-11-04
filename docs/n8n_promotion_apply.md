@@ -6,7 +6,8 @@ Apply the Git remote into this instance
 
 Check the full package at the apply branch tip and import it into the
 instance, overwriting to match. Runs on the instance connection; the
-apply checkout must be cloned first.
+apply checkout must be cloned first. Connections exist before n8n
+2.46; on 2.46 use 'n8n promotion environment apply'.
 
 The server answers one of three statuses, and only one writes:
   applied         content was imported; counts and warnings follow.

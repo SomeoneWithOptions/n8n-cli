@@ -120,10 +120,13 @@ type PromotionChange struct {
 	DependencyCount int     `json:"dependencyCount"`
 }
 
-// PromotionChangeSource identifies the configuration and branch used for a preview.
+// PromotionChangeSource identifies the environment (n8n 2.46 and later) or
+// configuration (2.45 and earlier) and the branch used for a preview. Exactly
+// one identifier is set, matching the instance generation.
 type PromotionChangeSource struct {
-	ConfigID   string `json:"configId"`
-	BranchName string `json:"branchName"`
+	ConfigID      string `json:"configId,omitempty"`
+	EnvironmentID string `json:"environmentId,omitempty"`
+	BranchName    string `json:"branchName"`
 }
 
 // PromotionChanges preserves the reviewed source and the complete server response.
@@ -192,8 +195,9 @@ type ContinueApplyPromotionRequest struct {
 	ConfirmDestructiveChanges *bool                   `json:"confirmDestructiveChanges,omitempty"`
 }
 
-// Validate requires a complete reviewed source.
-func (r ContinueApplyPromotionRequest) Validate() error { return r.ExpectedSource.Validate() }
+// Validate requires a complete reviewed source. Connection routes exist only
+// before n8n 2.46, so the source must name configId.
+func (r ContinueApplyPromotionRequest) Validate() error { return r.ExpectedSource.ValidateConfig() }
 
 // ApplyProjectSelectionRequest applies only selected workflow changes.
 type ApplyProjectSelectionRequest struct {

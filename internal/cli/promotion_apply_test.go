@@ -342,7 +342,7 @@ func TestPromotionApplyStoppedErrorExitCodes(t *testing.T) {
 		n8n.PromotionApplyStatusSourceChanged: ExitPromotionSourceChanged,
 		"queued":                              ExitError,
 	} {
-		if got := (&promotionApplyStoppedError{connectionID: "c", status: status}).exitCode(); got != want {
+		if got := (&promotionApplyStoppedError{id: "c", status: status}).exitCode(); got != want {
 			t.Errorf("exit code for %q = %d, want %d", status, got, want)
 		}
 	}

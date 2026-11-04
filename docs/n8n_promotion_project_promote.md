@@ -6,12 +6,17 @@ Promote selected project workflows to the remote branch
 
 Start with 'n8n promotion project changes PROJECT_ID promote' to review IDs.
 Push the current state of selected workflows to the project's resolved
-promotion connection (its own, otherwise the instance connection). Clone
-the promote direction first. Archived workflows remain archived on the
-branch; workflows no longer owned by the project leave the branch. Unknown
-deletions reject the whole request. Requires gitConnection:push, plus
-variable:list when workflows use variables. Commit message is optional;
-the server supplies a default. Force pushing is not supported.
+promote environment (n8n 2.46 and later) or connection (older): its own,
+otherwise the instance one. Prepare it first: 'n8n promotion environment
+connect' on 2.46, 'n8n promotion checkout clone' before. Archived
+workflows remain archived on the branch; workflows gone from the instance
+leave the branch. On 2.46 a workflow that moved into or out of the
+project since the branch was written is refused with 400; move it back
+first. Unknown deletions reject the whole request. Requires
+gitConnection:push, plus variable:list when workflows use variables.
+Commit message is optional; the server supplies a default. Force pushing
+is not supported. The result can name a review the Git host opened;
+advisory warnings go to stderr.
 
 Pass repeated --workflow-id flags, or use a strict JSON request.
 Read request JSON with --input FILE|- (maximum 1 MiB). Input and document flags are
