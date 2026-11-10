@@ -23,8 +23,8 @@ gitlab), auth {"authType":"ssh-key"} with an optional keyType
 (ed25519 or rsa, default ed25519) or {"authType":"token",
 "password":"..."} plus username for git, and the optional config.
 Unknown fields and trailing JSON documents are refused before
-transport. Requires gitConnection:create. Follow with 'n8n promotion
-connection create'.
+transport. Requires promotions:create (gitConnection:create before
+n8n 2.47). Follow with 'n8n promotion connection create'.
 
 ```
 n8n promotion provider create [flags]

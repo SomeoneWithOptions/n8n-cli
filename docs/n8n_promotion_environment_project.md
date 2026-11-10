@@ -12,8 +12,8 @@ or 'remove' one.
 
 Removing unlinks the project; its instance content is untouched.
 Project IDs come from 'n8n project list'. Listing needs
-gitConnection:read; adding and removing need
-gitConnection:manageProjects.
+promotions:read; adding and removing need promotions:manageProjects
+(gitConnection:read and gitConnection:manageProjects on n8n 2.46).
 
 ```
 n8n promotion environment project [flags]

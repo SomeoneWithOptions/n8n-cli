@@ -6,7 +6,8 @@ List projects linked to a promotion environment
 
 List the team projects linked to one projects-scope promotion
 environment. Find the environment ID with 'n8n promotion environment
-list --scope projects'. Requires gitConnection:read.
+list --scope projects'. Requires promotions:read (gitConnection:read on
+n8n 2.46).
 
 ```
 n8n promotion environment project list <environment-id> [flags]

@@ -19,8 +19,8 @@ the provider base URL. Read-only fields from 'environment get --output
 json' (id, provider, checkout, createdAt, updatedAt,
 remote.repositoryPath) are dropped with a note on stderr; other unknown
 fields and trailing JSON documents are refused before transport.
-Requires gitConnection:create. Follow with 'n8n promotion environment
-connect ENVIRONMENT_ID'.
+Requires promotions:create (gitConnection:create on n8n 2.46). Follow
+with 'n8n promotion environment connect ENVIRONMENT_ID'.
 
 ```
 n8n promotion environment create [flags]

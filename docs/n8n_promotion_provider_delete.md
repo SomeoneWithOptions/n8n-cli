@@ -10,7 +10,8 @@ connection (older) cannot be deleted: the instance answers 409 and
 nothing changes, so delete or move those first. This cannot be undone.
 
 Interactive runs ask for confirmation; non-interactive runs require
---yes. Requires gitConnection:delete.
+--yes. Requires promotions:delete (gitConnection:delete before n8n
+2.47).
 
 ```
 n8n promotion provider delete <provider-id> [flags]

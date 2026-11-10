@@ -22,7 +22,8 @@ func newPromotionDiscoveryCommand(opts Options, branches bool) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use: use, Short: short,
-		Long: "Discover GitLab repositories or branches using a saved provider with gitConnection:discover.\n" +
+		Long: "Discover GitLab repositories or branches using a saved provider with promotions:discover\n" +
+			"(gitConnection:discover before n8n 2.47).\n" +
 			"Start with 'n8n promotion provider list', then repositories, then branches.\n" +
 			"Pass the raw fullPath (for example org/repo) or GitLab project ID to branches;\n" +
 			"the CLI escapes it. Use remoteUrl from repositories as an environment remote\n" +
@@ -127,8 +128,9 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 			"environment (n8n 2.46 and later) or connection (older) for the direction\n" +
 			"takes precedence over the instance one. Prepare the checkout first: 'n8n\n" +
 			"promotion environment connect' on 2.46, 'n8n promotion checkout clone'\n" +
-			"before. Apply requires gitConnection:pull; promote requires\n" +
-			"gitConnection:push. Text lists workflow IDs, statuses, and dependency\n" +
+			"before. Apply requires promotions:apply; promote requires\n" +
+			"promotions:promote (gitConnection:pull and gitConnection:push before\n" +
+			"n8n 2.47). Text lists workflow IDs, statuses, and dependency\n" +
 			"counts; JSON includes changes, source (environmentId on 2.46, configId\n" +
 			"before), and nullable commitSha. On 2.46 a deleted or new promote row can\n" +
 			"be a workflow that moved between projects; promoting it is refused until\n" +
@@ -198,6 +200,7 @@ type promotionSelectionFlags struct {
 	workflowIDs                 []string
 	source                      n8n.PromotionExpectedSource
 	commit                      string
+	previewRevision             string
 	yes, destructive            bool
 	idempotency                 idempotencyFlag
 }
@@ -237,7 +240,8 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		"branch, with the folders that hold it, which take the branch name; one\n" +
 		"the branch and the instance hold in different projects is refused with\n" +
 		"409 before any write. Unselected content stays unchanged. Duplicate or\n" +
-		"invalid IDs reject the whole request. Requires gitConnection:pull.\n"
+		"invalid IDs reject the whole request. Requires promotions:apply\n" +
+		"(gitConnection:pull before n8n 2.47).\n"
 	switch {
 	case target == promotionTargetConnection:
 		long = "Continue a full instance-connection apply after resolving its preflight items.\n" +
@@ -248,12 +252,12 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 			"Requires gitConnection:pull and the same permissions as the initial apply.\n"
 	case environment && isContinue:
 		long = "Continue a full environment apply (n8n 2.46 and later) after resolving its\n" +
-			"preflight items. Start with 'n8n promotion environment apply ENVIRONMENT_ID\n" +
+			"check items. Start with 'n8n promotion environment apply ENVIRONMENT_ID\n" +
 			"--output json'. The instance-scope apply environment must still be\n" +
 			"connected. Every team project is synchronized: workflows, folders,\n" +
 			"credentials, tables, variables, and tags can be created, updated, moved,\n" +
-			"renamed, or removed to match. Requires gitConnection:pull and the same\n" +
-			"permissions as the initial apply.\n\n"
+			"renamed, or removed to match. Requires promotions:apply (gitConnection:pull\n" +
+			"before n8n 2.47) and the same permissions as the initial apply.\n\n"
 	case environment:
 		long = "Check the full package at the branch tip of an instance-scope apply\n" +
 			"environment (n8n 2.46 and later) and import it into the instance,\n" +
@@ -267,7 +271,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 			"folders take the branch name, and credential gaps become stubs.\n" +
 			"Existing variable values are kept. A workflow or folder the branch and\n" +
 			"the instance hold in different projects is refused with 409 before any\n" +
-			"write. Requires gitConnection:pull.\n\n"
+			"write. Requires promotions:apply (gitConnection:pull before n8n 2.47).\n\n"
 	}
 	if isPromote {
 		long = "Start with 'n8n promotion project changes PROJECT_ID promote' to review IDs.\n" +
@@ -279,7 +283,8 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 			"leave the branch. On 2.46 a workflow that moved into or out of the\n" +
 			"project since the branch was written is refused with 400; move it back\n" +
 			"first. Unknown deletions reject the whole request. Requires\n" +
-			"gitConnection:push, plus variable:list when workflows use variables.\n" +
+			"promotions:promote (gitConnection:push before n8n 2.47), plus\n" +
+			"variable:list when workflows use variables.\n" +
 			"Commit message is optional; the server supplies a default. Force pushing\n" +
 			"is not supported. The result can name a review the Git host opened;\n" +
 			"advisory warnings go to stderr.\n"
@@ -314,10 +319,24 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		} else {
 			long += "Expected source is optional; supply it to detect changes after review.\n"
 		}
-		long += "Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only\n" +
-			"applied writes content. Resolve blocked bindings before apply-continue;\n" +
-			"review source-changed results again. JSON prints the full status result;\n" +
-			"text shows preflight details or counts and warnings. Hints go to stderr.\n"
+		if project {
+			long += "--expected-preview-revision (n8n 2.47 and later) pins the reviewed Apply\n" +
+				"preview; when this instance changed since, the server answers\n" +
+				"preview-changed and writes nothing. Older instances reject it.\n"
+		}
+		if target == promotionTargetConnection {
+			long += "Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only\n" +
+				"applied writes content. Resolve blocked bindings before apply-continue;\n" +
+				"review source-changed results again. JSON prints the full status result;\n" +
+				"text shows preflight details or counts and warnings. Hints go to stderr.\n"
+		} else {
+			long += "Exit codes: 0 applied, 3 blocked, 4 source-changed or preview-changed\n" +
+				"(n8n 2.47 and later), 1 other error. Only applied writes content.\n" +
+				"Resolve blocked items before apply-continue; review source-changed and\n" +
+				"preview-changed results again. JSON prints the full status result; text\n" +
+				"shows the blocking check (preflight before n8n 2.47) or counts and\n" +
+				"warnings. Hints go to stderr.\n"
+		}
 	}
 	if project {
 		long += "\nPass repeated --workflow-id flags, or use a strict JSON request.\n"
@@ -371,6 +390,10 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		cmd.Flags().StringVar(&f.source.BranchName, "expected-branch", "", "reviewed branch name (default: omitted; requires the expected ID and commit)")
 		cmd.Flags().StringVar(&f.source.CommitSHA, "expected-commit", "", "reviewed lowercase full 40- or 64-digit hex commit SHA (default: omitted; requires the expected ID and branch)")
 		documentFlags = append(documentFlags, "expected-branch", "expected-commit")
+		if project {
+			cmd.Flags().StringVar(&f.previewRevision, "expected-preview-revision", "", "revision of the reviewed Apply preview, 64 lowercase hex digits; a changed preview answers preview-changed and writes nothing (n8n 2.47 and later; default: omitted)")
+			documentFlags = append(documentFlags, "expected-preview-revision")
+		}
 	}
 	if isContinue {
 		cmd.Flags().BoolVar(&f.destructive, "confirm-destructive-changes", false, "allow all destructive changes at continue time, including unreviewed column value loss and, for full apply, team-project deletion (default: false)")
@@ -436,7 +459,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 			}
 			request = r
 		case isContinue && project:
-			r := &n8n.ContinueApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ConfirmDestructiveChanges: destructive}
+			r := &n8n.ContinueApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedPreviewRevision: f.previewRevision, ConfirmDestructiveChanges: destructive}
 			if source != nil {
 				r.ExpectedSource = *source
 			}
@@ -456,7 +479,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		case environment:
 			request = &n8n.ApplyPromotionEnvironmentRequest{ExpectedSource: source}
 		default:
-			request = &n8n.ApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedSource: source}
+			request = &n8n.ApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedSource: source, ExpectedPreviewRevision: f.previewRevision}
 		}
 		if f.input != "" {
 			if err := readPromotionDocument(opts, f.input, request); err != nil {

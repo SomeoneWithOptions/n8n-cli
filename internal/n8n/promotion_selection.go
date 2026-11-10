@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -200,26 +201,37 @@ type ContinueApplyPromotionRequest struct {
 func (r ContinueApplyPromotionRequest) Validate() error { return r.ExpectedSource.ValidateConfig() }
 
 // ApplyProjectSelectionRequest applies only selected workflow changes.
+//
+// ExpectedPreviewRevision (n8n 2.47 and later) pins the reviewed Apply
+// preview: when the rebuilt preview differs, the server answers status
+// preview-changed and writes nothing. Older instances reject the field, so it
+// is sent only when set.
 type ApplyProjectSelectionRequest struct {
-	WorkflowIDs    []string                 `json:"workflowIds"`
-	ExpectedSource *PromotionExpectedSource `json:"expectedSource,omitempty"`
+	WorkflowIDs             []string                 `json:"workflowIds"`
+	ExpectedSource          *PromotionExpectedSource `json:"expectedSource,omitempty"`
+	ExpectedPreviewRevision string                   `json:"expectedPreviewRevision,omitempty"`
 }
 
-// Validate rejects invalid selections and incomplete expected sources.
+// Validate rejects invalid selections, incomplete expected sources, and
+// malformed preview revisions.
 func (r ApplyProjectSelectionRequest) Validate() error {
 	if err := validatePromotionWorkflowIDs(r.WorkflowIDs); err != nil {
 		return err
 	}
 	if r.ExpectedSource != nil {
-		return r.ExpectedSource.Validate()
+		if err := r.ExpectedSource.Validate(); err != nil {
+			return err
+		}
 	}
-	return nil
+	return ValidatePromotionPreviewRevision(r.ExpectedPreviewRevision)
 }
 
 // ContinueApplyProjectSelectionRequest must repeat the full reviewed selection.
+// ExpectedPreviewRevision works as in [ApplyProjectSelectionRequest].
 type ContinueApplyProjectSelectionRequest struct {
 	WorkflowIDs               []string                `json:"workflowIds"`
 	ExpectedSource            PromotionExpectedSource `json:"expectedSource"`
+	ExpectedPreviewRevision   string                  `json:"expectedPreviewRevision,omitempty"`
 	ConfirmDestructiveChanges *bool                   `json:"confirmDestructiveChanges,omitempty"`
 }
 
@@ -228,7 +240,22 @@ func (r ContinueApplyProjectSelectionRequest) Validate() error {
 	if err := validatePromotionWorkflowIDs(r.WorkflowIDs); err != nil {
 		return err
 	}
-	return r.ExpectedSource.Validate()
+	if err := r.ExpectedSource.Validate(); err != nil {
+		return err
+	}
+	return ValidatePromotionPreviewRevision(r.ExpectedPreviewRevision)
+}
+
+var promotionPreviewRevision = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// ValidatePromotionPreviewRevision accepts an empty revision (not sent) or the
+// 64 lowercase hex digits n8n 2.47 and later return as an Apply preview
+// revision.
+func ValidatePromotionPreviewRevision(revision string) error {
+	if revision == "" || promotionPreviewRevision.MatchString(revision) {
+		return nil
+	}
+	return fmt.Errorf("expected preview revision %q must be 64 lowercase hex digits: copy the revision of the reviewed Apply preview", revision)
 }
 
 // PromoteProjectSelectionRequest pushes selected workflows without force support.

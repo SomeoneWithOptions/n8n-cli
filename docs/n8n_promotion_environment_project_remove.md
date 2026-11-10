@@ -11,7 +11,8 @@ environment. Re-link it later with 'n8n promotion environment project
 add'.
 
 Interactive runs ask for confirmation; non-interactive runs require
---yes. Requires gitConnection:manageProjects.
+--yes. Requires promotions:manageProjects (gitConnection:manageProjects
+on n8n 2.46).
 
 ```
 n8n promotion environment project remove <environment-id> <project-id> [flags]

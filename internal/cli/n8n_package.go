@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -63,6 +64,48 @@ const (
 	packageLegacyDependencyPolicyFlag = "missing-workflow-dependency-policy"
 	packageLegacyVersionPolicyFlag    = "workflow-version-policy"
 )
+
+// Import policy flags n8n 2.47 renamed when the policies grew to cover
+// Agents. The old names stay as deprecated aliases.
+const (
+	packageConflictPolicyFlag         = "conflict-policy"
+	packageIDPolicyFlag               = "id-policy"
+	packagePublishingPolicyFlag       = "publishing-policy"
+	packageLegacyConflictPolicyFlag   = "workflow-conflict-policy"
+	packageLegacyIDPolicyFlag         = "workflow-id-policy"
+	packageLegacyPublishingPolicyFlag = "workflow-publishing-policy"
+)
+
+// aliasedFlag pairs a flag with its deprecated alias. Each has its own
+// variable, so a conflicting pair can be told apart from a repeated value.
+type aliasedFlag struct {
+	name, legacy       string
+	value, legacyValue *string
+}
+
+// registerAliasedFlag registers name and its deprecated alias legacy with
+// the same default.
+func registerAliasedFlag(cmd *cobra.Command, name, legacy string, value, legacyValue *string, def, usage string) {
+	cmd.Flags().StringVar(value, name, def, usage)
+	cmd.Flags().StringVar(legacyValue, legacy, def, "deprecated alias of --"+name+", same values")
+	_ = cmd.Flags().MarkDeprecated(legacy, "use --"+name)
+}
+
+// resolveAliasedFlags copies a deprecated alias into its flag when only the
+// alias was set, and refuses the pair when both were set to different values.
+func resolveAliasedFlags(cmd *cobra.Command, flags ...aliasedFlag) error {
+	for _, flag := range flags {
+		current, legacy := cmd.Flags().Changed(flag.name), cmd.Flags().Changed(flag.legacy)
+		switch {
+		case current && legacy && strings.TrimSpace(*flag.value) != strings.TrimSpace(*flag.legacyValue):
+			return fmt.Errorf("--%s %q and its deprecated alias --%s %q disagree: pass only --%s",
+				flag.name, *flag.value, flag.legacy, *flag.legacyValue, flag.name)
+		case legacy && !current:
+			*flag.value = *flag.legacyValue
+		}
+	}
+	return nil
+}
 
 type packageExportFlags struct {
 	instance              instanceFlags
@@ -367,10 +410,13 @@ type packageImportFlags struct {
 	credentialMissing  string
 	credentialConflict string
 	bindings           string
-	workflowConflict   string
-	workflowIDPolicy   string
+	conflictPolicy     string
+	idPolicy           string
 	missingNodeMode    string
 	publishingPolicy   string
+	legacyConflict     string
+	legacyIDPolicy     string
+	legacyPublishing   string
 	projectConflict    string
 	folderConflict     string
 	deletionPolicy     string
@@ -392,15 +438,24 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
 		Short: "Import an n8n package into a project (beta)",
-		Long: "Import a gzip-compressed tar package (.n8np) into the target project.\n" +
-			"Send the archive with --file FILE or --file - for stdin, route it with\n" +
-			"--project-id and --folder-id (omit both for the caller's personal project\n" +
-			"root), and state --workflow-conflict-policy explicitly: new-version\n" +
-			"updates matching workflows, fail rejects the import when any matches, and\n" +
-			"skip leaves matching workflows unchanged.\n\n" +
+		Long: "Import a gzip-compressed tar package (.n8np) into the target project:\n" +
+			"Agent-only, workflow-only, mixed, or whole-project packages (Agents need\n" +
+			"the Agents module). Send the archive with --file FILE or --file - for\n" +
+			"stdin, route it with --project-id and --folder-id (omit both for the\n" +
+			"caller's personal project root), and state --conflict-policy explicitly:\n" +
+			"new-version replaces matching Agents and workflows (and saves a changed\n" +
+			"skill of an imported Agent as a new version, which every Agent following\n" +
+			"that skill picks up), fail rejects the import when any matches, and skip\n" +
+			"leaves them unchanged.\n\n" +
+			"n8n 2.47 renamed the workflow-only policies to --conflict-policy,\n" +
+			"--id-policy, and --publishing-policy, which cover Agents and workflows;\n" +
+			"the old --workflow-* flags remain as deprecated aliases. Older instances\n" +
+			"get the old field names automatically, which needs --file PATH: stdin\n" +
+			"cannot be sent twice.\n\n" +
 			"Beta: breaking changes may still occur without a major version bump.\n" +
-			"This mutates the instance: imported workflows arrive per\n" +
-			"--workflow-publishing-policy, new-version follows the package archive\n" +
+			"This mutates the instance: imported Agents and workflows arrive per\n" +
+			"--publishing-policy (a failed publication keeps the imported definition\n" +
+			"and is reported per entity), new-version follows the package archive\n" +
 			"state (archiving needs workflow:delete), folder overwrite can remove\n" +
 			"workflows the package does not contain (archive is recoverable,\n" +
 			"hard-delete also drops executions permanently, so prefer archive),\n" +
@@ -414,21 +469,35 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 			"--yes; --file - also requires --yes because stdin cannot answer.\n" +
 			"Credentials created from incomplete package data are reported on\n" +
 			"stderr and keep their workflows unpublished until completed. When the\n" +
-			"import is blocked (409 or 422), each issue is listed on stderr. Needs\n" +
-			"workflow:import plus, depending on the package and the policies,\n" +
-			"credential, variable, tag, data-table, folder, and delete scopes, and\n" +
-			"the Packages, Variables, and Folders features where the contents\n" +
-			"require them.\n\n" +
+			"import is blocked (409 or 422), each issue is listed on stderr, and\n" +
+			"Agent channels that need setup are listed with their setup URL. Needs\n" +
+			"workflow:import for workflows and agent:import plus agent:read for\n" +
+			"Agents (both for mixed packages; agent:create, agent:update,\n" +
+			"agent:publish, or agent:unpublish for the planned Agent actions),\n" +
+			"workflow:activate or workflow:deactivate when publication changes, plus,\n" +
+			"depending on the package and the policies, credential, variable, tag,\n" +
+			"data-table, folder, skill, and delete scopes, and the Packages,\n" +
+			"Variables, and Folders features where the contents require them.\n\n" +
 			idempotencyHelp + " A retry must send\n" +
 			"the same archive under the same file name with the same flags.",
-		Example: "  n8n package import --file workflows.n8np --workflow-conflict-policy new-version --yes\n" +
-			"  n8n package import --file project.n8np --workflow-conflict-policy fail --project-id Ox8O54VQrmBrb4qL --yes --output json\n" +
-			"  n8n package import --file update.n8np --workflow-conflict-policy skip --workflow-publishing-policy publish-all --yes",
+		Example: "  n8n package import --file workflows.n8np --conflict-policy new-version --yes\n" +
+			"  n8n package import --file project.n8np --conflict-policy fail --project-id Ox8O54VQrmBrb4qL --yes --output json\n" +
+			"  n8n package import --file agent.n8np --conflict-policy skip --publishing-policy match-source --yes",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := resolveAliasedFlags(cmd,
+				aliasedFlag{packageConflictPolicyFlag, packageLegacyConflictPolicyFlag, &f.conflictPolicy, &f.legacyConflict},
+				aliasedFlag{packageIDPolicyFlag, packageLegacyIDPolicyFlag, &f.idPolicy, &f.legacyIDPolicy},
+				aliasedFlag{packagePublishingPolicyFlag, packageLegacyPublishingPolicyFlag, &f.publishingPolicy, &f.legacyPublishing},
+			); err != nil {
+				return err
+			}
 			return runPackageImport(cmd.Context(), opts, f)
 		},
 	}
+	// Deprecation notices go to the flag set output; cobra would otherwise
+	// print them on stdout, which carries the import result.
+	cmd.Flags().SetOutput(opts.Streams.Err)
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.file, "file", "", "package archive (.n8np) to import: a file path, or - for stdin (required; stdin requires --yes)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "target project ID, from 'n8n project list' (default: the caller's personal project)")
@@ -437,10 +506,13 @@ func newPackageImportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.credentialMissing, "credential-missing-mode", "", "unresolvable credential handling: must-preexist rejects, create-stub creates empty placeholders, create-with-values seeds them from the package's expression values (needs credential:create; unconfirmed data lands in credentials.incomplete and blocks publishing) (default: server default create-stub)")
 	cmd.Flags().StringVar(&f.credentialConflict, "credential-conflict-policy", "", "matched credential whose package values differ: keep-existing never changes it, overwrite writes the package name and expression values to credentials a project of the import owns (keeps secrets, other fields, and OAuth connections; reported in credentials.updated), fail rejects the import with a 409 credential-conflict; overwrite and fail need credential:update on matched credentials (default: server default keep-existing)")
 	cmd.Flags().StringVar(&f.bindings, "bindings", "", "explicit credential bindings as JSON, e.g. '{\"credentials\":{\"pkg-id\":\"target-id\"}}' (default: server default {})")
-	cmd.Flags().StringVar(&f.workflowConflict, "workflow-conflict-policy", "", "matching workflow handling, required: new-version, fail, or skip")
-	cmd.Flags().StringVar(&f.workflowIDPolicy, "workflow-id-policy", n8n.ImportWorkflowIDSource, "ID for newly created workflows, always sent: source reuses the package ID for promotions, new mints a fresh ID for repeat imports (default: source)")
+	registerAliasedFlag(cmd, packageConflictPolicyFlag, packageLegacyConflictPolicyFlag, &f.conflictPolicy, &f.legacyConflict, "",
+		"matching Agent and workflow handling, required: new-version, fail, or skip (before n8n 2.47 workflows only)")
+	registerAliasedFlag(cmd, packageIDPolicyFlag, packageLegacyIDPolicyFlag, &f.idPolicy, &f.legacyIDPolicy, n8n.ImportIDSource,
+		"ID for newly created Agents and workflows, always sent: source reuses the package ID; new mints a fresh ID but only instances before n8n 2.47 accept it (default: source)")
 	cmd.Flags().StringVar(&f.missingNodeMode, "missing-node-type-mode", "", "unknown node type handling: fail rejects before anything is written, import-anyway imports without publishing those workflows (default: server default fail)")
-	cmd.Flags().StringVar(&f.publishingPolicy, "workflow-publishing-policy", "", "post-import publishing: preserve-published-state, match-source, publish-all, or unpublish-all (default: server default preserve-published-state)")
+	registerAliasedFlag(cmd, packagePublishingPolicyFlag, packageLegacyPublishingPolicyFlag, &f.publishingPolicy, &f.legacyPublishing, "",
+		"post-import publishing of Agents and workflows: preserve-published-state, match-source, publish-all, or unpublish-all (default: server default preserve-published-state)")
 	cmd.Flags().StringVar(&f.projectConflict, "project-conflict-policy", "", "existing project handling for project packages: merge, fail, or overwrite (default: server default merge)")
 	cmd.Flags().StringVar(&f.folderConflict, "folder-conflict-policy", "", "existing folder handling: merge, fail, or overwrite; empty follows --project-conflict-policy on project packages, merge otherwise (default: follow)")
 	cmd.Flags().StringVar(&f.deletionPolicy, "overwrite-deletion-policy", "", "how folder overwrite removes missing workflows: archive (recoverable) or hard-delete (also drops executions; prefer archive) (default: server default archive)")
@@ -469,27 +541,27 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 		return fmt.Errorf("--file - consumes stdin and cannot answer the import confirmation: pass --yes after reviewing the package and policies")
 	}
 	request := n8n.ImportPackageRequest{
-		ProjectID:                strings.TrimSpace(f.projectID),
-		FolderID:                 strings.TrimSpace(f.folderID),
-		CredentialMatchingMode:   strings.TrimSpace(f.credentialMatching),
-		CredentialMissingMode:    strings.TrimSpace(f.credentialMissing),
-		CredentialConflict:       strings.TrimSpace(f.credentialConflict),
-		Bindings:                 strings.TrimSpace(f.bindings),
-		WorkflowConflictPolicy:   strings.TrimSpace(f.workflowConflict),
-		WorkflowIDPolicy:         strings.TrimSpace(f.workflowIDPolicy),
-		MissingNodeTypeMode:      strings.TrimSpace(f.missingNodeMode),
-		WorkflowPublishingPolicy: strings.TrimSpace(f.publishingPolicy),
-		ProjectConflictPolicy:    strings.TrimSpace(f.projectConflict),
-		FolderConflictPolicy:     strings.TrimSpace(f.folderConflict),
-		OverwriteDeletionPolicy:  strings.TrimSpace(f.deletionPolicy),
-		DataTableMatchingMode:    strings.TrimSpace(f.dataTableMatching),
-		DataTableMissingMode:     strings.TrimSpace(f.dataTableMissing),
-		DataTableSchemaConflict:  strings.TrimSpace(f.dataTableSchema),
-		VariableMissingMode:      strings.TrimSpace(f.variableMissing),
-		VariableConflictPolicy:   strings.TrimSpace(f.variableConflict),
-		VariableParentPolicy:     strings.TrimSpace(f.variableParent),
-		TagMissingMode:           strings.TrimSpace(f.tagMissing),
-		TagConflictPolicy:        strings.TrimSpace(f.tagConflict),
+		ProjectID:               strings.TrimSpace(f.projectID),
+		FolderID:                strings.TrimSpace(f.folderID),
+		CredentialMatchingMode:  strings.TrimSpace(f.credentialMatching),
+		CredentialMissingMode:   strings.TrimSpace(f.credentialMissing),
+		CredentialConflict:      strings.TrimSpace(f.credentialConflict),
+		Bindings:                strings.TrimSpace(f.bindings),
+		ConflictPolicy:          strings.TrimSpace(f.conflictPolicy),
+		IDPolicy:                strings.TrimSpace(f.idPolicy),
+		MissingNodeTypeMode:     strings.TrimSpace(f.missingNodeMode),
+		PublishingPolicy:        strings.TrimSpace(f.publishingPolicy),
+		ProjectConflictPolicy:   strings.TrimSpace(f.projectConflict),
+		FolderConflictPolicy:    strings.TrimSpace(f.folderConflict),
+		OverwriteDeletionPolicy: strings.TrimSpace(f.deletionPolicy),
+		DataTableMatchingMode:   strings.TrimSpace(f.dataTableMatching),
+		DataTableMissingMode:    strings.TrimSpace(f.dataTableMissing),
+		DataTableSchemaConflict: strings.TrimSpace(f.dataTableSchema),
+		VariableMissingMode:     strings.TrimSpace(f.variableMissing),
+		VariableConflictPolicy:  strings.TrimSpace(f.variableConflict),
+		VariableParentPolicy:    strings.TrimSpace(f.variableParent),
+		TagMissingMode:          strings.TrimSpace(f.tagMissing),
+		TagConflictPolicy:       strings.TrimSpace(f.tagConflict),
 	}
 	if err := request.Validate(); err != nil {
 		return err
@@ -515,7 +587,7 @@ func runPackageImport(ctx context.Context, opts Options, f packageImportFlags) e
 			return refused
 		}
 		writeImportIssues(opts.Streams.Err, err)
-		return packageAPIError(err, resolution, "import", allOf("workflow:import"))
+		return packageAPIError(err, resolution, "import", anyOf("workflow:import", "agent:import"))
 	}
 	if f.output == outputJSON {
 		return writeJSON(opts.Streams.Out, result)
@@ -546,8 +618,8 @@ func packageImportQuestion(f packageImportFlags, resolution config.Resolution) s
 	case strings.TrimSpace(f.folderID) != "":
 		target = fmt.Sprintf("folder %q", strings.TrimSpace(f.folderID))
 	}
-	question := fmt.Sprintf("Import package %q into %s on %s? Matching workflows use %q and new workflows take %q IDs.",
-		displayPackageName(f.file), target, resolution.URL, conflictOrUnset(f.workflowConflict), idPolicyOrUnset(f.workflowIDPolicy))
+	question := fmt.Sprintf("Import package %q into %s on %s? Matching Agents and workflows use %q and new ones take %q IDs.",
+		displayPackageName(f.file), target, resolution.URL, conflictOrUnset(f.conflictPolicy), idPolicyOrUnset(f.idPolicy))
 	if strings.TrimSpace(f.publishingPolicy) != "" {
 		question += fmt.Sprintf(" Publishing uses %q.", strings.TrimSpace(f.publishingPolicy))
 	}
@@ -609,6 +681,11 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 			skipped++
 		}
 	}
+	if len(result.Agents) > 0 || result.Counts != nil {
+		agents := agentCounts(result)
+		fmt.Fprintf(tw, "Agents:\t%d (%d created, %d updated, %d skipped)\n",
+			max(len(result.Agents), agents.Created+agents.Updated+agents.Skipped), agents.Created, agents.Updated, agents.Skipped)
+	}
 	fmt.Fprintf(tw, "Imported:\t%d workflows (%d created, %d updated, %d skipped)\n", len(result.Workflows), created, updated, skipped)
 	fmt.Fprintf(tw, "Removed:\t%d workflows, %d folders\n", len(result.RemovedWorkflows), len(result.RemovedFolders))
 	fmt.Fprintf(tw, "Shells:\t%d folders, %d projects\n", len(result.Folders), len(result.Projects))
@@ -620,6 +697,14 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	fmt.Fprintf(tw, "Tags:\t%d matched, %d created, %d renamed, %d reconciled, %d skipped\n",
 		len(result.Tags.Matched), len(result.Tags.Created), len(result.Tags.Renamed), len(result.Tags.Reconciled), len(result.Tags.Skipped))
 	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
+	if len(result.Agents) > 0 {
+		fmt.Fprintln(tw, "\nSOURCE AGENT\tLOCAL ID\tNAME\tSTATUS\tPUBLISHING")
+		for _, agent := range result.Agents {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+				emptyDash(agent.SourceAgentID), emptyDash(agent.LocalID),
+				emptyDash(agent.Name), emptyDash(agent.Status), emptyDash(agent.Publishing.State))
+		}
+	}
 	if len(result.Workflows) > 0 {
 		fmt.Fprintln(tw, "\nSOURCE WORKFLOW\tLOCAL ID\tNAME\tSTATUS")
 		for _, workflow := range result.Workflows {
@@ -631,6 +716,7 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 	if err := tw.Flush(); err != nil {
 		return err
 	}
+	writeImportPublishingHints(opts.Streams.Err, result)
 	if len(result.Credentials.Incomplete) > 0 {
 		fmt.Fprintf(opts.Streams.Err, "%d credential(s) created from package data that may be incomplete (%s): workflows using them stay unpublished until you complete each with 'n8n credential update <credential-id>'; see credentials.incomplete in --output json.\n",
 			len(result.Credentials.Incomplete), strings.Join(targetCredentialIDs(result, result.Credentials.Incomplete), ", "))
@@ -655,6 +741,56 @@ func writePackageImportText(opts Options, resolution config.Resolution, result *
 		fmt.Fprintln(opts.Streams.Err, "Some removed workflows were hard-deleted with their executions; this cannot be undone.")
 	}
 	return nil
+}
+
+// agentCounts prefers the server's totals (counts.agents) and falls back to
+// counting the agents list.
+func agentCounts(result *n8n.ImportPackageResult) n8n.ImportEntityCounts {
+	if result.Counts != nil {
+		return result.Counts.Agents
+	}
+	var counts n8n.ImportEntityCounts
+	for _, agent := range result.Agents {
+		switch agent.Status {
+		case "created":
+			counts.Created++
+		case "updated":
+			counts.Updated++
+		default:
+			counts.Skipped++
+		}
+	}
+	return counts
+}
+
+// writeImportPublishingHints lists Agent channels that need setup and
+// counts Agents and workflows whose publication was blocked or failed. The
+// definitions were imported either way.
+func writeImportPublishingHints(w io.Writer, result *n8n.ImportPackageResult) {
+	unpublished := 0
+	for _, agent := range result.Agents {
+		for _, channel := range agent.Channels {
+			if channel.Status != n8n.ImportChannelSetupRequired {
+				continue
+			}
+			fmt.Fprintf(w, "Agent %q (%s): %s channel needs setup (%s)", agent.Name, emptyDash(agent.LocalID), emptyDash(channel.Type), emptyDash(channel.Reason))
+			if channel.SetupURL != "" {
+				fmt.Fprintf(w, ": open %s", channel.SetupURL)
+			}
+			fmt.Fprintln(w)
+		}
+		if state := agent.Publishing.State; state == n8n.ImportPublishingBlocked || state == n8n.ImportPublishingFailed {
+			unpublished++
+		}
+	}
+	for _, workflow := range result.Workflows {
+		if state := workflow.Publishing.State; state == n8n.ImportPublishingBlocked || state == n8n.ImportPublishingFailed {
+			unpublished++
+		}
+	}
+	if unpublished > 0 {
+		fmt.Fprintf(w, "%d Agent(s) or workflow(s) were imported but not published (blocked or failed): see publishing.state and its reason in --output json, fix the cause, then publish them.\n", unpublished)
+	}
 }
 
 // targetCredentialIDs maps source credential IDs to their IDs on this
@@ -685,17 +821,19 @@ func writeImportIssues(w io.Writer, err error) {
 }
 
 type packageImportSelectionFlags struct {
-	instance         instanceFlags
-	file             string
-	projectID        string
-	workflowIDs      []string
-	deletedIDs       []string
-	workflowConflict string
-	workflowIDPolicy string
-	deletionPolicy   string
-	yes              bool
-	output           string
-	idempotency      idempotencyFlag
+	instance       instanceFlags
+	file           string
+	projectID      string
+	workflowIDs    []string
+	deletedIDs     []string
+	conflictPolicy string
+	idPolicy       string
+	legacyConflict string
+	legacyIDPolicy string
+	deletionPolicy string
+	yes            bool
+	output         string
+	idempotency    idempotencyFlag
 }
 
 func newPackageImportSelectionCommand(opts Options) *cobra.Command {
@@ -719,33 +857,50 @@ func newPackageImportSelectionCommand(opts Options) *cobra.Command {
 			"for a delete-only run. Selected IDs from another project are dropped,\n" +
 			"absent delete IDs are a no-op, and an ID cannot be both imported and\n" +
 			"deleted. Folder, tag, and project policies are fixed by the server; only\n" +
-			"the workflow conflict, workflow ID, and deletion policies are settable.\n" +
-			"A workflow package is rejected with a 400: export a project package with\n" +
-			"'n8n package export --project-id'.\n\n" +
+			"the conflict, ID, and deletion policies are settable, and publication\n" +
+			"follows match-source. A workflow package is rejected with a 400: export a\n" +
+			"project package with 'n8n package export --project-id'. Packages that\n" +
+			"contain Agents are rejected before writes on n8n 2.47 and later: import\n" +
+			"selected-Agent exports with 'n8n package import'. n8n 2.47 renamed\n" +
+			"--workflow-conflict-policy and --workflow-id-policy to --conflict-policy\n" +
+			"and --id-policy (the old flags remain as deprecated aliases); older\n" +
+			"instances get the old field names automatically, which needs --file\n" +
+			"PATH because stdin cannot be sent twice.\n\n" +
 			"Beta: breaking changes may still occur without a major version bump.\n" +
 			"This mutates the instance, so interactive runs ask for confirmation and\n" +
 			"non-interactive runs require --yes; --file - also requires --yes because\n" +
 			"stdin cannot answer. Needs workflow:import, plus workflow:delete when\n" +
-			"deleting or when an update changes a workflow's archive state, and the\n" +
-			"licensed Packages feature. Output is the same import result as\n" +
+			"deleting or when an update changes a workflow's archive state,\n" +
+			"workflow:activate or workflow:deactivate when match-source changes\n" +
+			"publication, and the licensed Packages feature. Output is the same\n" +
+			"import result as\n" +
 			"'n8n package import'.\n\n" +
 			idempotencyHelp + " A retry must send\n" +
 			"the same archive under the same file name with the same flags.",
 		Example: "  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --workflow-id 7pQr3sTuVwXyZaBc --yes\n" +
-			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --delete-workflow-id 9xKp2mNqRzAbCdEf --workflow-conflict-policy fail --output json --yes\n" +
+			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --workflow-id 2tUt1wbLX592XDdX --delete-workflow-id 9xKp2mNqRzAbCdEf --conflict-policy fail --output json --yes\n" +
 			"  n8n package import-selection --file project.n8np --project-id Ox8O54VQrmBrb4qL --delete-workflow-id 9xKp2mNqRzAbCdEf --overwrite-deletion-policy hard-delete",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := resolveAliasedFlags(cmd,
+				aliasedFlag{packageConflictPolicyFlag, packageLegacyConflictPolicyFlag, &f.conflictPolicy, &f.legacyConflict},
+				aliasedFlag{packageIDPolicyFlag, packageLegacyIDPolicyFlag, &f.idPolicy, &f.legacyIDPolicy},
+			); err != nil {
+				return err
+			}
 			return runPackageImportSelection(cmd.Context(), opts, f)
 		},
 	}
+	cmd.Flags().SetOutput(opts.Streams.Err)
 	f.instance.register(cmd)
 	cmd.Flags().StringVar(&f.file, "file", "", "project package archive (.n8np) to import from: a file path, or - for stdin (required; stdin requires --yes)")
 	cmd.Flags().StringVar(&f.projectID, "project-id", "", "source project ID as it appears in the package; also the target project ID, created if missing (required)")
 	cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "source workflow ID to import from --project-id, repeatable (default: none, for a delete-only run with --delete-workflow-id)")
 	cmd.Flags().StringArrayVar(&f.deletedIDs, "delete-workflow-id", nil, "destination workflow ID to remove from the target project, repeatable; needs workflow:delete and must not match a --workflow-id (default: none)")
-	cmd.Flags().StringVar(&f.workflowConflict, "workflow-conflict-policy", "", "selected workflow that already exists in the target project: new-version updates it, fail rejects the import, skip leaves it unchanged (default: server default new-version)")
-	cmd.Flags().StringVar(&f.workflowIDPolicy, "workflow-id-policy", n8n.ImportWorkflowIDSource, "ID for newly created workflows, always sent: source reuses the package ID, new mints a fresh ID (default: source)")
+	registerAliasedFlag(cmd, packageConflictPolicyFlag, packageLegacyConflictPolicyFlag, &f.conflictPolicy, &f.legacyConflict, "",
+		"selected workflow that already exists in the target project: new-version updates it, fail rejects the import, skip leaves it unchanged (default: server default new-version)")
+	registerAliasedFlag(cmd, packageIDPolicyFlag, packageLegacyIDPolicyFlag, &f.idPolicy, &f.legacyIDPolicy, n8n.ImportIDSource,
+		"ID for newly created workflows, always sent: source reuses the package ID; new mints a fresh ID but only instances before n8n 2.47 accept it (default: source)")
 	cmd.Flags().StringVar(&f.deletionPolicy, "overwrite-deletion-policy", "", "how --delete-workflow-id removes workflows: archive (recoverable) or hard-delete (also drops executions permanently; prefer archive); needs --delete-workflow-id (default: server default archive)")
 	cmd.Flags().BoolVar(&f.yes, "yes", false, "confirm importing and deleting the listed workflows without prompting (required when stdin is not interactive)")
 	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full import result)")
@@ -773,8 +928,8 @@ func runPackageImportSelection(ctx context.Context, opts Options, f packageImpor
 		ProjectID:               strings.TrimSpace(f.projectID),
 		WorkflowIDs:             trimmedIDs(f.workflowIDs),
 		DeletedWorkflowIDs:      trimmedIDs(f.deletedIDs),
-		WorkflowConflictPolicy:  strings.TrimSpace(f.workflowConflict),
-		WorkflowIDPolicy:        strings.TrimSpace(f.workflowIDPolicy),
+		ConflictPolicy:          strings.TrimSpace(f.conflictPolicy),
+		IDPolicy:                strings.TrimSpace(f.idPolicy),
 		OverwriteDeletionPolicy: strings.TrimSpace(f.deletionPolicy),
 	}
 	if err := request.Validate(); err != nil {
@@ -830,11 +985,11 @@ func packageImportSelectionQuestion(file string, request n8n.ImportPackageSelect
 	question := fmt.Sprintf("Import %d workflow(s) from source project %q of package %q into project %q on %s (the instance project with the same ID, created if missing)?",
 		len(request.WorkflowIDs), request.ProjectID, displayPackageName(file), request.ProjectID, resolution.URL)
 	if len(request.WorkflowIDs) > 0 {
-		conflict := request.WorkflowConflictPolicy
+		conflict := request.ConflictPolicy
 		if conflict == "" {
-			conflict = n8n.ImportWorkflowConflictNewVersion + " (server default)"
+			conflict = n8n.ImportConflictNewVersion + " (server default)"
 		}
-		question += fmt.Sprintf(" Existing workflows use %q and new workflows take %q IDs.", conflict, request.WorkflowIDPolicy)
+		question += fmt.Sprintf(" Existing workflows use %q and new workflows take %q IDs.", conflict, request.IDPolicy)
 	}
 	switch {
 	case len(request.DeletedWorkflowIDs) == 0:
@@ -852,15 +1007,21 @@ func packageImportSelectionQuestion(file string, request n8n.ImportPackageSelect
 // packageAPIError restates the fix for a failed export or import. need is the
 // scope requirement reported on a 403.
 func packageAPIError(err error, resolution config.Resolution, action string, need scopeNeed) error {
+	if errors.Is(err, n8n.ErrImportArchiveNotRewindable) {
+		return fmt.Errorf("%s predates n8n 2.47 and needs the package %s resent with the older workflow-prefixed policy fields, but stdin cannot be sent twice; nothing was written: pass the archive with --file PATH instead of --file -: %w", resolution.URL, action, err)
+	}
+	if apiErr, ok := errors.AsType[*n8n.APIError](err); ok && apiErr.StatusCode == http.StatusBadRequest && slices.Contains(apiErr.Fields, "idPolicy") && action != "export" {
+		return fmt.Errorf("%s rejected the package %s (400): n8n 2.47 and later accept only --id-policy source (new works only on older instances), so drop --id-policy or pass source: %w", resolution.URL, action, err)
+	}
 	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import-selection" {
 		if blocked.StatusCode == http.StatusConflict {
-			return fmt.Errorf("%s rejected the selection import (409): %d conflict issue(s) and nothing was written; a workflow-removal-conflict means a --delete-workflow-id matches a selected workflow's destination, so drop it from one list, and a workflow conflict under fail needs --workflow-conflict-policy new-version or skip: %w", resolution.URL, len(blocked.Issues), err)
+			return fmt.Errorf("%s rejected the selection import (409): %d conflict issue(s) and nothing was written; a workflow-removal-conflict means a --delete-workflow-id matches a selected workflow's destination, so drop it from one list, and a workflow conflict under fail needs --conflict-policy new-version or skip: %w", resolution.URL, len(blocked.Issues), err)
 		}
 		return fmt.Errorf("%s rejected the selection import (422): %d blocking issue(s); workflow-removal-forbidden needs the workflow:delete scope, and unresolved credentials or unknown node types must exist on this instance first, then retry: %w", resolution.URL, len(blocked.Issues), err)
 	}
 	if blocked, ok := n8n.AsImportBlocked(err); ok && action == "import" {
 		if blocked.StatusCode == http.StatusConflict {
-			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --workflow-conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, --variable-conflict-policy, or --credential-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
+			return fmt.Errorf("%s rejected the package import (409): %d conflict issue(s); nothing matched with fail stays unchanged, so adjust a conflict policy such as --conflict-policy, --project-conflict-policy, --folder-conflict-policy, --tag-conflict-policy, --variable-conflict-policy, or --credential-conflict-policy and retry: %w", resolution.URL, len(blocked.Issues), err)
 		}
 		return fmt.Errorf("%s rejected the package import (422): %d blocking issue(s) such as unresolved credentials or variables, unknown node types, or variable quota; create the missing references, pass --credential-missing-mode, --missing-node-type-mode import-anyway, or a variable mode that creates them (credential-update-forbidden needs credential:update on the matched credential, or --credential-conflict-policy keep-existing), and retry: %w", resolution.URL, len(blocked.Issues), err)
 	}
@@ -883,7 +1044,7 @@ func packageAPIError(err error, resolution config.Resolution, action string, nee
 				"workflow:delete is also needed when an update changes a workflow's archive state, and the instance needs the licensed Packages feature.", packageResource)
 		}
 		return forbiddenScopeError(err, resolution, "package import", need,
-			"the import also needs the credential (credential:create for create-with-values, credential:update for --credential-conflict-policy overwrite or fail), variable, tag, data-table (dataTable:update for schema overwrite), folder and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
+			"workflow packages need workflow:import, Agent packages agent:import and agent:read (plus agent:create, agent:update, agent:publish, or agent:unpublish for the planned Agent actions), and mixed packages both; publication changes need workflow:activate or workflow:deactivate, and the import also needs the credential (credential:create for create-with-values, credential:update for --credential-conflict-policy overwrite or fail), variable, tag, data-table (dataTable:update for schema overwrite), folder, skill, and delete scopes the package and policies require, and the instance needs the licensed Packages feature.", packageResource)
 	case n8n.IsNotFound(err):
 		return fmt.Errorf("%s does not serve n8n packages (404): it needs the licensed Packages feature; run %s to see what this instance offers: %w",
 			resolution.URL, discoverHint(packageResource), err)

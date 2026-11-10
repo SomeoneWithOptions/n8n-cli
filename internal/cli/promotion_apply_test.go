@@ -87,7 +87,7 @@ func TestPromotionApplyBlocked(t *testing.T) {
 	if !sameJSON(t, got.stdout, cliPromotionBlockedBody) {
 		t.Errorf("stdout = %s, want the full blocked result", got.stdout)
 	}
-	for _, want := range []string{"Nothing was applied", "configId=cfg-apply", "branchName=main", "commitSha=0123456789abcdef0123456789abcdef01234567", "explicit confirmation", "blocked at preflight"} {
+	for _, want := range []string{"Nothing was applied", "configId=cfg-apply", "branchName=main", "commitSha=0123456789abcdef0123456789abcdef01234567", "explicit confirmation", "blocked by its pre-import check"} {
 		if !strings.Contains(got.stderr, want) {
 			t.Errorf("stderr missing %q:\n%s", want, got.stderr)
 		}
@@ -330,8 +330,11 @@ func TestPromotionNotFoundNamesTheMissingResource(t *testing.T) {
 
 func TestPromotionScopeCoversDiscover(t *testing.T) {
 	for _, action := range []string{"provider repositories", "provider branches"} {
-		if got := promotionScope(action); got != "gitConnection:discover" {
-			t.Errorf("promotionScope(%q) = %q, want gitConnection:discover", action, got)
+		if got := promotionScope(action); got != "promotions:discover" {
+			t.Errorf("promotionScope(%q) = %q, want promotions:discover", action, got)
+		}
+		if got := promotionLegacyScope(action); got != "gitConnection:discover" {
+			t.Errorf("promotionLegacyScope(%q) = %q, want gitConnection:discover", action, got)
 		}
 	}
 }

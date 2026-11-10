@@ -9,7 +9,7 @@ cursor-paginated page at a time. Use --all to follow every cursor,
 capped at 10,000 providers.
 
 Use a returned ID with get, update, delete, and 'connection create'.
-Requires gitConnection:list.
+Requires promotions:list (gitConnection:list before n8n 2.47).
 
 With --all, JSON output adds a collection object. Its truncated field is true,
 and a warning goes to stderr, when the walk stopped at the 10,000-item limit

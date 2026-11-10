@@ -5,12 +5,12 @@ Continue a reviewed environment apply after binding setup
 ### Synopsis
 
 Continue a full environment apply (n8n 2.46 and later) after resolving its
-preflight items. Start with 'n8n promotion environment apply ENVIRONMENT_ID
+check items. Start with 'n8n promotion environment apply ENVIRONMENT_ID
 --output json'. The instance-scope apply environment must still be
 connected. Every team project is synchronized: workflows, folders,
 credentials, tables, variables, and tags can be created, updated, moved,
-renamed, or removed to match. Requires gitConnection:pull and the same
-permissions as the initial apply.
+renamed, or removed to match. Requires promotions:apply (gitConnection:pull
+before n8n 2.47) and the same permissions as the initial apply.
 
 Use --expected-from FILE|- with changes JSON or a blocked apply result,
 or supply --expected-environment-id, --expected-branch, and
@@ -24,10 +24,12 @@ columns and loss of their values; rows and other columns remain.
 It also permits deleting team projects with everything in them.
 This covers every such change at continue time, including changes absent
 from the reviewed result.
-Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only
-applied writes content. Resolve blocked bindings before apply-continue;
-review source-changed results again. JSON prints the full status result;
-text shows preflight details or counts and warnings. Hints go to stderr.
+Exit codes: 0 applied, 3 blocked, 4 source-changed or preview-changed
+(n8n 2.47 and later), 1 other error. Only applied writes content.
+Resolve blocked items before apply-continue; review source-changed and
+preview-changed results again. JSON prints the full status result; text
+shows the blocking check (preflight before n8n 2.47) or counts and
+warnings. Hints go to stderr.
 Read request JSON with --input FILE|- (maximum 1 MiB). Input and document flags are
 mutually exclusive. Interactive runs ask for confirmation; non-interactive
 runs and stdin input require --yes. JSON returns the server result; text

@@ -16,7 +16,7 @@ or removed to match, workflows and folders move within their project,
 folders take the branch name, and credential gaps become stubs.
 Existing variable values are kept. A workflow or folder the branch and
 the instance hold in different projects is refused with 409 before any
-write. Requires gitConnection:pull.
+write. Requires promotions:apply (gitConnection:pull before n8n 2.47).
 
 Use --expected-from FILE|- with changes JSON or a blocked apply result,
 or supply --expected-environment-id, --expected-branch, and
@@ -24,10 +24,12 @@ or supply --expected-environment-id, --expected-branch, and
 null commit cannot be used. --expected-from passes through the
 identifier the instance returned: environmentId.
 Expected source is optional; supply it to detect changes after review.
-Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only
-applied writes content. Resolve blocked bindings before apply-continue;
-review source-changed results again. JSON prints the full status result;
-text shows preflight details or counts and warnings. Hints go to stderr.
+Exit codes: 0 applied, 3 blocked, 4 source-changed or preview-changed
+(n8n 2.47 and later), 1 other error. Only applied writes content.
+Resolve blocked items before apply-continue; review source-changed and
+preview-changed results again. JSON prints the full status result; text
+shows the blocking check (preflight before n8n 2.47) or counts and
+warnings. Hints go to stderr.
 Read request JSON with --input FILE|- (maximum 1 MiB). Input and document flags are
 mutually exclusive. Interactive runs ask for confirmation; non-interactive
 runs and stdin input require --yes. JSON returns the server result; text

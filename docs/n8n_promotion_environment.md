@@ -19,7 +19,7 @@ each direction.
 Sync the whole instance through the connected instance-scope
 environment: 'promote' pushes every team project to a promote
 environment; 'apply' imports an apply environment's branch, and
-'apply-continue' finishes an apply that preflight blocked. For selected
+'apply-continue' finishes an apply that its check blocked. For selected
 workflows of one project use 'n8n promotion project changes', 'apply',
 and 'promote'.
 
@@ -59,6 +59,7 @@ n8n promotion environment [flags]
 * [n8n promotion environment disconnect](n8n_promotion_environment_disconnect.md)	 - Remove the local checkout of a promotion environment
 * [n8n promotion environment get](n8n_promotion_environment_get.md)	 - Show one promotion environment
 * [n8n promotion environment list](n8n_promotion_environment_list.md)	 - List promotion environments
+* [n8n promotion environment missing-projects](n8n_promotion_environment_missing-projects.md)	 - List branch projects missing on this instance (n8n 2.47 and later)
 * [n8n promotion environment project](n8n_promotion_environment_project.md)	 - Manage projects linked to a promotion environment
 * [n8n promotion environment promote](n8n_promotion_environment_promote.md)	 - Promote team projects to an environment's Git remote
 * [n8n promotion environment update](n8n_promotion_environment_update.md)	 - Update a promotion environment

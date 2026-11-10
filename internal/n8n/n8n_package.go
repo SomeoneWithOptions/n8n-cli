@@ -289,9 +289,9 @@ func exportFilename(header string) string {
 }
 
 // Import conflict and mode values. Every optional mode takes its default when
-// omitted; the CLI sends a field only when its flag is set, except
-// WorkflowIDPolicy, which is always sent so the ID behavior is stated rather
-// than inherited from a server default (source).
+// omitted; the CLI sends a field only when its flag is set, except IDPolicy,
+// which is always sent so the ID behavior is stated rather than inherited from
+// a server default (source).
 const (
 	ImportCredentialMatchIDOnly      = "id-only"
 	ImportCredentialMatchNameAndType = "name-and-type"
@@ -305,12 +305,16 @@ const (
 	ImportCredentialConflictOverwrite = "overwrite"
 	ImportCredentialConflictFail      = "fail"
 
-	ImportWorkflowConflictNewVersion = "new-version"
-	ImportWorkflowConflictFail       = "fail"
-	ImportWorkflowConflictSkip       = "skip"
+	// Conflict policies cover Agents and workflows from n8n 2.47; older
+	// instances apply them to workflows only.
+	ImportConflictNewVersion = "new-version"
+	ImportConflictFail       = "fail"
+	ImportConflictSkip       = "skip"
 
-	ImportWorkflowIDNew    = "new"
-	ImportWorkflowIDSource = "source"
+	// ImportIDNew mints fresh IDs. Only instances before n8n 2.47 accept it;
+	// 2.47 and later accept only ImportIDSource.
+	ImportIDNew    = "new"
+	ImportIDSource = "source"
 
 	ImportMissingNodeFail         = "fail"
 	ImportMissingNodeImportAnyway = "import-anyway"
@@ -366,8 +370,8 @@ var (
 	importCredentialMatchModes   = []string{ImportCredentialMatchIDOnly, ImportCredentialMatchNameAndType, ImportCredentialMatchTypeOnly}
 	importCredentialMissingModes = []string{ImportCredentialMissingMustPreexist, ImportCredentialMissingCreateStub, ImportCredentialMissingCreateWithValues}
 	importCredentialConflicts    = []string{ImportCredentialConflictKeep, ImportCredentialConflictOverwrite, ImportCredentialConflictFail}
-	importWorkflowConflicts      = []string{ImportWorkflowConflictNewVersion, ImportWorkflowConflictFail, ImportWorkflowConflictSkip}
-	importWorkflowIDPolicies     = []string{ImportWorkflowIDNew, ImportWorkflowIDSource}
+	importConflictPolicies       = []string{ImportConflictNewVersion, ImportConflictFail, ImportConflictSkip}
+	importIDPolicies             = []string{ImportIDNew, ImportIDSource}
 	importMissingNodeModes       = []string{ImportMissingNodeFail, ImportMissingNodeImportAnyway}
 	importPublishPolicies        = []string{ImportPublishPreserve, ImportPublishMatch, ImportPublishAll, ImportPublishNone}
 	importProjectConflicts       = []string{ImportProjectMerge, ImportProjectFail, ImportProjectOverwrite}
@@ -385,35 +389,41 @@ var (
 
 // ImportPackageRequest is the routing and conflict policy for one package
 // import. Empty optional fields are omitted so the server default applies,
-// except WorkflowIDPolicy, which is always sent so the ID behavior is explicit
+// except IDPolicy, which is always sent so the ID behavior is explicit
 // (the server default is source). Bindings, when set, must be a JSON object;
 // only credentials bindings are supported today.
+//
+// ConflictPolicy, IDPolicy, and PublishingPolicy travel under their n8n 2.47
+// names, conflictPolicy, idPolicy, and publishingPolicy, which cover Agents
+// and workflows. Older instances name them workflowConflictPolicy,
+// workflowIdPolicy, and workflowPublishingPolicy; [Client.ImportPackage]
+// resends under those names when the instance asks for them.
 type ImportPackageRequest struct {
-	ProjectID                string `json:"-"`
-	FolderID                 string `json:"-"`
-	CredentialMatchingMode   string `json:"-"`
-	CredentialMissingMode    string `json:"-"`
-	CredentialConflict       string `json:"-"` // credentialConflictPolicy; overwrite and fail need credential:update
-	Bindings                 string `json:"-"`
-	WorkflowConflictPolicy   string `json:"-"`
-	WorkflowIDPolicy         string `json:"-"`
-	MissingNodeTypeMode      string `json:"-"`
-	WorkflowPublishingPolicy string `json:"-"`
-	ProjectConflictPolicy    string `json:"-"`
-	FolderConflictPolicy     string `json:"-"`
-	OverwriteDeletionPolicy  string `json:"-"`
-	DataTableMatchingMode    string `json:"-"`
-	DataTableMissingMode     string `json:"-"`
-	DataTableSchemaConflict  string `json:"-"`
-	VariableMissingMode      string `json:"-"`
-	VariableConflictPolicy   string `json:"-"`
-	VariableParentPolicy     string `json:"-"`
-	TagMissingMode           string `json:"-"`
-	TagConflictPolicy        string `json:"-"`
+	ProjectID               string `json:"-"`
+	FolderID                string `json:"-"`
+	CredentialMatchingMode  string `json:"-"`
+	CredentialMissingMode   string `json:"-"`
+	CredentialConflict      string `json:"-"` // credentialConflictPolicy; overwrite and fail need credential:update
+	Bindings                string `json:"-"`
+	ConflictPolicy          string `json:"-"`
+	IDPolicy                string `json:"-"`
+	MissingNodeTypeMode     string `json:"-"`
+	PublishingPolicy        string `json:"-"`
+	ProjectConflictPolicy   string `json:"-"`
+	FolderConflictPolicy    string `json:"-"`
+	OverwriteDeletionPolicy string `json:"-"`
+	DataTableMatchingMode   string `json:"-"`
+	DataTableMissingMode    string `json:"-"`
+	DataTableSchemaConflict string `json:"-"`
+	VariableMissingMode     string `json:"-"`
+	VariableConflictPolicy  string `json:"-"`
+	VariableParentPolicy    string `json:"-"`
+	TagMissingMode          string `json:"-"`
+	TagConflictPolicy       string `json:"-"`
 }
 
 // Validate rejects an import policy the API would reject before transport.
-// WorkflowConflictPolicy is required; WorkflowIDPolicy must be explicit.
+// ConflictPolicy is required; IDPolicy must be explicit.
 func (r ImportPackageRequest) Validate() error {
 	if strings.TrimSpace(r.ProjectID) != r.ProjectID {
 		return fmt.Errorf("project ID must not start or end with whitespace")
@@ -421,11 +431,11 @@ func (r ImportPackageRequest) Validate() error {
 	if strings.TrimSpace(r.FolderID) != r.FolderID {
 		return fmt.Errorf("folder ID must not start or end with whitespace")
 	}
-	if !slices.Contains(importWorkflowConflicts, r.WorkflowConflictPolicy) {
-		return fmt.Errorf("unknown workflow-conflict policy %q: use %s", r.WorkflowConflictPolicy, strings.Join(importWorkflowConflicts, ", "))
+	if !slices.Contains(importConflictPolicies, r.ConflictPolicy) {
+		return fmt.Errorf("unknown conflict policy %q: use %s", r.ConflictPolicy, strings.Join(importConflictPolicies, ", "))
 	}
-	if !slices.Contains(importWorkflowIDPolicies, r.WorkflowIDPolicy) {
-		return fmt.Errorf("unknown workflow-id policy %q: use %s", r.WorkflowIDPolicy, strings.Join(importWorkflowIDPolicies, ", "))
+	if !slices.Contains(importIDPolicies, r.IDPolicy) {
+		return fmt.Errorf("unknown ID policy %q: use %s (new only before n8n 2.47)", r.IDPolicy, strings.Join(importIDPolicies, ", "))
 	}
 	checks := []struct {
 		value   string
@@ -436,7 +446,7 @@ func (r ImportPackageRequest) Validate() error {
 		{r.CredentialMissingMode, importCredentialMissingModes, "credential-missing mode"},
 		{r.CredentialConflict, importCredentialConflicts, "credential-conflict policy"},
 		{r.MissingNodeTypeMode, importMissingNodeModes, "missing-node-type mode"},
-		{r.WorkflowPublishingPolicy, importPublishPolicies, "workflow-publishing policy"},
+		{r.PublishingPolicy, importPublishPolicies, "publishing policy"},
 		{r.ProjectConflictPolicy, importProjectConflicts, "project-conflict policy"},
 		{r.FolderConflictPolicy, importFolderConflicts, "folder-conflict policy"},
 		{r.OverwriteDeletionPolicy, importDeletionPolicies, "overwrite-deletion policy"},
@@ -463,13 +473,13 @@ func (r ImportPackageRequest) Validate() error {
 	return nil
 }
 
-// fields renders the policy as multipart form fields. Empty optional fields
-// stay omitted so the server default applies; the workflow ID policy is
-// always present.
+// fields renders the policy as multipart form fields under the n8n 2.47
+// names. Empty optional fields stay omitted so the server default applies;
+// the ID policy is always present.
 func (r ImportPackageRequest) fields() map[string]string {
 	fields := map[string]string{
-		"workflowConflictPolicy": r.WorkflowConflictPolicy,
-		"workflowIdPolicy":       r.WorkflowIDPolicy,
+		"conflictPolicy": r.ConflictPolicy,
+		"idPolicy":       r.IDPolicy,
 	}
 	set := func(name, value string) {
 		if value != "" {
@@ -483,7 +493,7 @@ func (r ImportPackageRequest) fields() map[string]string {
 	set("credentialConflictPolicy", r.CredentialConflict)
 	set("bindings", r.Bindings)
 	set("missingNodeTypeMode", r.MissingNodeTypeMode)
-	set("workflowPublishingPolicy", r.WorkflowPublishingPolicy)
+	set("publishingPolicy", r.PublishingPolicy)
 	set("projectConflictPolicy", r.ProjectConflictPolicy)
 	set("folderConflictPolicy", r.FolderConflictPolicy)
 	set("overwriteDeletionPolicy", r.OverwriteDeletionPolicy)
@@ -507,13 +517,13 @@ func (r ImportPackageRequest) fields() map[string]string {
 // delete-only request. DeletedWorkflowIDs are destination IDs in the same
 // project, removed per OverwriteDeletionPolicy (server default archive).
 // Empty optional policies are omitted so the server default applies, except
-// WorkflowIDPolicy, which is always sent like [ImportPackageRequest].
+// IDPolicy, which is always sent like [ImportPackageRequest].
 type ImportPackageSelectionRequest struct {
 	ProjectID               string
 	WorkflowIDs             []string
 	DeletedWorkflowIDs      []string
-	WorkflowConflictPolicy  string
-	WorkflowIDPolicy        string
+	ConflictPolicy          string
+	IDPolicy                string
 	OverwriteDeletionPolicy string
 }
 
@@ -554,11 +564,11 @@ func (r ImportPackageSelectionRequest) Validate() error {
 		}
 		deleted[id] = true
 	}
-	if r.WorkflowConflictPolicy != "" && !slices.Contains(importWorkflowConflicts, r.WorkflowConflictPolicy) {
-		return fmt.Errorf("unknown workflow-conflict policy %q: use %s", r.WorkflowConflictPolicy, strings.Join(importWorkflowConflicts, ", "))
+	if r.ConflictPolicy != "" && !slices.Contains(importConflictPolicies, r.ConflictPolicy) {
+		return fmt.Errorf("unknown conflict policy %q: use %s", r.ConflictPolicy, strings.Join(importConflictPolicies, ", "))
 	}
-	if !slices.Contains(importWorkflowIDPolicies, r.WorkflowIDPolicy) {
-		return fmt.Errorf("unknown workflow-id policy %q: use %s", r.WorkflowIDPolicy, strings.Join(importWorkflowIDPolicies, ", "))
+	if !slices.Contains(importIDPolicies, r.IDPolicy) {
+		return fmt.Errorf("unknown ID policy %q: use %s (new only before n8n 2.47)", r.IDPolicy, strings.Join(importIDPolicies, ", "))
 	}
 	if r.OverwriteDeletionPolicy != "" {
 		if !slices.Contains(importDeletionPolicies, r.OverwriteDeletionPolicy) {
@@ -592,7 +602,7 @@ func (r ImportPackageSelectionRequest) fields() (map[string]string, error) {
 	fields := map[string]string{
 		"selectedProjectId":   r.ProjectID,
 		"selectedWorkflowIds": string(selected),
-		"workflowIdPolicy":    r.WorkflowIDPolicy,
+		"idPolicy":            r.IDPolicy,
 	}
 	if len(r.DeletedWorkflowIDs) > 0 {
 		deleted, err := json.Marshal(r.DeletedWorkflowIDs)
@@ -601,14 +611,77 @@ func (r ImportPackageSelectionRequest) fields() (map[string]string, error) {
 		}
 		fields["deletedWorkflowIds"] = string(deleted)
 	}
-	if r.WorkflowConflictPolicy != "" {
-		fields["workflowConflictPolicy"] = r.WorkflowConflictPolicy
+	if r.ConflictPolicy != "" {
+		fields["conflictPolicy"] = r.ConflictPolicy
 	}
 	if r.OverwriteDeletionPolicy != "" {
 		fields["overwriteDeletionPolicy"] = r.OverwriteDeletionPolicy
 	}
 	return fields, nil
 }
+
+// legacyImportFields maps the n8n 2.47 import field names to the names
+// instances before 2.47 require. Each generation's schema is strict and
+// rejects the other's names.
+var legacyImportFields = map[string]string{
+	"conflictPolicy":   "workflowConflictPolicy",
+	"idPolicy":         "workflowIdPolicy",
+	"publishingPolicy": "workflowPublishingPolicy",
+}
+
+// withLegacyImportFields returns fields with the 2.47 names renamed to the
+// pre-2.47 ones; other fields are copied unchanged.
+func withLegacyImportFields(fields map[string]string) map[string]string {
+	legacy := make(map[string]string, len(fields))
+	for name, value := range fields {
+		if old, ok := legacyImportFields[name]; ok {
+			name = old
+		}
+		legacy[name] = value
+	}
+	return legacy
+}
+
+// predatesImportFieldRename reports whether err is the 400 an instance
+// before n8n 2.47 answers to the 2.47 field names: it names one of its own
+// workflow-prefixed fields as missing or invalid, or rejects a 2.47 name as
+// an unrecognized key. A 2.47 instance refusing a value (idPolicy=new) names
+// idPolicy without rejecting the key, so it does not match.
+func predatesImportFieldRename(err error) bool {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok || apiErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	unrecognized := apiErr.Code == "unrecognized_keys" || strings.Contains(apiErr.Message, "Unrecognized key")
+	// The first request never sends a workflow-prefixed name, so a 400 whose
+	// text names one comes from an instance that still requires it, whatever
+	// validator produced the message.
+	for _, old := range legacyImportFields {
+		if strings.Contains(apiErr.Message, old) || strings.Contains(apiErr.Body, old) {
+			return true
+		}
+	}
+	for _, field := range apiErr.Fields {
+		for current, old := range legacyImportFields {
+			if field == old || (unrecognized && field == current) {
+				return true
+			}
+		}
+	}
+	if unrecognized && len(apiErr.Fields) == 0 {
+		for current := range legacyImportFields {
+			if strings.Contains(apiErr.Message, "'"+current+"'") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ErrImportArchiveNotRewindable means the instance predates n8n 2.47 and
+// needs the import resent under the older field names, but the archive came
+// from a reader that cannot be read twice, such as a pipe.
+var ErrImportArchiveNotRewindable = errors.New("the instance predates n8n 2.47 and needs the import resent with workflowConflictPolicy, workflowIdPolicy, and workflowPublishingPolicy, but the archive reader cannot be rewound")
 
 func nonNilStrings(values []string) []string {
 	if values == nil {
@@ -624,8 +697,13 @@ func nonNilStrings(values []string) []string {
 // Raw keeps the response verbatim so fields this type does not name yet,
 // nested ones included, survive --output json. It is a read model: MarshalJSON
 // re-emits Raw when present, so edits to the typed fields are not reflected.
+//
+// Agents, Counts, and Bindings.Agents arrive from n8n 2.47 and stay empty on
+// older instances.
 type ImportPackageResult struct {
 	Package          ImportedPackage    `json:"package"`
+	Agents           []ImportedAgent    `json:"agents"`
+	Counts           *ImportCounts      `json:"counts,omitempty"`
 	Workflows        []ImportedWorkflow `json:"workflows"`
 	RemovedWorkflows []RemovedWorkflow  `json:"removedWorkflows"`
 	RemovedFolders   []RemovedFolder    `json:"removedFolders"`
@@ -660,11 +738,55 @@ func (r ImportPackageResult) MarshalJSON() ([]byte, error) {
 	return json.Marshal(plain(r))
 }
 
-// ImportedPackage identifies the package the result came from.
+// ImportedPackage identifies the package the result came from. ExportedAt is
+// sent only before n8n 2.47.
 type ImportedPackage struct {
 	SourceN8nVersion string `json:"sourceN8nVersion"`
 	SourceID         string `json:"sourceId"`
-	ExportedAt       string `json:"exportedAt"`
+	ExportedAt       string `json:"exportedAt,omitempty"`
+}
+
+// ImportedAgent is one package Agent and what happened to it (n8n 2.47).
+// Definition import and publication have separate outcomes: a publication
+// failure keeps the imported definition.
+type ImportedAgent struct {
+	SourceAgentID   string                 `json:"sourceAgentId"`
+	LocalID         string                 `json:"localId"`
+	Name            string                 `json:"name"`
+	ProjectID       string                 `json:"projectId"`
+	ActiveVersionID *string                `json:"activeVersionId"`
+	Status          string                 `json:"status"`
+	Publishing      ImportPublishing       `json:"publishing"`
+	Channels        []ImportedAgentChannel `json:"channels"`
+}
+
+// Agent channel statuses. setup-required channels need a visit to SetupURL
+// before the Agent can use them.
+const (
+	ImportChannelReused        = "reused"
+	ImportChannelSetupRequired = "setup-required"
+)
+
+// ImportedAgentChannel is one integration channel of an imported Agent:
+// reused as configured, or needing setup (Reason new-channel or
+// destination-draft).
+type ImportedAgentChannel struct {
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	Reason   string `json:"reason,omitempty"`
+	SetupURL string `json:"setupUrl,omitempty"`
+}
+
+// ImportCounts holds the per-entity totals of an import (n8n 2.47).
+type ImportCounts struct {
+	Agents ImportEntityCounts `json:"agents"`
+}
+
+// ImportEntityCounts counts entities by outcome.
+type ImportEntityCounts struct {
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+	Skipped int `json:"skipped"`
 }
 
 // ImportedWorkflow is one package workflow and what happened to it.
@@ -680,8 +802,21 @@ type ImportedWorkflow struct {
 	Status           string           `json:"status"`
 }
 
+// Publishing states and reasons shared by workflows and Agents. A blocked or
+// skipped publication names its reason; channel-setup-required (n8n 2.47)
+// means an Agent channel needs setup first.
+const (
+	ImportPublishingPublished   = "published"
+	ImportPublishingUnpublished = "unpublished"
+	ImportPublishingUnchanged   = "unchanged"
+	ImportPublishingBlocked     = "blocked"
+	ImportPublishingFailed      = "failed"
+
+	ImportPublishReasonChannelSetupRequired = "channel-setup-required"
+)
+
 // ImportPublishing is the outcome of applying the publishing policy to one
-// workflow.
+// workflow or Agent.
 type ImportPublishing struct {
 	State                string `json:"state"`
 	Error                string `json:"error,omitempty"`
@@ -728,7 +863,10 @@ type ImportedProject struct {
 
 // ImportBindings maps source IDs from the package to target IDs on the
 // instance, one map per entity type.
+//
+// Agents is set from n8n 2.47.
 type ImportBindings struct {
+	Agents      map[string]string `json:"agents,omitempty"`
 	Workflows   map[string]string `json:"workflows"`
 	Credentials map[string]string `json:"credentials"`
 }
@@ -783,6 +921,8 @@ const (
 	ImportIssueAgentPolicyViolation      = "agent-policy-violation"
 	ImportIssueWorkflowFolderConflict    = "workflow-folder-conflict"
 	ImportIssueCredentialPolicyViolation = "credential-policy-violation"
+	ImportIssuePolicyCheckFailed         = "policy-check-failed"
+	ImportIssueDataTableUnresolved       = "data-table-unresolved"
 )
 
 // ImportBlockingIssue is one reason a 409 or 422 rejected an import. The
@@ -814,7 +954,16 @@ type ImportBlockingIssue struct {
 	TargetID               string                 `json:"targetId,omitempty"`
 	CredentialType         string                 `json:"credentialType,omitempty"`
 	Violations             []ImportIssueViolation `json:"violations,omitempty"`
+	Point                  string                 `json:"point,omitempty"`
+	Column                 *ImportIssueColumn     `json:"column,omitempty"`
 	Raw                    json.RawMessage        `json:"-"`
+}
+
+// ImportIssueColumn names the data-table column a column-id-conflict
+// (data-table-unresolved, n8n 2.47) is about.
+type ImportIssueColumn struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // ImportIssueViolation is one policy check that refused an agent, workflow, or
@@ -861,9 +1010,10 @@ func (issue ImportBlockingIssue) MarshalJSON() ([]byte, error) {
 }
 
 // Describe renders the issue as one human-readable line starting with its
-// type. Agent issues, workflow-folder-conflict, and
-// credential-policy-violation get a sentence; every other type lists its
-// scalar fields from Raw as key=value pairs, so unknown types still read.
+// type. Agent issues, workflow-folder-conflict, credential-policy-violation,
+// and policy-check-failed get a sentence; data-table-unresolved adds its
+// column; every other type lists its scalar fields from Raw as key=value
+// pairs, so unknown types and new fields such as reason or kind still read.
 func (issue ImportBlockingIssue) Describe() string {
 	typ := emptyImportIssueType(issue.Type)
 	switch issue.Type {
@@ -892,6 +1042,14 @@ func (issue ImportBlockingIssue) Describe() string {
 			line += fmt.Sprintf(", update of target %q", issue.TargetID)
 		}
 		return line + ") refused: " + describeViolations(issue.Violations)
+	case ImportIssuePolicyCheckFailed:
+		return fmt.Sprintf("%s: the %s policy check could not run, so nothing was written", typ, dashIfEmpty(issue.Point))
+	case ImportIssueDataTableUnresolved:
+		line := typ + describeScalarFields(issue.Raw)
+		if issue.Column != nil {
+			line += fmt.Sprintf(" (column %s, id %s)", quoteOrDash(issue.Column.Name), quoteOrDash(issue.Column.ID))
+		}
+		return line
 	}
 	return typ + describeScalarFields(issue.Raw)
 }
@@ -1075,11 +1233,17 @@ func IsImportUnprocessable(err error) bool {
 // opts accepts [IdempotencyKey]. With a key the multipart boundary is derived
 // from it, so a retry with the same key, archive and filename sends the same
 // bytes, which the server requires to replay the first result.
+//
+// The policy travels under the n8n 2.47 field names. An instance before 2.47
+// rejects them with a 400 before writing anything; the import is then sent
+// once more under the older names, which needs packageData to be an
+// [io.Seeker] (a file). Otherwise the error wraps
+// [ErrImportArchiveNotRewindable].
 func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest, packageData io.Reader, filename string, opts ...CallOption) (*ImportPackageResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return c.postPackageImport(ctx, N8nPackageImportPath, request.fields(), packageData, filename, opts)
+	return c.postPackageImportCompat(ctx, N8nPackageImportPath, request.fields(), packageData, filename, opts)
 }
 
 // ImportPackageSelection cherry-picks workflows from one source project of a
@@ -1087,7 +1251,8 @@ func (c *Client) ImportPackage(ctx context.Context, request ImportPackageRequest
 // missing. It never removes a workflow the selection omits; it deletes only
 // request.DeletedWorkflowIDs. The archive streams like [Client.ImportPackage]
 // and the result has the same shape. The caller confirms first. opts accepts
-// [IdempotencyKey], with the same boundary rule as [Client.ImportPackage].
+// [IdempotencyKey], with the same boundary rule as [Client.ImportPackage], and
+// older instances get the same field-name fallback.
 func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPackageSelectionRequest, packageData io.Reader, filename string, opts ...CallOption) (*ImportPackageResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, err
@@ -1096,7 +1261,44 @@ func (c *Client) ImportPackageSelection(ctx context.Context, request ImportPacka
 	if err != nil {
 		return nil, err
 	}
-	return c.postPackageImport(ctx, N8nPackageImportSelectionPath, fields, packageData, filename, opts)
+	return c.postPackageImportCompat(ctx, N8nPackageImportSelectionPath, fields, packageData, filename, opts)
+}
+
+// postPackageImportCompat sends the import under the n8n 2.47 field names
+// and, when the instance turns out to predate them, rewinds the archive and
+// sends it once more under the older names. The 400 comes from body
+// validation, before any write, and a failed request releases its
+// idempotency key, so resending with the same key is safe.
+func (c *Client) postPackageImportCompat(ctx context.Context, path string, fields map[string]string, packageData io.Reader, filename string, opts []CallOption) (*ImportPackageResult, error) {
+	seeker, start, rewindable := rewindPoint(packageData)
+	result, err := c.postPackageImport(ctx, path, fields, packageData, filename, opts)
+	if err == nil || !predatesImportFieldRename(err) {
+		return result, err
+	}
+	if !rewindable {
+		return nil, fmt.Errorf("n8n: POST %s: %w: %w", path, ErrImportArchiveNotRewindable, err)
+	}
+	if _, seekErr := seeker.Seek(start, io.SeekStart); seekErr != nil {
+		return nil, fmt.Errorf("n8n: POST %s: %w: rewind: %w: %w", path, ErrImportArchiveNotRewindable, seekErr, err)
+	}
+	if ctx != nil {
+		c.logger.DebugContext(ctx, "n8n import resent with pre-2.47 field names", "path", path, "first", err)
+	}
+	return c.postPackageImport(ctx, path, withLegacyImportFields(fields), packageData, filename, opts)
+}
+
+// rewindPoint records where a seekable reader stands so it can be read again.
+// A pipe implements io.Seeker but fails to seek, so it is not rewindable.
+func rewindPoint(r io.Reader) (io.Seeker, int64, bool) {
+	seeker, ok := r.(io.Seeker)
+	if !ok {
+		return nil, 0, false
+	}
+	offset, err := seeker.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return nil, 0, false
+	}
+	return seeker, offset, true
 }
 
 // postPackageImport streams fields and the archive to an import endpoint and
@@ -1135,10 +1337,17 @@ func (c *Client) postPackageImport(ctx context.Context, path string, fields map[
 	if call.IdempotencyKey != "" {
 		boundary = idempotentBoundary(call.IdempotencyKey)
 	}
-	body, contentType, err := multipartImportBody(fields, packageData, filename, boundary)
+	body, contentType, done, err := multipartImportBody(fields, packageData, filename, boundary)
 	if err != nil {
 		return nil, err
 	}
+	// The writer goroutine reads packageData until the server stops reading.
+	// Closing the pipe stops it, and waiting for it means the archive is no
+	// longer read once this returns, so a caller may rewind it.
+	defer func() {
+		_ = body.Close()
+		<-done
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, importEndpoint.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("n8n: build request: %w", err)
@@ -1210,22 +1419,25 @@ func (c *Client) postPackageImport(ctx context.Context, path string, fields map[
 // multipartImportBody streams the policy fields and the archive through a
 // pipe: the writer side runs in a goroutine, so the HTTP transport reads
 // while the archive streams without an intermediate buffer. An empty boundary
-// keeps the random one multipart picks.
-func multipartImportBody(fields map[string]string, packageData io.Reader, filename, boundary string) (io.Reader, string, error) {
+// keeps the random one multipart picks. done closes once the writer has
+// stopped reading packageData.
+func multipartImportBody(fields map[string]string, packageData io.Reader, filename, boundary string) (io.ReadCloser, string, <-chan struct{}, error) {
 	reader, writer := io.Pipe()
 	multipartWriter := multipart.NewWriter(writer)
 	if boundary != "" {
 		if err := multipartWriter.SetBoundary(boundary); err != nil {
 			_ = writer.Close()
-			return nil, "", fmt.Errorf("n8n: multipart boundary: %w", err)
+			return nil, "", nil, fmt.Errorf("n8n: multipart boundary: %w", err)
 		}
 	}
 	contentType := multipartWriter.FormDataContentType()
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		err := writeMultipartImport(multipartWriter, fields, packageData, filename)
 		_ = writer.CloseWithError(err)
 	}()
-	return reader, contentType, nil
+	return reader, contentType, done, nil
 }
 
 func writeMultipartImport(multipartWriter *multipart.Writer, fields map[string]string, packageData io.Reader, filename string) error {

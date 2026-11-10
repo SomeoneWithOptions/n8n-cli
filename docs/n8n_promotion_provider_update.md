@@ -17,7 +17,8 @@ later) or connection (older) that uses this provider, so interactive
 runs ask for confirmation and non-interactive runs require --yes.
 Credentials travel only as --input because secrets are never flags. A
 409 means another request changed the provider first: reload it and
-retry. Requires gitConnection:update.
+retry. Requires promotions:update (gitConnection:update before n8n
+2.47).
 
 ```
 n8n promotion provider update <provider-id> [flags]

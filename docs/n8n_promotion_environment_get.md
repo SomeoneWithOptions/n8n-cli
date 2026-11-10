@@ -8,7 +8,8 @@ Show one promotion environment by ID: its name, scope, direction,
 remote, provider, settings, local checkout state, and timestamps.
 Secrets are never returned. Find the ID with 'n8n promotion environment
 list'. The --output json document can be edited and passed to 'update'
-as is: its read-only fields are dropped. Requires gitConnection:read.
+as is: its read-only fields are dropped. Requires promotions:read
+(gitConnection:read on n8n 2.46).
 
 ```
 n8n promotion environment get <environment-id> [flags]

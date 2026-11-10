@@ -20,8 +20,8 @@ server-generated message). Without --force a promote the remote would
 reject is refused with 409 and nothing is pushed; --force pushes anyway
 and rewrites remote history. This mutates the remote branch.
 Interactive runs ask for confirmation and non-interactive runs require
---yes. Requires gitConnection:push, plus variable:list when workflows
-reference variables.
+--yes. Requires promotions:promote (gitConnection:push on n8n 2.46),
+plus variable:list when workflows reference variables.
 
 Text shows the commit, branch, counts, and any review the Git host
 opened; JSON is the full result. Advisory warnings go to stderr in both

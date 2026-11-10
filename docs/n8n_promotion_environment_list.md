@@ -11,7 +11,7 @@ are preserved across --all. Use --all to follow every cursor, capped at
 10,000 environments.
 
 Use a returned ID with get, update, delete, connect, disconnect, and
-project. Requires gitConnection:list.
+project. Requires promotions:list (gitConnection:list on n8n 2.46).
 
 With --all, JSON output adds a collection object. Its truncated field is true,
 and a warning goes to stderr, when the walk stopped at the 10,000-item limit

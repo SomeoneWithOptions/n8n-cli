@@ -8,7 +8,8 @@ Link one team project to one projects-scope promotion environment, so
 project-level sync in that direction uses this environment instead of
 the instance environment. A project can have one environment for each
 direction: adding a project that already has one for this direction
-answers 409. Requires gitConnection:manageProjects.
+answers 409. Requires promotions:manageProjects
+(gitConnection:manageProjects on n8n 2.46).
 
 ```
 n8n promotion environment project add <environment-id> <project-id> [flags]

@@ -13,7 +13,8 @@ workflows remain archived on the branch; workflows gone from the instance
 leave the branch. On 2.46 a workflow that moved into or out of the
 project since the branch was written is refused with 400; move it back
 first. Unknown deletions reject the whole request. Requires
-gitConnection:push, plus variable:list when workflows use variables.
+promotions:promote (gitConnection:push before n8n 2.47), plus
+variable:list when workflows use variables.
 Commit message is optional; the server supplies a default. Force pushing
 is not supported. The result can name a review the Git host opened;
 advisory warnings go to stderr.

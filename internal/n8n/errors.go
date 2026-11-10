@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // maxErrorBody caps how much of a non-2xx body is read. A misrouted request can
@@ -40,6 +42,38 @@ type APIError struct {
 	// ReviewRequestID names the open workflow review that blocked a
 	// publication (409).
 	ReviewRequestID string
+
+	// Fields names the request fields a validation failure (400) points at:
+	// the first element of the issue path, then any unrecognized keys. n8n
+	// answers a rejected body with its first schema issue, e.g.
+	// {"code":"unrecognized_keys","keys":["idPolicy"],"path":[],...}.
+	Fields []string
+
+	// RateLimit is set on a 429 from the headers the server sent with it.
+	RateLimit *RateLimit
+}
+
+// RateLimit is what a 429 says about the rate-limit window. A field the
+// server did not send stays at its zero value and its Has flag false.
+type RateLimit struct {
+	// RetryAfter is how long to wait before retrying (Retry-After).
+	RetryAfter    time.Duration
+	HasRetryAfter bool
+	// Limit and Remaining are X-RateLimit-Limit and X-RateLimit-Remaining.
+	Limit        int
+	HasLimit     bool
+	Remaining    int
+	HasRemaining bool
+	// Reset is when the window resets (X-RateLimit-Reset, Unix seconds).
+	Reset time.Time
+}
+
+// RetryAfterOf returns the wait a 429 asked for and whether it named one.
+func RetryAfterOf(err error) (time.Duration, bool) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok && apiErr.RateLimit != nil && apiErr.RateLimit.HasRetryAfter {
+		return apiErr.RateLimit.RetryAfter, true
+	}
+	return 0, false
 }
 
 func (e *APIError) Error() string {
@@ -62,10 +96,20 @@ func (e *APIError) Error() string {
 		b.WriteString(": ")
 		b.WriteString(singleLine(e.Body))
 	}
+	if len(e.Fields) > 0 {
+		fmt.Fprintf(&b, " (field %s)", strings.Join(quoteAll(e.Fields), ", "))
+	}
 	if e.Hint != "" {
 		b.WriteString(" (")
 		b.WriteString(e.Hint)
 		b.WriteString(")")
+	}
+	if e.RateLimit != nil {
+		if text := e.RateLimit.describe(); text != "" {
+			b.WriteString(" (")
+			b.WriteString(text)
+			b.WriteString(")")
+		}
 	}
 	if e.RequestID != "" {
 		b.WriteString(" (request id ")
@@ -73,6 +117,35 @@ func (e *APIError) Error() string {
 		b.WriteString(")")
 	}
 	return b.String()
+}
+
+// describe renders the rate-limit headers as one clause, e.g. "retry after
+// 30s; limit 100, 0 remaining; window resets at 2026-11-10T10:00:00Z".
+func (r *RateLimit) describe() string {
+	var parts []string
+	if r.HasRetryAfter {
+		parts = append(parts, "retry after "+r.RetryAfter.String())
+	}
+	switch {
+	case r.HasLimit && r.HasRemaining:
+		parts = append(parts, fmt.Sprintf("limit %d, %d remaining", r.Limit, r.Remaining))
+	case r.HasLimit:
+		parts = append(parts, fmt.Sprintf("limit %d", r.Limit))
+	case r.HasRemaining:
+		parts = append(parts, fmt.Sprintf("%d remaining", r.Remaining))
+	}
+	if !r.Reset.IsZero() {
+		parts = append(parts, "window resets at "+r.Reset.UTC().Format(time.RFC3339))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func quoteAll(values []string) []string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = strconv.Quote(v)
+	}
+	return quoted
 }
 
 func (e *APIError) statusText() string {
@@ -145,6 +218,11 @@ type errorBody struct {
 	Reason                  json.RawMessage `json:"reason"`
 	VersionID               json.RawMessage `json:"versionId"`
 	WorkflowReviewRequestID json.RawMessage `json:"workflowReviewRequestId"`
+
+	// Path and Keys come from a schema issue, the shape n8n answers a
+	// rejected request body with.
+	Path json.RawMessage `json:"path"`
+	Keys json.RawMessage `json:"keys"`
 }
 
 // newAPIError builds an error from a response body that has already been read
@@ -157,6 +235,9 @@ func newAPIError(resp *http.Response, method, path string, body []byte, truncate
 		Path:       path,
 		RequestID:  requestID(resp.Header),
 		Truncated:  truncated,
+	}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		apiErr.RateLimit = parseRateLimit(resp.Header, time.Now())
 	}
 
 	var decoded errorBody
@@ -171,6 +252,9 @@ func newAPIError(resp *http.Response, method, path string, body []byte, truncate
 	apiErr.Reason = firstText(decoded.Reason)
 	apiErr.VersionID = firstText(decoded.VersionID)
 	apiErr.ReviewRequestID = firstText(decoded.WorkflowReviewRequestID)
+	if resp.StatusCode == http.StatusBadRequest {
+		apiErr.Fields = issueFields(decoded.Path, decoded.Keys)
+	}
 	if apiErr.Message == "" && apiErr.Code == "" {
 		// Valid JSON in a shape we do not know: keep it rather than drop it.
 		apiErr.Body = truncateText(strings.TrimSpace(string(body)), 512)
@@ -226,6 +310,56 @@ func flattenText(raw json.RawMessage) string {
 		return firstText(obj.Message, obj.Error, obj.Description)
 	}
 	return ""
+}
+
+// issueFields names the request fields a schema issue points at: the first
+// path element when it is a field name, then the unrecognized keys. Anything
+// that is not a list of strings is ignored.
+func issueFields(path, keys json.RawMessage) []string {
+	var fields []string
+	var elements []json.RawMessage
+	if len(path) > 0 && json.Unmarshal(path, &elements) == nil && len(elements) > 0 {
+		var first string
+		if json.Unmarshal(elements[0], &first) == nil && first != "" {
+			fields = append(fields, first)
+		}
+	}
+	var names []string
+	if len(keys) > 0 && json.Unmarshal(keys, &names) == nil {
+		for _, name := range names {
+			if name != "" && !slices.Contains(fields, name) {
+				fields = append(fields, name)
+			}
+		}
+	}
+	return fields
+}
+
+// parseRateLimit reads the 429 headers. Retry-After is seconds or an HTTP
+// date; malformed values are dropped rather than guessed at. It returns nil
+// when no header was usable.
+func parseRateLimit(h http.Header, now time.Time) *RateLimit {
+	var r RateLimit
+	if v := strings.TrimSpace(h.Get("Retry-After")); v != "" {
+		if seconds, err := strconv.Atoi(v); err == nil && seconds >= 0 {
+			r.RetryAfter, r.HasRetryAfter = time.Duration(seconds)*time.Second, true
+		} else if at, err := http.ParseTime(v); err == nil {
+			r.RetryAfter, r.HasRetryAfter = max(at.Sub(now).Round(time.Second), 0), true
+		}
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(h.Get("X-RateLimit-Limit"))); err == nil && v >= 0 {
+		r.Limit, r.HasLimit = v, true
+	}
+	if v, err := strconv.Atoi(strings.TrimSpace(h.Get("X-RateLimit-Remaining"))); err == nil && v >= 0 {
+		r.Remaining, r.HasRemaining = v, true
+	}
+	if v, err := strconv.ParseInt(strings.TrimSpace(h.Get("X-RateLimit-Reset")), 10, 64); err == nil && v > 0 {
+		r.Reset = time.Unix(v, 0).UTC()
+	}
+	if !r.HasRetryAfter && !r.HasLimit && !r.HasRemaining && r.Reset.IsZero() {
+		return nil
+	}
+	return &r
 }
 
 // requestID reads the correlation identifiers n8n and its proxies emit.

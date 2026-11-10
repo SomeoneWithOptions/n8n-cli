@@ -180,7 +180,7 @@ func TestIdempotencyKeyValidatedBeforeTransport(t *testing.T) {
 		},
 		"package import": func() error {
 			_, err := client.ImportPackage(context.Background(), ImportPackageRequest{
-				WorkflowConflictPolicy: ImportWorkflowConflictFail, WorkflowIDPolicy: ImportWorkflowIDSource,
+				ConflictPolicy: ImportConflictFail, IDPolicy: ImportIDSource,
 			}, strings.NewReader(packageArchiveBytes), "workflows.n8np", IdempotencyKey("clé"))
 			return err
 		},
@@ -228,8 +228,8 @@ func TestIdempotencyRefusals(t *testing.T) {
 }
 
 func TestImportPackageIdempotencyKey(t *testing.T) {
-	request := ImportPackageRequest{WorkflowConflictPolicy: ImportWorkflowConflictFail, WorkflowIDPolicy: ImportWorkflowIDSource}
-	selection := ImportPackageSelectionRequest{ProjectID: "p1", WorkflowIDs: []string{"wf-1"}, WorkflowIDPolicy: ImportWorkflowIDSource}
+	request := ImportPackageRequest{ConflictPolicy: ImportConflictFail, IDPolicy: ImportIDSource}
+	selection := ImportPackageSelectionRequest{ProjectID: "p1", WorkflowIDs: []string{"wf-1"}, IDPolicy: ImportIDSource}
 	calls := map[string]func(*Client, ...CallOption) error{
 		"import": func(c *Client, opts ...CallOption) error {
 			_, err := c.ImportPackage(context.Background(), request, strings.NewReader(packageArchiveBytes), "workflows.n8np", opts...)
@@ -291,7 +291,7 @@ func TestImportPackageIdempotencyRefusalIsNotImportBlocked(t *testing.T) {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			server := newCommunityPackageServer(t, packageJSONHandler(status, body))
 			_, err := server.client(t).ImportPackage(context.Background(), ImportPackageRequest{
-				WorkflowConflictPolicy: ImportWorkflowConflictFail, WorkflowIDPolicy: ImportWorkflowIDSource,
+				ConflictPolicy: ImportConflictFail, IDPolicy: ImportIDSource,
 			}, strings.NewReader(packageArchiveBytes), "workflows.n8np", IdempotencyKey("import-1"))
 			if _, blocked := AsImportBlocked(err); blocked {
 				t.Errorf("err = %v, want an API error, not an import block", err)
