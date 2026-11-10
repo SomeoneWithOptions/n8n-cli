@@ -339,7 +339,7 @@ func TestPackageImportConfirmationPolicyAndBody(t *testing.T) {
 	before := f.requestCount()
 	f.stdin = "no\n"
 
-	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "new-version")
+	got := f.run("package", "import", "--file", archive, "--conflict-policy", "new-version")
 	if got.code != ExitError || !strings.Contains(got.stderr, "aborted") || f.requestCount() != before {
 		t.Errorf("declined result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
@@ -350,13 +350,13 @@ func TestPackageImportConfirmationPolicyAndBody(t *testing.T) {
 	}
 
 	f.interactive = false
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "new-version")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "new-version")
 	if got.code != ExitError || !strings.Contains(got.stderr, "pass --yes") || f.requestCount() != before {
 		t.Errorf("non-interactive result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
 
 	got = f.run("package", "import", "--file", archive,
-		"--workflow-conflict-policy", "new-version",
+		"--conflict-policy", "new-version",
 		"--project-id", "p1",
 		"--tag-conflict-policy", "rename",
 		"--yes", "--output", "json")
@@ -368,7 +368,7 @@ func TestPackageImportConfirmationPolicyAndBody(t *testing.T) {
 		t.Errorf("request = %s %s", req.Method, req.URL.Path)
 	}
 	fields, fileBytes, filename := parseCLIImportMultipart(t, f)
-	if fields["workflowConflictPolicy"] != "new-version" || fields["workflowIdPolicy"] != "source" {
+	if fields["conflictPolicy"] != "new-version" || fields["idPolicy"] != "source" {
 		t.Errorf("fields = %v, want conflict new-version and explicit id source", fields)
 	}
 	if fields["projectId"] != "p1" || fields["tagConflictPolicy"] != "rename" {
@@ -387,7 +387,7 @@ func TestPackageImportTextWarnsAboutDroppedItems(t *testing.T) {
 	f := packageFixture(t, cliPackageImportResult)
 	archive := writePackageArchive(t, cliPackageArchive)
 
-	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	got := f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -412,7 +412,7 @@ func TestPackageImportReportsIncompleteCredentials(t *testing.T) {
 	f := packageFixture(t, body)
 	archive := writePackageArchive(t, cliPackageArchive)
 
-	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip",
+	got := f.run("package", "import", "--file", archive, "--conflict-policy", "skip",
 		"--credential-missing-mode", "create-with-values", "--data-table-schema-policy", "overwrite-non-destructive", "--yes")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
@@ -432,7 +432,7 @@ func TestPackageImportReportsIncompleteCredentials(t *testing.T) {
 		}
 	}
 
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes", "--output", "json")
 	if got.code != ExitSuccess {
 		t.Fatalf("json exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -461,7 +461,7 @@ func TestPackageImportSchemaOverwriteWarns(t *testing.T) {
 	f.stdin = "no\n"
 
 	got := f.run("package", "import", "--file", archive,
-		"--workflow-conflict-policy", "new-version",
+		"--conflict-policy", "new-version",
 		"--data-table-schema-policy", "overwrite",
 		"--credential-missing-mode", "create-with-values")
 	if got.code != ExitError || f.requestCount() != before {
@@ -479,13 +479,13 @@ func TestPackageImportStdinRequiresYes(t *testing.T) {
 	f.stdin = cliPackageArchive
 	before := f.requestCount()
 
-	got := f.run("package", "import", "--file", "-", "--workflow-conflict-policy", "skip")
+	got := f.run("package", "import", "--file", "-", "--conflict-policy", "skip")
 	if got.code != ExitError || !strings.Contains(got.stderr, "--yes") || f.requestCount() != before {
 		t.Errorf("stdin without --yes result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
 
 	f.stdin = cliPackageArchive
-	got = f.run("package", "import", "--file", "-", "--workflow-conflict-policy", "skip", "--yes", "--output", "json")
+	got = f.run("package", "import", "--file", "-", "--conflict-policy", "skip", "--yes", "--output", "json")
 	if got.code != ExitSuccess {
 		t.Fatalf("stdin exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -501,7 +501,7 @@ func TestPackageImportHardDeleteWarnsStronger(t *testing.T) {
 	f.stdin = "no\n"
 
 	got := f.run("package", "import", "--file", archive,
-		"--workflow-conflict-policy", "new-version",
+		"--conflict-policy", "new-version",
 		"--folder-conflict-policy", "overwrite",
 		"--overwrite-deletion-policy", "hard-delete")
 	if got.code != ExitError {
@@ -518,14 +518,14 @@ func TestPackageImportRejectsBadPoliciesBeforeTransport(t *testing.T) {
 	before := f.requestCount()
 
 	cases := [][]string{
-		{"package", "import", "--workflow-conflict-policy", "new-version", "--yes"},
+		{"package", "import", "--conflict-policy", "new-version", "--yes"},
 		{"package", "import", "--file", archive, "--yes"},
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "sometimes", "--yes"},
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "new-version", "--workflow-id-policy", "sometimes", "--yes"},
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "new-version", "--bindings", "not-json", "--yes"},
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "new-version", "--variable-parent-policy", "sometimes", "--yes"},
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "new-version", "--yes", "--output", "yaml"},
-		{"package", "import", "--file", filepath.Join(t.TempDir(), "missing.n8np"), "--workflow-conflict-policy", "new-version", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "sometimes", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "new-version", "--id-policy", "sometimes", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "new-version", "--bindings", "not-json", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "new-version", "--variable-parent-policy", "sometimes", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "new-version", "--yes", "--output", "yaml"},
+		{"package", "import", "--file", filepath.Join(t.TempDir(), "missing.n8np"), "--conflict-policy", "new-version", "--yes"},
 	}
 	for _, args := range cases {
 		got := f.run(args...)
@@ -544,14 +544,14 @@ func TestPackageImportBlockedPointsAtPolicies(t *testing.T) {
 	f.status = http.StatusConflict
 	f.body = `{"message":"import blocked","issues":[{"type":"workflow-conflict","sourceWorkflowId":"a"}]}`
 	archive := writePackageArchive(t, cliPackageArchive)
-	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "fail", "--yes")
-	if got.code != ExitError || !strings.Contains(got.stderr, "409") || !strings.Contains(got.stderr, "--workflow-conflict-policy") {
+	got := f.run("package", "import", "--file", archive, "--conflict-policy", "fail", "--yes")
+	if got.code != ExitError || !strings.Contains(got.stderr, "409") || !strings.Contains(got.stderr, "--conflict-policy") {
 		t.Errorf("409 result = %+v, want the conflict remediation", got)
 	}
 
 	f.body = `{"message":"missing credentials","issues":[{"type":"credential-missing"}]}`
 	f.status = http.StatusUnprocessableEntity
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes")
 	if got.code != ExitError || !strings.Contains(got.stderr, "422") || !strings.Contains(got.stderr, "--credential-missing-mode") {
 		t.Errorf("422 result = %+v, want the missing-reference remediation", got)
 	}
@@ -569,7 +569,7 @@ func TestPackageDenialsAreReported(t *testing.T) {
 
 	archive := writePackageArchive(t, cliPackageArchive)
 	f.status = http.StatusForbidden
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes")
 	if got.code != ExitError || !strings.Contains(got.stderr, "workflow:import") || !strings.Contains(got.stderr, "n8n discover --resource n8npackage") {
 		t.Errorf("403 result = %+v, want scope and discover hint", got)
 	}
@@ -581,7 +581,7 @@ func TestPackageDenialsAreReported(t *testing.T) {
 	}
 
 	f.status = http.StatusBadRequest
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes")
 	if got.code != ExitError || !strings.Contains(got.stderr, "400") {
 		t.Errorf("400 result = %+v, want the bad-request guidance", got)
 	}
@@ -637,7 +637,7 @@ func TestPackageImportSelectionConfirmationAndBody(t *testing.T) {
 		t.Errorf("non-interactive result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
 
-	got = f.run(append(args, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")...)
+	got = f.run(append(args, "--conflict-policy", "skip", "--yes", "--output", "json")...)
 	if got.code != ExitSuccess {
 		t.Fatalf("confirmed exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -647,11 +647,11 @@ func TestPackageImportSelectionConfirmationAndBody(t *testing.T) {
 	}
 	fields, fileBytes, filename := parseCLIImportMultipart(t, f)
 	want := map[string]string{
-		"selectedProjectId":      "src-p",
-		"selectedWorkflowIds":    `["wf-1","wf-2"]`,
-		"deletedWorkflowIds":     `["wf-9"]`,
-		"workflowConflictPolicy": "skip",
-		"workflowIdPolicy":       "source",
+		"selectedProjectId":   "src-p",
+		"selectedWorkflowIds": `["wf-1","wf-2"]`,
+		"deletedWorkflowIds":  `["wf-9"]`,
+		"conflictPolicy":      "skip",
+		"idPolicy":            "source",
 	}
 	for name, value := range want {
 		if fields[name] != value {
@@ -742,8 +742,8 @@ func TestPackageImportSelectionRejectsBadInputBeforeTransport(t *testing.T) {
 		{cmd("--file", archive, "--project-id", "p", "--delete-workflow-id", "b", "--delete-workflow-id", "b"), "more than once"},
 		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--delete-workflow-id", "a"), "both selected for import and listed for deletion"},
 		{cmd("--file", archive, "--project-id", "p", "--workflow-id", ""), "must not be empty"},
-		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--workflow-conflict-policy", "sometimes"), "workflow-conflict policy"},
-		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--workflow-id-policy", "sometimes"), "workflow-id policy"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--conflict-policy", "sometimes"), "conflict policy"},
+		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--id-policy", "sometimes"), "ID policy"},
 		{cmd("--file", archive, "--project-id", "p", "--delete-workflow-id", "b", "--overwrite-deletion-policy", "purge"), "overwrite-deletion policy"},
 		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--overwrite-deletion-policy", "archive"), "only applies to deleted workflow IDs"},
 		{cmd("--file", archive, "--project-id", "p", "--workflow-id", "a", "--output", "yaml"), "yaml"},
@@ -815,7 +815,7 @@ func TestPackageImportCredentialConflictPolicy(t *testing.T) {
 	archive := writePackageArchive(t, cliPackageArchive)
 	before := f.requestCount()
 
-	got := f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "replace", "--yes")
+	got := f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--credential-conflict-policy", "replace", "--yes")
 	if got.code != ExitError || f.requestCount() != before {
 		t.Fatalf("bad policy result = %+v, requests = %d want %d", got, f.requestCount(), before)
 	}
@@ -826,12 +826,12 @@ func TestPackageImportCredentialConflictPolicy(t *testing.T) {
 	}
 
 	f.stdin = "no\n"
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "overwrite")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--credential-conflict-policy", "overwrite")
 	if got.code != ExitError || f.requestCount() != before || !strings.Contains(got.stderr, "Credential overwrite writes the package's names and expression values") {
 		t.Errorf("declined overwrite result = %+v, want the overwrite warning in the prompt and no request", got)
 	}
 
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--credential-conflict-policy", "overwrite", "--yes")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--credential-conflict-policy", "overwrite", "--yes")
 	if got.code != ExitSuccess {
 		t.Fatalf("exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -851,7 +851,7 @@ func TestPackageImportCredentialConflictPolicy(t *testing.T) {
 		t.Errorf("stdout = %q, want the overwrite note on stderr only", got.stdout)
 	}
 
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes")
 	if got.code != ExitSuccess {
 		t.Fatalf("unset exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -860,7 +860,7 @@ func TestPackageImportCredentialConflictPolicy(t *testing.T) {
 		t.Errorf("fields = %v, want credentialConflictPolicy omitted when the flag is unset", fields)
 	}
 
-	got = f.run("package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes", "--output", "json")
+	got = f.run("package", "import", "--file", archive, "--conflict-policy", "skip", "--yes", "--output", "json")
 	if got.code != ExitSuccess {
 		t.Fatalf("json exit = %d, stderr: %s", got.code, got.stderr)
 	}
@@ -879,7 +879,7 @@ func TestPackageImportToleratesAbsentCredentialsUpdated(t *testing.T) {
 	archive := writePackageArchive(t, cliPackageArchive)
 
 	for _, args := range [][]string{
-		{"package", "import", "--file", archive, "--workflow-conflict-policy", "skip", "--yes"},
+		{"package", "import", "--file", archive, "--conflict-policy", "skip", "--yes"},
 		{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-src", "--yes"},
 	} {
 		got := f.run(args...)
@@ -932,8 +932,8 @@ func TestPackageImportBlockedListsIssues(t *testing.T) {
 		args   []string
 		want   string
 	}{
-		{"import 409", http.StatusConflict, []string{"package", "import", "--file", archive, "--workflow-conflict-policy", "fail", "--yes"}, "--credential-conflict-policy"},
-		{"import 422", http.StatusUnprocessableEntity, []string{"package", "import", "--file", archive, "--workflow-conflict-policy", "fail", "--yes"}, "credential:update"},
+		{"import 409", http.StatusConflict, []string{"package", "import", "--file", archive, "--conflict-policy", "fail", "--yes"}, "--credential-conflict-policy"},
+		{"import 422", http.StatusUnprocessableEntity, []string{"package", "import", "--file", archive, "--conflict-policy", "fail", "--yes"}, "credential:update"},
 		{"selection 409", http.StatusConflict, []string{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-1", "--yes"}, "409"},
 		{"selection 422", http.StatusUnprocessableEntity, []string{"package", "import-selection", "--file", archive, "--project-id", "p1", "--workflow-id", "wf-1", "--yes"}, "422"},
 	} {

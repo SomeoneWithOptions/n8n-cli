@@ -195,9 +195,26 @@ func report(w io.Writer, err error) int {
 		return ExitCanceled
 	default:
 		fmt.Fprintf(w, "n8n: %v\n", err)
+		if n8n.IsRateLimited(err) {
+			fmt.Fprintln(w, rateLimitHint(err))
+		}
 		fmt.Fprintln(w, "Run 'n8n --help' for usage.")
 		return ExitError
 	}
+}
+
+// rateLimitHint states the fix for a 429, whichever command produced it: wait
+// for the window the server named, then retry.
+func rateLimitHint(err error) string {
+	wait := "a moment"
+	if d, ok := n8n.RetryAfterOf(err); ok {
+		wait = d.String()
+		if d == 0 {
+			wait = "a moment"
+		}
+	}
+	return "The instance rate-limited this API key (429): wait " + wait + " and retry. " +
+		"An instance owner can view or change the Public API limits with 'n8n rate-limit get' and 'n8n rate-limit set' (n8n 2.47 and later)."
 }
 
 // NewRootCommand builds the root command and its subcommands.

@@ -109,8 +109,8 @@ func TestN8nPackageImportValidation(t *testing.T) {
 	client := instance.Client(t)
 
 	_, err := client.ImportPackage(context.Background(), n8n.ImportPackageRequest{
-		WorkflowConflictPolicy: n8n.ImportWorkflowConflictSkip,
-		WorkflowIDPolicy:       n8n.ImportWorkflowIDSource,
+		ConflictPolicy: n8n.ImportConflictSkip,
+		IDPolicy:       n8n.ImportIDSource,
 	}, strings.NewReader("not-a-gzip-package"), "invalid.n8np")
 	if n8n.IsForbidden(err) || n8n.IsNotFound(err) {
 		t.Skip("integration instance has no licensed Packages feature")
@@ -131,9 +131,9 @@ func TestN8nPackageImportSelectionValidation(t *testing.T) {
 	client := instance.Client(t)
 
 	_, err := client.ImportPackageSelection(context.Background(), n8n.ImportPackageSelectionRequest{
-		ProjectID:        integration.ResourcePrefix + "missing-project",
-		WorkflowIDs:      []string{integration.ResourcePrefix + "missing-workflow"},
-		WorkflowIDPolicy: n8n.ImportWorkflowIDSource,
+		ProjectID:   integration.ResourcePrefix + "missing-project",
+		WorkflowIDs: []string{integration.ResourcePrefix + "missing-workflow"},
+		IDPolicy:    n8n.ImportIDSource,
 	}, strings.NewReader("not-a-gzip-package"), "invalid.n8np")
 	if n8n.IsForbidden(err) || n8n.IsNotFound(err) || n8n.IsStatus(err, http.StatusServiceUnavailable) {
 		t.Skip("integration instance does not serve package import-selection")
@@ -218,8 +218,8 @@ func TestN8nPackageImportSelectionRoundTrip(t *testing.T) {
 		ProjectID:               projectID,
 		WorkflowIDs:             []string{kept},
 		DeletedWorkflowIDs:      []string{removed},
-		WorkflowConflictPolicy:  n8n.ImportWorkflowConflictNewVersion,
-		WorkflowIDPolicy:        n8n.ImportWorkflowIDSource,
+		ConflictPolicy:          n8n.ImportConflictNewVersion,
+		IDPolicy:                n8n.ImportIDSource,
 		OverwriteDeletionPolicy: n8n.ImportDeletionArchive,
 	}, bytes.NewReader(archive.Bytes()), "project.n8np")
 	if n8n.IsForbidden(err) || n8n.IsNotFound(err) || n8n.IsStatus(err, http.StatusServiceUnavailable) {
@@ -243,7 +243,7 @@ func TestN8nPackageImportSelectionRoundTrip(t *testing.T) {
 	interactive := false
 	var stdout, stderr strings.Builder
 	code := cli.Run(ctx, []string{"package", "import-selection", "--file", path, "--project-id", projectID,
-		"--workflow-id", kept, "--workflow-conflict-policy", "skip", "--yes", "--output", "json"}, cli.Options{
+		"--workflow-id", kept, "--conflict-policy", "skip", "--yes", "--output", "json"}, cli.Options{
 		Streams:     cli.Streams{In: strings.NewReader(""), Out: &stdout, Err: &stderr},
 		Version:     version.Get(),
 		ConfigDir:   t.TempDir(),
