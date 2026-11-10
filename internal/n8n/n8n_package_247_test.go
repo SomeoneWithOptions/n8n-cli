@@ -101,6 +101,24 @@ func TestImportPackageSelectionFallsBackOnUnrecognizedKeys(t *testing.T) {
 	}
 }
 
+func TestImportPackageFallsBackOnLegacyFieldInMessage(t *testing.T) {
+	// A validator that answers with prose instead of a zod issue still names
+	// the field the older schema requires.
+	const prose = `{"message":"request/body must have required property 'workflowConflictPolicy'"}`
+	server := legacyImportServer(t, prose)
+
+	_, err := server.client(t).ImportPackage(context.Background(), ImportPackageRequest{
+		ConflictPolicy: ImportConflictSkip,
+		IDPolicy:       ImportIDSource,
+	}, strings.NewReader(packageArchiveBytes), "p.n8np")
+	if err != nil {
+		t.Fatalf("ImportPackage: %v", err)
+	}
+	if len(server.requests) != 2 {
+		t.Fatalf("requests = %d, want the 2.47 attempt and one legacy retry", len(server.requests))
+	}
+}
+
 func TestImportPackageLegacyFallbackNeedsRewindableArchive(t *testing.T) {
 	const missingRequired = `{"code":"invalid_type","path":["workflowConflictPolicy"],"message":"Required"}`
 	server := legacyImportServer(t, missingRequired)

@@ -653,6 +653,14 @@ func predatesImportFieldRename(err error) bool {
 		return false
 	}
 	unrecognized := apiErr.Code == "unrecognized_keys" || strings.Contains(apiErr.Message, "Unrecognized key")
+	// The first request never sends a workflow-prefixed name, so a 400 whose
+	// text names one comes from an instance that still requires it, whatever
+	// validator produced the message.
+	for _, old := range legacyImportFields {
+		if strings.Contains(apiErr.Message, old) || strings.Contains(apiErr.Body, old) {
+			return true
+		}
+	}
 	for _, field := range apiErr.Fields {
 		for current, old := range legacyImportFields {
 			if field == old || (unrecognized && field == current) {
