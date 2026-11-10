@@ -15,15 +15,17 @@ import (
 )
 
 // skipUnlessPromotions skips when the instance does not serve this group. The
-// target instance serves GitConnections instead; both share the
-// gitConnection:* scope namespace, so the served paths decide, not the scopes.
+// target instance serves GitConnections instead; instances before n8n 2.47
+// share the gitConnection:* scope namespace with it (2.47 renamed the
+// Promotions scopes to promotions:*), so the served paths decide, not the
+// scopes.
 func skipUnlessPromotions(t *testing.T, err error) {
 	t.Helper()
 	switch {
 	case n8n.IsNotFound(err), n8n.IsStatus(err, http.StatusServiceUnavailable):
 		t.Skip("instance does not serve promotions: a GitConnections-generation instance answers here instead")
 	case n8n.IsForbidden(err):
-		t.Skip("integration credential lacks gitConnection:list")
+		t.Skip("integration credential lacks promotions:list (gitConnection:list before n8n 2.47)")
 	}
 }
 

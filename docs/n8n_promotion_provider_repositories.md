@@ -4,7 +4,8 @@ List repositories available to a GitLab provider
 
 ### Synopsis
 
-Discover GitLab repositories or branches using a saved provider with gitConnection:discover.
+Discover GitLab repositories or branches using a saved provider with promotions:discover
+(gitConnection:discover before n8n 2.47).
 Start with 'n8n promotion provider list', then repositories, then branches.
 Pass the raw fullPath (for example org/repo) or GitLab project ID to branches;
 the CLI escapes it. Use remoteUrl from repositories as an environment remote

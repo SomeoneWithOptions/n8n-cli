@@ -10,7 +10,7 @@ project links are kept, but promote and apply through it stop working
 until 'connect' runs again.
 
 Interactive runs ask for confirmation; non-interactive runs require
---yes. Requires gitConnection:clone.
+--yes. Requires promotions:connect (gitConnection:clone on n8n 2.46).
 
 ```
 n8n promotion environment disconnect <environment-id> [flags]

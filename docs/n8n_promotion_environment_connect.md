@@ -12,7 +12,7 @@ ready.
 Connecting is safe to repeat and changes no project content by itself,
 so it needs no confirmation. Connect again after 'get' reports a
 checkout that does not match the environment. Requires
-gitConnection:clone.
+promotions:connect (gitConnection:clone on n8n 2.46).
 
 ```
 n8n promotion environment connect <environment-id> [flags]

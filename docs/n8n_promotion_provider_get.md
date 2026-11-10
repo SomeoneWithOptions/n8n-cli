@@ -7,7 +7,7 @@ Show one promotion provider
 Show one promotion provider by ID. The response is the public provider
 document: name, type, auth type, configuration, and timestamps.
 Secrets are never returned. Find the ID with 'n8n promotion provider
-list'. Requires gitConnection:read.
+list'. Requires promotions:read (gitConnection:read before n8n 2.47).
 
 ```
 n8n promotion provider get <provider-id> [flags]

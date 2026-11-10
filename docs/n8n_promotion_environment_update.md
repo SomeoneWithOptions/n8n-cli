@@ -19,7 +19,8 @@ means the provider changed during the update: reload and retry.
 
 A new remote or branch can leave the local checkout stale, so
 interactive runs ask for confirmation; non-interactive runs and
---input - require --yes. Requires gitConnection:update.
+--input - require --yes. Requires promotions:update
+(gitConnection:update on n8n 2.46).
 
 ```
 n8n promotion environment update <environment-id> [flags]

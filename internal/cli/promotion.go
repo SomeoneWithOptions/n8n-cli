@@ -138,7 +138,7 @@ func newPromotionProviderListCommand(opts Options) *cobra.Command {
 			"cursor-paginated page at a time. Use --all to follow every cursor,\n" +
 			"capped at 10,000 providers.\n\n" +
 			"Use a returned ID with get, update, delete, and 'connection create'.\n" +
-			"Requires gitConnection:list.\n\n" + cursorCollectionHelp,
+			"Requires promotions:list (gitConnection:list before n8n 2.47).\n\n" + cursorCollectionHelp,
 		Example: "  n8n promotion provider list\n" +
 			"  n8n promotion provider list --limit 50 --output json\n" +
 			"  n8n promotion provider list --all",
@@ -253,8 +253,8 @@ func newPromotionProviderCreateCommand(opts Options) *cobra.Command {
 			"(ed25519 or rsa, default ed25519) or {\"authType\":\"token\",\n" +
 			"\"password\":\"...\"} plus username for git, and the optional config.\n" +
 			"Unknown fields and trailing JSON documents are refused before\n" +
-			"transport. Requires gitConnection:create. Follow with 'n8n promotion\n" +
-			"connection create'.",
+			"transport. Requires promotions:create (gitConnection:create before\n" +
+			"n8n 2.47). Follow with 'n8n promotion connection create'.",
 		Example: "  n8n promotion provider create --name github --type git --auth-type ssh-key\n" +
 			"  printf '%s\\n' \"$GITLAB_TOKEN\" | n8n promotion provider create --name gitlab --type gitlab --base-url https://gitlab.example.com --auth-type token --password-stdin\n" +
 			"  n8n promotion provider create --input provider.json --output json",
@@ -373,7 +373,7 @@ func newPromotionProviderGetCommand(opts Options) *cobra.Command {
 		Long: "Show one promotion provider by ID. The response is the public provider\n" +
 			"document: name, type, auth type, configuration, and timestamps.\n" +
 			"Secrets are never returned. Find the ID with 'n8n promotion provider\n" +
-			"list'. Requires gitConnection:read.",
+			"list'. Requires promotions:read (gitConnection:read before n8n 2.47).",
 		Example: "  n8n promotion provider get PROVIDER_ID\n" +
 			"  n8n promotion provider get PROVIDER_ID --output json",
 		Args: cobra.ExactArgs(1),
@@ -431,7 +431,8 @@ func newPromotionProviderUpdateCommand(opts Options) *cobra.Command {
 			"runs ask for confirmation and non-interactive runs require --yes.\n" +
 			"Credentials travel only as --input because secrets are never flags. A\n" +
 			"409 means another request changed the provider first: reload it and\n" +
-			"retry. Requires gitConnection:update.",
+			"retry. Requires promotions:update (gitConnection:update before n8n\n" +
+			"2.47).",
 		Example: "  n8n promotion provider update PROVIDER_ID --input provider-update.json\n" +
 			"  printf '%s\\n' '{\"name\":\"github-new\"}' | n8n promotion provider update PROVIDER_ID --input -\n" +
 			"  n8n promotion provider update PROVIDER_ID --input provider-update.json --yes --output json",
@@ -498,7 +499,8 @@ func newPromotionProviderDeleteCommand(opts Options) *cobra.Command {
 			"connection (older) cannot be deleted: the instance answers 409 and\n" +
 			"nothing changes, so delete or move those first. This cannot be undone.\n\n" +
 			"Interactive runs ask for confirmation; non-interactive runs require\n" +
-			"--yes. Requires gitConnection:delete.",
+			"--yes. Requires promotions:delete (gitConnection:delete before n8n\n" +
+			"2.47).",
 		Example: "  n8n promotion provider delete PROVIDER_ID\n" +
 			"  n8n promotion provider delete PROVIDER_ID --yes --output json",
 		Args: cobra.ExactArgs(1),
@@ -1681,7 +1683,8 @@ func runPromotionApply(ctx context.Context, opts Options, id string, f promotion
 }
 
 // promotionApplyStoppedError is returned after an apply answered 200 without
-// importing: blocked at preflight, the source moved, or a status this CLI does
+// importing: blocked by its check, the source or the preview moved, or a status
+// this CLI does
 // not know. The result was already printed; Run reports the message and maps
 // the status to its own exit code so scripts can tell these apart from
 // transport and validation errors.
@@ -1696,9 +1699,11 @@ func (e *promotionApplyStoppedError) Error() string {
 	target := cmp.Or(e.target, promotionTargetConnection)
 	switch e.status {
 	case n8n.PromotionApplyStatusBlocked:
-		return fmt.Sprintf("promotion apply of %s %s was blocked at preflight; nothing was applied", target, e.id)
+		return fmt.Sprintf("promotion apply of %s %s was blocked by its pre-import check; nothing was applied", target, e.id)
 	case n8n.PromotionApplyStatusSourceChanged:
 		return fmt.Sprintf("promotion apply of %s %s stopped because the source branch moved; nothing was applied", target, e.id)
+	case n8n.PromotionApplyStatusPreviewChanged:
+		return fmt.Sprintf("promotion apply of %s %s stopped because the instance changed since the Apply preview was reviewed; nothing was applied", target, e.id)
 	default:
 		return fmt.Sprintf("promotion apply of %s %s answered unknown status %q; check the instance before assuming anything was applied", target, e.id, e.status)
 	}
@@ -1708,7 +1713,7 @@ func (e *promotionApplyStoppedError) exitCode() int {
 	switch e.status {
 	case n8n.PromotionApplyStatusBlocked:
 		return ExitPromotionBlocked
-	case n8n.PromotionApplyStatusSourceChanged:
+	case n8n.PromotionApplyStatusSourceChanged, n8n.PromotionApplyStatusPreviewChanged:
 		return ExitPromotionSourceChanged
 	default:
 		return ExitError
@@ -1733,8 +1738,8 @@ func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromot
 	source := result.ExpectedSource()
 	switch result.Status {
 	case n8n.PromotionApplyStatusBlocked:
-		fmt.Fprintln(opts.Streams.Err, "Nothing was applied: preflight found items to resolve first. Create the missing projects, bind the missing credentials and variables, and grant the listed access.")
-		if promotionNeedsConfirmation(result.Preflight) {
+		fmt.Fprintln(opts.Streams.Err, "Nothing was applied: the pre-import check found items to resolve first. Create the missing projects, bind the missing credentials and variables, grant the listed access, and resolve the conflicts.")
+		if promotionNeedsConfirmation(result.Blockers()) {
 			fmt.Fprintln(opts.Streams.Err, "project-deletion and destructive-change conflicts are applied only with explicit confirmation when the apply is continued.")
 		}
 		idField, idValue := "configId", source.ConfigID
@@ -1748,17 +1753,19 @@ func finishPromotionApplyTarget(opts Options, id string, result *n8n.ApplyPromot
 		}
 	case n8n.PromotionApplyStatusSourceChanged:
 		fmt.Fprintf(opts.Streams.Err, "Nothing was applied: the branch moved since it was reviewed. Review the branch again, then re-run '%sapply %s'.\n", prefix, id)
+	case n8n.PromotionApplyStatusPreviewChanged:
+		fmt.Fprintf(opts.Streams.Err, "Nothing was applied: this instance changed since the Apply preview was reviewed, for example after a local edit. Review the changes again, then re-run '%sapply %s' with the new preview.\n", prefix, id)
 	default:
 		fmt.Fprintln(opts.Streams.Err, "This CLI does not know the apply status; read the full result with --output json.")
 	}
 	return &promotionApplyStoppedError{id: id, status: result.Status, target: target}
 }
 
-func promotionNeedsConfirmation(preflight *n8n.PromotionApplyPreflight) bool {
-	if preflight == nil {
+func promotionNeedsConfirmation(check *n8n.PromotionApplyPreflight) bool {
+	if check == nil {
 		return false
 	}
-	for _, conflict := range preflight.Conflicts {
+	for _, conflict := range check.Conflicts {
 		if conflict.Code == n8n.PromotionConflictProjectDeletion || conflict.Code == n8n.PromotionConflictDestructiveChange {
 			return true
 		}
@@ -2072,29 +2079,30 @@ func writePromotionOptionalCount(tw *tabwriter.Writer, entity, detail string, co
 }
 
 func writePromotionBlockedResult(opts Options, resolution config.Resolution, result *n8n.ApplyPromotionResult) error {
-	var preflight n8n.PromotionApplyPreflight
-	if result.Preflight != nil {
-		preflight = *result.Preflight
+	// n8n 2.47 and later send check, older instances preflight.
+	var check n8n.PromotionApplyPreflight
+	if blockers := result.Blockers(); blockers != nil {
+		check = *blockers
 	}
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	writePromotionApplyHeader(tw, resolution, result)
-	if len(preflight.MissingProjects) > 0 {
-		fmt.Fprintf(tw, "\nMISSING PROJECTS (%d)\nID\tNAME\n", len(preflight.MissingProjects))
-		for _, project := range preflight.MissingProjects {
+	if len(check.MissingProjects) > 0 {
+		fmt.Fprintf(tw, "\nMISSING PROJECTS (%d)\nID\tNAME\n", len(check.MissingProjects))
+		for _, project := range check.MissingProjects {
 			fmt.Fprintf(tw, "%s\t%s\n", emptyDash(project.ID), emptyDash(project.Name))
 		}
 	}
-	writePromotionIssues(tw, "Missing bindings", preflight.MissingBindings)
-	writePromotionIssues(tw, "Access requirements", preflight.AccessRequirements)
-	writePromotionIssues(tw, "Conflicts", preflight.Conflicts)
-	writePromotionIssues(tw, "Warnings", preflight.Warnings)
-	if preflight.Empty() {
-		fmt.Fprintln(tw, "\nPreflight:\tno items reported")
+	writePromotionIssues(tw, "Missing bindings", check.MissingBindings)
+	writePromotionIssues(tw, "Access requirements", check.AccessRequirements)
+	writePromotionIssues(tw, "Conflicts", check.Conflicts)
+	writePromotionIssues(tw, "Warnings", check.Warnings)
+	if check.Empty() {
+		fmt.Fprintln(tw, "\nCheck:\tno items reported")
 	}
 	return tw.Flush()
 }
 
-// writePromotionIssues renders one preflight group as a table: kind, code,
+// writePromotionIssues renders one check group as a table: kind, code,
 // name, a one-line detail, and which workflows use the item.
 func writePromotionIssues(tw *tabwriter.Writer, title string, issues []n8n.PromotionApplyIssue) {
 	if len(issues) == 0 {
@@ -2125,6 +2133,11 @@ func promotionIssueDetail(issue n8n.PromotionApplyIssue) string {
 				parts = append(parts, promotionChangeText(change))
 			}
 		}
+	case n8n.PromotionConflictMoved:
+		parts = append(parts, promotionMovedText(issue))
+	}
+	if issue.Reason != "" {
+		parts = append(parts, issue.Reason)
 	}
 	if issue.CredentialType != "" {
 		parts = append(parts, "type "+issue.CredentialType)
@@ -2148,13 +2161,36 @@ func promotionIssueDetail(issue n8n.PromotionApplyIssue) string {
 	if issue.SourceID != nil && *issue.SourceID != "" {
 		parts = append(parts, "source ID "+*issue.SourceID)
 	}
-	if issue.Project != nil && issue.Code != n8n.PromotionConflictProjectDeletion {
+	if issue.Project != nil && issue.Code != n8n.PromotionConflictProjectDeletion && issue.Code != n8n.PromotionConflictMoved {
 		parts = append(parts, "project "+issue.Project.ID)
 	}
 	if issue.OwnerProject != nil {
 		parts = append(parts, "owner "+issue.OwnerProject.Name)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// promotionMovedText describes a moved conflict (n8n 2.47 and later): the
+// branch holds the workflow or folder in one project, the instance in another.
+func promotionMovedText(issue n8n.PromotionApplyIssue) string {
+	branch := "-"
+	if issue.Project != nil {
+		branch = cmp.Or(issue.Project.Name, issue.Project.ID)
+		if issue.Project.ID != "" && issue.Project.Name != "" {
+			branch += " (" + issue.Project.ID + ")"
+		}
+	}
+	if issue.ProjectExists != nil && !*issue.ProjectExists {
+		branch += ", not on this instance"
+	}
+	here := "-"
+	if issue.InstanceProject != nil {
+		here = cmp.Or(issue.InstanceProject.Name, issue.InstanceProject.ID)
+		if issue.InstanceProject.ID != "" && issue.InstanceProject.Name != "" {
+			here += " (" + issue.InstanceProject.ID + ")"
+		}
+	}
+	return fmt.Sprintf("branch project %s, instance project %s; move it back into one project", branch, here)
 }
 
 func promotionChangeText(change n8n.PromotionDataTableChange) string {
@@ -2261,7 +2297,8 @@ func promotionAPIError(err error, resolution config.Resolution, action string, s
 	case n8n.IsStatus(err, http.StatusUnprocessableEntity):
 		return fmt.Errorf("%s rejected the promotion %s (422): the remote content cannot be imported as-is (missing references or unresolvable content); resolve the references and retry: %w", resolution.URL, action, err)
 	case n8n.IsForbidden(err):
-		return forbiddenScopeError(err, resolution, "promotion "+action, allOf(promotionScope(action)), "", promotionResource)
+		need, extra := promotionScopeNeed(action)
+		return forbiddenScopeError(err, resolution, "promotion "+action, need, extra, promotionResource)
 	case n8n.IsNotFound(err) && subject.what != "" && !promotionRouteMissing(err):
 		return fmt.Errorf("%s has no %s (404): check the ID with %s: %w", resolution.URL, subject.what, subject.find, err)
 	case n8n.IsNotFound(err) && subject.what != "":
@@ -2305,29 +2342,81 @@ func promotionMovesContent(action string) bool {
 	return false
 }
 
+// promotionScopeNames maps a promotion action to the scope current n8n checks
+// and the scope instances before n8n 2.47 checked. n8n 2.47 renamed the
+// gitConnection:* scopes of the provider, environment, and project-sync routes
+// to promotions:*; the connection routes (before n8n 2.46) keep
+// gitConnection:*, so both names are the same there.
+var promotionScopeNames = map[string][2]string{
+	"provider list":                {"promotions:list", "gitConnection:list"},
+	"environment list":             {"promotions:list", "gitConnection:list"},
+	"provider create":              {"promotions:create", "gitConnection:create"},
+	"environment create":           {"promotions:create", "gitConnection:create"},
+	"provider get":                 {"promotions:read", "gitConnection:read"},
+	"environment get":              {"promotions:read", "gitConnection:read"},
+	"environment project list":     {"promotions:read", "gitConnection:read"},
+	"environment missing-projects": {"promotions:read", "promotions:read"},
+	"provider update":              {"promotions:update", "gitConnection:update"},
+	"environment update":           {"promotions:update", "gitConnection:update"},
+	"provider delete":              {"promotions:delete", "gitConnection:delete"},
+	"environment delete":           {"promotions:delete", "gitConnection:delete"},
+	"environment connect":          {"promotions:connect", "gitConnection:clone"},
+	"environment disconnect":       {"promotions:connect", "gitConnection:clone"},
+	"environment project add":      {"promotions:manageProjects", "gitConnection:manageProjects"},
+	"environment project remove":   {"promotions:manageProjects", "gitConnection:manageProjects"},
+	"project promote":              {"promotions:promote", "gitConnection:push"},
+	"project changes promote":      {"promotions:promote", "gitConnection:push"},
+	"environment promote":          {"promotions:promote", "gitConnection:push"},
+	"project apply":                {"promotions:apply", "gitConnection:pull"},
+	"project apply-continue":       {"promotions:apply", "gitConnection:pull"},
+	"project changes apply":        {"promotions:apply", "gitConnection:pull"},
+	"environment apply":            {"promotions:apply", "gitConnection:pull"},
+	"environment apply-continue":   {"promotions:apply", "gitConnection:pull"},
+	"provider repositories":        {"promotions:discover", "gitConnection:discover"},
+	"provider branches":            {"promotions:discover", "gitConnection:discover"},
+
+	"connection list":     {"gitConnection:list", "gitConnection:list"},
+	"connection create":   {"gitConnection:create", "gitConnection:create"},
+	"connection get":      {"gitConnection:read", "gitConnection:read"},
+	"project list":        {"gitConnection:read", "gitConnection:read"},
+	"connection update":   {"gitConnection:update", "gitConnection:update"},
+	"config apply set":    {"gitConnection:update", "gitConnection:update"},
+	"config promote set":  {"gitConnection:update", "gitConnection:update"},
+	"config delete":       {"gitConnection:update", "gitConnection:update"},
+	"connection delete":   {"gitConnection:delete", "gitConnection:delete"},
+	"checkout clone":      {"gitConnection:clone", "gitConnection:clone"},
+	"checkout disconnect": {"gitConnection:clone", "gitConnection:clone"},
+	"project add":         {"gitConnection:manageProjects", "gitConnection:manageProjects"},
+	"project remove":      {"gitConnection:manageProjects", "gitConnection:manageProjects"},
+	"promote":             {"gitConnection:push", "gitConnection:push"},
+	"apply":               {"gitConnection:pull", "gitConnection:pull"},
+	"apply-continue":      {"gitConnection:pull", "gitConnection:pull"},
+}
+
+// promotionScope is the scope current n8n checks for a promotion action.
 func promotionScope(action string) string {
-	switch action {
-	case "provider list", "connection list", "environment list":
-		return "gitConnection:list"
-	case "provider create", "connection create", "environment create":
-		return "gitConnection:create"
-	case "provider get", "connection get", "project list", "environment get", "environment project list":
-		return "gitConnection:read"
-	case "provider update", "connection update", "config apply set", "config promote set", "config delete", "environment update":
-		return "gitConnection:update"
-	case "provider delete", "connection delete", "environment delete":
-		return "gitConnection:delete"
-	case "checkout clone", "checkout disconnect", "environment connect", "environment disconnect":
-		return "gitConnection:clone"
-	case "project add", "project remove", "environment project add", "environment project remove":
-		return "gitConnection:manageProjects"
-	case "promote", "project promote", "project changes promote", "environment promote":
-		return "gitConnection:push"
-	case "apply", "apply-continue", "project apply", "project apply-continue", "project changes apply", "environment apply", "environment apply-continue":
-		return "gitConnection:pull"
-	case "provider repositories", "provider branches":
-		return "gitConnection:discover"
-	default:
-		return "gitConnection:*"
+	if names, ok := promotionScopeNames[action]; ok {
+		return names[0]
 	}
+	return "promotions:*"
+}
+
+// promotionLegacyScope is the scope instances before n8n 2.47 checked for a
+// promotion action; it equals [promotionScope] where the name did not change.
+func promotionLegacyScope(action string) string {
+	if names, ok := promotionScopeNames[action]; ok {
+		return names[1]
+	}
+	return "gitConnection:*"
+}
+
+// promotionScopeNeed is the 403 requirement for a promotion action: the
+// current scope, plus the pre-2.47 name and a sentence saying which instance
+// checks which when the name changed.
+func promotionScopeNeed(action string) (scopeNeed, string) {
+	current, legacy := promotionScope(action), promotionLegacyScope(action)
+	if current == legacy {
+		return allOf(current), ""
+	}
+	return anyOf(current, legacy), fmt.Sprintf("n8n 2.47 and later check %s; older instances check %s, so the key needs the one its instance checks", current, legacy)
 }

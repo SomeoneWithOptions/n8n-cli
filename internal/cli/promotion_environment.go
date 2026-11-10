@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -48,7 +49,7 @@ func newPromotionEnvironmentCommand(opts Options) *cobra.Command {
 			"Sync the whole instance through the connected instance-scope\n" +
 			"environment: 'promote' pushes every team project to a promote\n" +
 			"environment; 'apply' imports an apply environment's branch, and\n" +
-			"'apply-continue' finishes an apply that preflight blocked. For selected\n" +
+			"'apply-continue' finishes an apply that its check blocked. For selected\n" +
 			"workflows of one project use 'n8n promotion project changes', 'apply',\n" +
 			"and 'promote'.\n\n" +
 			"Deleting an environment removes its project links and local checkout;\n" +
@@ -72,6 +73,7 @@ func newPromotionEnvironmentCommand(opts Options) *cobra.Command {
 		newPromotionEnvironmentConnectCommand(opts),
 		newPromotionEnvironmentDisconnectCommand(opts),
 		newPromotionEnvironmentProjectCommand(opts),
+		newPromotionEnvironmentMissingProjectsCommand(opts),
 		newPromotionEnvironmentPromoteCommand(opts),
 		newPromotionSelectionCommand(opts, "apply", promotionTargetEnvironment),
 		newPromotionSelectionCommand(opts, "apply-continue", promotionTargetEnvironment),
@@ -101,7 +103,7 @@ func newPromotionEnvironmentListCommand(opts Options) *cobra.Command {
 			"are preserved across --all. Use --all to follow every cursor, capped at\n" +
 			"10,000 environments.\n\n" +
 			"Use a returned ID with get, update, delete, connect, disconnect, and\n" +
-			"project. Requires gitConnection:list.\n\n" + cursorCollectionHelp,
+			"project. Requires promotions:list (gitConnection:list on n8n 2.46).\n\n" + cursorCollectionHelp,
 		Example: "  n8n promotion environment list\n" +
 			"  n8n promotion environment list --scope instance --direction apply\n" +
 			"  n8n promotion environment list --provider-id PROVIDER_ID --output json\n" +
@@ -222,8 +224,8 @@ func newPromotionEnvironmentCreateCommand(opts Options) *cobra.Command {
 			"json' (id, provider, checkout, createdAt, updatedAt,\n" +
 			"remote.repositoryPath) are dropped with a note on stderr; other unknown\n" +
 			"fields and trailing JSON documents are refused before transport.\n" +
-			"Requires gitConnection:create. Follow with 'n8n promotion environment\n" +
-			"connect ENVIRONMENT_ID'.",
+			"Requires promotions:create (gitConnection:create on n8n 2.46). Follow\n" +
+			"with 'n8n promotion environment connect ENVIRONMENT_ID'.",
 		Example: "  n8n promotion environment create --input environment.json\n" +
 			"  printf '%s\\n' '{\"name\":\"prod\",\"scope\":\"instance\",\"providerId\":\"PROVIDER_ID\",\"remote\":{\"schemaVersion\":1,\"remoteUrl\":\"git@example.com:org/repo.git\"},\"direction\":\"apply\",\"settings\":{\"schemaVersion\":1,\"branchName\":\"main\"}}' | n8n promotion environment create --input -",
 		Args: cobra.NoArgs,
@@ -275,7 +277,8 @@ func newPromotionEnvironmentGetCommand(opts Options) *cobra.Command {
 			"remote, provider, settings, local checkout state, and timestamps.\n" +
 			"Secrets are never returned. Find the ID with 'n8n promotion environment\n" +
 			"list'. The --output json document can be edited and passed to 'update'\n" +
-			"as is: its read-only fields are dropped. Requires gitConnection:read.",
+			"as is: its read-only fields are dropped. Requires promotions:read\n" +
+			"(gitConnection:read on n8n 2.46).",
 		Example: "  n8n promotion environment get ENVIRONMENT_ID\n" +
 			"  n8n promotion environment get ENVIRONMENT_ID --output json",
 		Args: cobra.ExactArgs(1),
@@ -331,7 +334,8 @@ func newPromotionEnvironmentUpdateCommand(opts Options) *cobra.Command {
 			"means the provider changed during the update: reload and retry.\n\n" +
 			"A new remote or branch can leave the local checkout stale, so\n" +
 			"interactive runs ask for confirmation; non-interactive runs and\n" +
-			"--input - require --yes. Requires gitConnection:update.",
+			"--input - require --yes. Requires promotions:update\n" +
+			"(gitConnection:update on n8n 2.46).",
 		Example: "  n8n promotion environment update ENVIRONMENT_ID --input environment-update.json\n" +
 			"  printf '%s\\n' '{\"name\":\"staging\"}' | n8n promotion environment update ENVIRONMENT_ID --input - --yes\n" +
 			"  n8n promotion environment update ENVIRONMENT_ID --input environment.json --yes --output json",
@@ -423,7 +427,7 @@ func newPromotionEnvironmentDeleteCommand(opts Options) *cobra.Command {
 			"To keep the environment and drop only the checkout, use 'n8n promotion\n" +
 			"environment disconnect' instead. Interactive runs ask for\n" +
 			"confirmation; non-interactive runs require --yes. Requires\n" +
-			"gitConnection:delete.",
+			"promotions:delete (gitConnection:delete on n8n 2.46).",
 		Example: "  n8n promotion environment delete ENVIRONMENT_ID\n" +
 			"  n8n promotion environment delete ENVIRONMENT_ID --yes --output json",
 		Args: cobra.ExactArgs(1),
@@ -475,7 +479,7 @@ func newPromotionEnvironmentConnectCommand(opts Options) *cobra.Command {
 			"Connecting is safe to repeat and changes no project content by itself,\n" +
 			"so it needs no confirmation. Connect again after 'get' reports a\n" +
 			"checkout that does not match the environment. Requires\n" +
-			"gitConnection:clone.",
+			"promotions:connect (gitConnection:clone on n8n 2.46).",
 		Example: "  n8n promotion environment connect ENVIRONMENT_ID\n" +
 			"  n8n promotion environment connect ENVIRONMENT_ID --output json",
 		Args: cobra.ExactArgs(1),
@@ -516,7 +520,7 @@ func newPromotionEnvironmentDisconnectCommand(opts Options) *cobra.Command {
 			"project links are kept, but promote and apply through it stop working\n" +
 			"until 'connect' runs again.\n\n" +
 			"Interactive runs ask for confirmation; non-interactive runs require\n" +
-			"--yes. Requires gitConnection:clone.",
+			"--yes. Requires promotions:connect (gitConnection:clone on n8n 2.46).",
 		Example: "  n8n promotion environment disconnect ENVIRONMENT_ID\n" +
 			"  n8n promotion environment disconnect ENVIRONMENT_ID --yes --output json",
 		Args: cobra.ExactArgs(1),
@@ -584,8 +588,8 @@ func newPromotionEnvironmentPromoteCommand(opts Options) *cobra.Command {
 			"reject is refused with 409 and nothing is pushed; --force pushes anyway\n" +
 			"and rewrites remote history. This mutates the remote branch.\n" +
 			"Interactive runs ask for confirmation and non-interactive runs require\n" +
-			"--yes. Requires gitConnection:push, plus variable:list when workflows\n" +
-			"reference variables.\n\n" +
+			"--yes. Requires promotions:promote (gitConnection:push on n8n 2.46),\n" +
+			"plus variable:list when workflows reference variables.\n\n" +
 			"Text shows the commit, branch, counts, and any review the Git host\n" +
 			"opened; JSON is the full result. Advisory warnings go to stderr in both\n" +
 			"formats.\n\n" +
@@ -660,8 +664,8 @@ func newPromotionEnvironmentProjectCommand(opts Options) *cobra.Command {
 			"or 'remove' one.\n\n" +
 			"Removing unlinks the project; its instance content is untouched.\n" +
 			"Project IDs come from 'n8n project list'. Listing needs\n" +
-			"gitConnection:read; adding and removing need\n" +
-			"gitConnection:manageProjects.",
+			"promotions:read; adding and removing need promotions:manageProjects\n" +
+			"(gitConnection:read and gitConnection:manageProjects on n8n 2.46).",
 		Example: "  n8n promotion environment project list ENVIRONMENT_ID\n" +
 			"  n8n promotion environment project add ENVIRONMENT_ID PROJECT_ID\n" +
 			"  n8n promotion environment project remove ENVIRONMENT_ID PROJECT_ID --yes",
@@ -683,7 +687,8 @@ func newPromotionEnvironmentProjectListCommand(opts Options) *cobra.Command {
 		Short: "List projects linked to a promotion environment",
 		Long: "List the team projects linked to one projects-scope promotion\n" +
 			"environment. Find the environment ID with 'n8n promotion environment\n" +
-			"list --scope projects'. Requires gitConnection:read.",
+			"list --scope projects'. Requires promotions:read (gitConnection:read on\n" +
+			"n8n 2.46).",
 		Example: "  n8n promotion environment project list ENVIRONMENT_ID\n" +
 			"  n8n promotion environment project list ENVIRONMENT_ID --output json",
 		Args: cobra.ExactArgs(1),
@@ -733,6 +738,81 @@ func runPromotionEnvironmentProjectList(ctx context.Context, opts Options, id st
 	return nil
 }
 
+func newPromotionEnvironmentMissingProjectsCommand(opts Options) *cobra.Command {
+	var f promotionEnvironmentConnectFlags
+	cmd := &cobra.Command{
+		Use:   "missing-projects <environment-id>",
+		Short: "List branch projects missing on this instance (n8n 2.47 and later)",
+		Long: "Read the package at the branch tip of a connected instance-scope apply\n" +
+			"environment and list its team projects whose IDs do not exist on this\n" +
+			"instance. Projects match by ID, not by name; an ID a personal project\n" +
+			"uses counts as existing. Nothing changes.\n\n" +
+			"Create each listed project with its ID, e.g. 'n8n project create NAME\n" +
+			"--id PROJECT_ID', then apply its content with the project apply flow.\n" +
+			"An empty list means no setup is needed. Find the environment ID with\n" +
+			"'n8n promotion environment list --scope instance --direction apply' and\n" +
+			"connect it first with 'n8n promotion environment connect'. The route\n" +
+			"exists from n8n 2.47. Requires promotions:read.",
+		Example: "  n8n promotion environment missing-projects ENVIRONMENT_ID\n" +
+			"  n8n promotion environment missing-projects ENVIRONMENT_ID --output json",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPromotionEnvironmentMissingProjects(cmd.Context(), opts, args[0], f)
+		},
+	}
+	f.instance.register(cmd)
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the server result: environmentId, git, and data)")
+	return cmd
+}
+
+func runPromotionEnvironmentMissingProjects(ctx context.Context, opts Options, id string, f promotionEnvironmentConnectFlags) error {
+	if err := validateOutput(f.output); err != nil {
+		return err
+	}
+	if err := validatePromotionEnvironmentArg(id); err != nil {
+		return err
+	}
+	client, resolution, err := opts.apiClient(f.instance)
+	if err != nil {
+		return err
+	}
+	result, err := client.GetPromotionEnvironmentMissingProjects(ctx, id)
+	if err != nil {
+		if n8n.IsNotFound(err) && promotionRouteMissing(err) {
+			return fmt.Errorf("%s answered 404 for the missing projects of promotion environment %q: either the ID does not exist (check it with 'n8n promotion environment list') or the instance predates n8n 2.47, which added this route; on older instances a blocked 'n8n promotion environment apply' lists the missing projects instead: %w", resolution.URL, id, err)
+		}
+		return promotionAPIError(err, resolution, "environment missing-projects", promotionEnvironmentSubject(id))
+	}
+	if f.output == outputJSON {
+		return writeJSON(opts.Streams.Out, result)
+	}
+	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "Environment:\t%s\n", emptyDash(cmp.Or(result.EnvironmentID, id)))
+	if result.Git != nil {
+		fmt.Fprintf(tw, "Commit:\t%s\n", emptyDash(result.Git.CommitSHA))
+		fmt.Fprintf(tw, "Branch:\t%s\n", emptyDash(result.Git.BranchName))
+	} else {
+		fmt.Fprintln(tw, "Commit:\tnone (the branch has no package yet)")
+	}
+	fmt.Fprintf(tw, "Missing projects:\t%d\n", len(result.Data))
+	fmt.Fprintf(tw, "Instance:\t%s\n", resolution.URL)
+	if len(result.Data) > 0 {
+		fmt.Fprintln(tw, "\nID\tNAME\tDESCRIPTION")
+		for _, project := range result.Data {
+			fmt.Fprintf(tw, "%s\t%s\t%s\n", emptyDash(project.ID), emptyDash(project.Name), emptyDash(singleLineText(project.Description)))
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	if len(result.Data) == 0 {
+		fmt.Fprintln(opts.Streams.Err, "No projects are missing; no setup is needed before applying.")
+	} else {
+		fmt.Fprintln(opts.Streams.Err, "Create each missing project with its ID, e.g. 'n8n project create NAME --id PROJECT_ID' (icon, description, and telemetry tags are in --output json), then apply it.")
+	}
+	return nil
+}
+
 func newPromotionEnvironmentProjectAddCommand(opts Options) *cobra.Command {
 	var f promotionEnvironmentConnectFlags
 	cmd := &cobra.Command{
@@ -742,7 +822,8 @@ func newPromotionEnvironmentProjectAddCommand(opts Options) *cobra.Command {
 			"project-level sync in that direction uses this environment instead of\n" +
 			"the instance environment. A project can have one environment for each\n" +
 			"direction: adding a project that already has one for this direction\n" +
-			"answers 409. Requires gitConnection:manageProjects.",
+			"answers 409. Requires promotions:manageProjects\n" +
+			"(gitConnection:manageProjects on n8n 2.46).",
 		Example: "  n8n promotion environment project add ENVIRONMENT_ID PROJECT_ID\n" +
 			"  n8n promotion environment project add ENVIRONMENT_ID PROJECT_ID --output json",
 		Args: cobra.ExactArgs(2),
@@ -791,7 +872,8 @@ func newPromotionEnvironmentProjectRemoveCommand(opts Options) *cobra.Command {
 			"environment. Re-link it later with 'n8n promotion environment project\n" +
 			"add'.\n\n" +
 			"Interactive runs ask for confirmation; non-interactive runs require\n" +
-			"--yes. Requires gitConnection:manageProjects.",
+			"--yes. Requires promotions:manageProjects (gitConnection:manageProjects\n" +
+			"on n8n 2.46).",
 		Example: "  n8n promotion environment project remove ENVIRONMENT_ID PROJECT_ID\n" +
 			"  n8n promotion environment project remove ENVIRONMENT_ID PROJECT_ID --yes --output json",
 		Args: cobra.ExactArgs(2),

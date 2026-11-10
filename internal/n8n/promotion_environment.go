@@ -2,6 +2,7 @@ package n8n
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -373,6 +374,56 @@ func (c *Client) ListPromotionEnvironmentProjects(ctx context.Context, id string
 		return nil, err
 	}
 	return &projects, nil
+}
+
+// PromotionEnvironmentMissingProjects lists the team projects of the package
+// at an apply environment's branch tip whose IDs do not exist on this
+// instance (n8n 2.47 and later). Git is nil when the branch has no package
+// yet; empty Data means no project needs to be created.
+//
+// The response is kept verbatim: MarshalJSON re-emits it, so --output json
+// keeps fields this type does not name.
+type PromotionEnvironmentMissingProjects struct {
+	EnvironmentID string                    `json:"environmentId"`
+	Git           *PromotionGit             `json:"git"`
+	Data          []PromotionMissingProject `json:"data"`
+	raw           json.RawMessage
+}
+
+// UnmarshalJSON decodes the named fields and keeps the verbatim document.
+func (r *PromotionEnvironmentMissingProjects) UnmarshalJSON(data []byte) error {
+	type plain PromotionEnvironmentMissingProjects
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = PromotionEnvironmentMissingProjects(decoded)
+	r.raw = append(json.RawMessage(nil), data...)
+	return nil
+}
+
+// MarshalJSON re-emits the verbatim document when present.
+func (r PromotionEnvironmentMissingProjects) MarshalJSON() ([]byte, error) {
+	if len(r.raw) > 0 {
+		return r.raw, nil
+	}
+	type plain PromotionEnvironmentMissingProjects
+	return json.Marshal(plain(r))
+}
+
+// GetPromotionEnvironmentMissingProjects reads the package at the branch tip
+// of a connected instance-scope apply environment and returns its team
+// projects missing on this instance, matched by ID. Create each with the
+// returned ID before applying it. The route exists from n8n 2.47.
+func (c *Client) GetPromotionEnvironmentMissingProjects(ctx context.Context, id string) (*PromotionEnvironmentMissingProjects, error) {
+	if err := ValidatePromotionEnvironmentID(id); err != nil {
+		return nil, err
+	}
+	var result PromotionEnvironmentMissingProjects
+	if _, err := c.Do(ctx, Request{Path: PathJoin("promotions", "environments", id, "missing-projects")}, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 // AddProjectToPromotionEnvironment links one team project to a projects-scope

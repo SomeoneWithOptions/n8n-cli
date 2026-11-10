@@ -719,28 +719,36 @@ type PromotionApplyCounts struct {
 }
 
 // Apply outcomes. The apply response is a union on status: only applied
-// wrote anything. An unknown status is kept as sent so a newer server never
-// fails the decode.
+// wrote anything. preview-changed (n8n 2.47 and later) answers a project
+// apply whose expectedPreviewRevision no longer matches, and an environment
+// apply whose preview changed during the run. An unknown status is kept as
+// sent so a newer server never fails the decode.
 const (
-	PromotionApplyStatusApplied       = "applied"
-	PromotionApplyStatusBlocked       = "blocked"
-	PromotionApplyStatusSourceChanged = "source-changed"
+	PromotionApplyStatusApplied        = "applied"
+	PromotionApplyStatusBlocked        = "blocked"
+	PromotionApplyStatusSourceChanged  = "source-changed"
+	PromotionApplyStatusPreviewChanged = "preview-changed"
 )
 
-// Preflight conflict codes that need explicit confirmation at continue time.
+// Check conflict codes that need explicit confirmation at continue time.
 const (
 	PromotionConflictProjectDeletion   = "project-deletion"
 	PromotionConflictDestructiveChange = "destructive-change"
 )
 
-// PromotionRef names one project or workflow in a preflight item.
+// PromotionConflictMoved (n8n 2.47 and later) is a workflow or folder the
+// branch and the instance hold in different projects. Apply cannot move it
+// between projects.
+const PromotionConflictMoved = "moved"
+
+// PromotionRef names one project or workflow in a check item.
 type PromotionRef struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 // PromotionConsumer is one project and the workflows in it that reference a
-// preflight item.
+// check item.
 type PromotionConsumer struct {
 	Project   PromotionRef   `json:"project"`
 	Workflows []PromotionRef `json:"workflows"`
@@ -764,32 +772,40 @@ type PromotionDataTableChange struct {
 	Destructive bool   `json:"destructive"`
 }
 
-// PromotionApplyIssue is one preflight item or warning: a missing binding,
-// an access requirement, a conflict, or a warning. Kind (credential, variable,
-// project, data-table) and Code discriminate; the remaining fields are the
-// union of the documented variants, and only those a variant carries are set.
-// The full document is preserved verbatim so new variants survive without a
-// client change.
+// PromotionApplyIssue is one check item or warning: a missing binding, an
+// access requirement, a conflict, or a warning. Kind (credential, variable,
+// project, data-table, and from n8n 2.47 workflow, folder, and tag) and Code
+// discriminate; the remaining fields are the union of the documented
+// variants, and only those a variant carries are set. The full document is
+// preserved verbatim so new variants survive without a client change.
+//
+// Reason explains a 2.47 workflow, data-table, tag, or project conflict.
+// ProjectExists and InstanceProject belong to the 2.47 moved conflict: the
+// workflow or folder is in Project on the branch and in InstanceProject here;
+// ProjectExists reports whether the branch project exists on the instance.
 type PromotionApplyIssue struct {
-	Kind           string                     `json:"kind"`
-	Code           string                     `json:"code,omitempty"`
-	ID             string                     `json:"id,omitempty"`
-	Name           string                     `json:"name,omitempty"`
-	SourceID       *string                    `json:"sourceId,omitempty"`
-	CredentialType string                     `json:"credentialType,omitempty"`
-	ExpectedTypes  []string                   `json:"expectedTypes,omitempty"`
-	TargetType     string                     `json:"targetType,omitempty"`
-	UsageScope     string                     `json:"usageScope,omitempty"`
-	VariableType   string                     `json:"variableType,omitempty"`
-	Scope          *PromotionVariableScope    `json:"scope,omitempty"`
-	Project        *PromotionRef              `json:"project,omitempty"`
-	OwnerProject   *PromotionRef              `json:"ownerProject,omitempty"`
-	FilePath       string                     `json:"filePath,omitempty"`
-	ReferenceFiles []string                   `json:"referenceFiles,omitempty"`
-	Workflows      []PromotionRef             `json:"workflows,omitempty"`
-	Consumers      []PromotionConsumer        `json:"consumers,omitempty"`
-	Changes        []PromotionDataTableChange `json:"changes,omitempty"`
-	Raw            json.RawMessage            `json:"-"`
+	Kind            string                     `json:"kind"`
+	Code            string                     `json:"code,omitempty"`
+	ID              string                     `json:"id,omitempty"`
+	Name            string                     `json:"name,omitempty"`
+	Reason          string                     `json:"reason,omitempty"`
+	ProjectExists   *bool                      `json:"projectExists,omitempty"`
+	InstanceProject *PromotionRef              `json:"instanceProject,omitempty"`
+	SourceID        *string                    `json:"sourceId,omitempty"`
+	CredentialType  string                     `json:"credentialType,omitempty"`
+	ExpectedTypes   []string                   `json:"expectedTypes,omitempty"`
+	TargetType      string                     `json:"targetType,omitempty"`
+	UsageScope      string                     `json:"usageScope,omitempty"`
+	VariableType    string                     `json:"variableType,omitempty"`
+	Scope           *PromotionVariableScope    `json:"scope,omitempty"`
+	Project         *PromotionRef              `json:"project,omitempty"`
+	OwnerProject    *PromotionRef              `json:"ownerProject,omitempty"`
+	FilePath        string                     `json:"filePath,omitempty"`
+	ReferenceFiles  []string                   `json:"referenceFiles,omitempty"`
+	Workflows       []PromotionRef             `json:"workflows,omitempty"`
+	Consumers       []PromotionConsumer        `json:"consumers,omitempty"`
+	Changes         []PromotionDataTableChange `json:"changes,omitempty"`
+	Raw             json.RawMessage            `json:"-"`
 }
 
 // UnmarshalJSON decodes the typed view and keeps the verbatim document.
@@ -823,7 +839,8 @@ type PromotionMissingProject struct {
 	CustomTelemetryTags json.RawMessage `json:"customTelemetryTags,omitempty"`
 }
 
-// PromotionApplyPreflight lists why a blocked apply wrote nothing.
+// PromotionApplyPreflight lists why a blocked apply wrote nothing. n8n 2.47
+// sends it as check, older instances as preflight; the shape is the same.
 type PromotionApplyPreflight struct {
 	MissingProjects    []PromotionMissingProject `json:"missingProjects"`
 	MissingBindings    []PromotionApplyIssue     `json:"missingBindings"`
@@ -832,7 +849,7 @@ type PromotionApplyPreflight struct {
 	Warnings           []PromotionApplyIssue     `json:"warnings"`
 }
 
-// Empty reports whether the preflight lists nothing at all.
+// Empty reports whether the check lists nothing at all.
 func (p PromotionApplyPreflight) Empty() bool {
 	return len(p.MissingProjects) == 0 && len(p.MissingBindings) == 0 &&
 		len(p.AccessRequirements) == 0 && len(p.Conflicts) == 0 && len(p.Warnings) == 0
@@ -907,8 +924,9 @@ func (s PromotionExpectedSource) ValidateConfig() error {
 
 // ApplyPromotionResult is the apply acknowledgement. Inspect Status before
 // reading anything else: applied carries Counts and Warnings; blocked carries
-// Preflight and wrote nothing; source-changed carries neither and wrote
-// nothing. ConfigID (before n8n 2.46) or EnvironmentID (2.46 and later) and
+// Check (n8n 2.47 and later) or Preflight (older) and wrote nothing, see
+// [ApplyPromotionResult.Blockers]; source-changed and preview-changed carry
+// neither and wrote nothing. ConfigID (before n8n 2.46) or EnvironmentID (2.46 and later) and
 // Git identify the source for a later continue; older instances also report
 // ConnectionID.
 //
@@ -923,6 +941,7 @@ type ApplyPromotionResult struct {
 	Git           PromotionGit               `json:"git"`
 	Counts        *PromotionApplyCounts      `json:"counts,omitempty"`
 	Warnings      []PromotionApplyIssue      `json:"warnings,omitempty"`
+	Check         *PromotionApplyPreflight   `json:"check,omitempty"`
 	Preflight     *PromotionApplyPreflight   `json:"preflight,omitempty"`
 	Extra         map[string]json.RawMessage `json:"-"`
 	raw           json.RawMessage
@@ -931,7 +950,7 @@ type ApplyPromotionResult struct {
 // applyPromotionResultFields are the field names [ApplyPromotionResult]
 // decodes itself. Anything else lands in Extra.
 var applyPromotionResultFields = []string{
-	"connectionId", "configId", "environmentId", "status", "git", "counts", "warnings", "preflight",
+	"connectionId", "configId", "environmentId", "status", "git", "counts", "warnings", "check", "preflight",
 }
 
 // UnmarshalJSON decodes by shape, keeps unknown fields in Extra, and keeps the
@@ -995,6 +1014,15 @@ func (r ApplyPromotionResult) MarshalJSON() ([]byte, error) {
 // treated as applied.
 func (r ApplyPromotionResult) Applied() bool {
 	return r.Status == PromotionApplyStatusApplied || (r.Status == "" && r.Counts != nil)
+}
+
+// Blockers returns why a blocked apply wrote nothing: check from n8n 2.47,
+// preflight from older instances, or nil when the response carries neither.
+func (r ApplyPromotionResult) Blockers() *PromotionApplyPreflight {
+	if r.Check != nil {
+		return r.Check
+	}
+	return r.Preflight
 }
 
 // ExpectedSource returns the source a continue must name: the environment or

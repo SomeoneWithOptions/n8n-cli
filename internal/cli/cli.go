@@ -30,7 +30,8 @@ const (
 	// preflight: the result was printed and nothing was written.
 	ExitPromotionBlocked = 3
 	// ExitPromotionSourceChanged is a promotion apply whose branch moved since
-	// the review: the result was printed and nothing was written.
+	// the review, or (n8n 2.47 and later) whose Apply preview changed: the
+	// result was printed and nothing was written.
 	ExitPromotionSourceChanged = 4
 	ExitCanceled               = 130
 )

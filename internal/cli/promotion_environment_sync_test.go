@@ -366,9 +366,9 @@ func TestPromotionEnvironmentSyncErrorsNameTheFix(t *testing.T) {
 			t.Errorf("%v 403 = %+v, want %s", args, got, scope)
 		}
 	}
-	for action, want := range map[string]string{"environment apply": "gitConnection:pull", "environment apply-continue": "gitConnection:pull", "environment promote": "gitConnection:push"} {
-		if got := promotionScope(action); got != want {
-			t.Errorf("scope(%s) = %s, want %s", action, got, want)
+	for action, want := range map[string][2]string{"environment apply": {"promotions:apply", "gitConnection:pull"}, "environment apply-continue": {"promotions:apply", "gitConnection:pull"}, "environment promote": {"promotions:promote", "gitConnection:push"}} {
+		if got := [2]string{promotionScope(action), promotionLegacyScope(action)}; got != want {
+			t.Errorf("scope(%s) = %v, want %v", action, got, want)
 		}
 	}
 

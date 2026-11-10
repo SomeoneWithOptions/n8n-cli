@@ -13,7 +13,7 @@ created and connected again. This cannot be undone.
 To keep the environment and drop only the checkout, use 'n8n promotion
 environment disconnect' instead. Interactive runs ask for
 confirmation; non-interactive runs require --yes. Requires
-gitConnection:delete.
+promotions:delete (gitConnection:delete on n8n 2.46).
 
 ```
 n8n promotion environment delete <environment-id> [flags]

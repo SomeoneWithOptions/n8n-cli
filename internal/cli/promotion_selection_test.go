@@ -298,9 +298,18 @@ func TestPromotionSelectionInvalidArgumentsAndScopes(t *testing.T) {
 			t.Errorf("args=%v result=%+v", args, got)
 		}
 	}
-	for action, want := range map[string]string{"project changes apply": "gitConnection:pull", "project changes promote": "gitConnection:push", "project apply": "gitConnection:pull", "project apply-continue": "gitConnection:pull", "apply-continue": "gitConnection:pull", "project promote": "gitConnection:push", "provider repositories": "gitConnection:discover", "provider branches": "gitConnection:discover"} {
-		if got := promotionScope(action); got != want {
-			t.Errorf("%s=%s want %s", action, got, want)
+	for action, want := range map[string][2]string{
+		"project changes apply":   {"promotions:apply", "gitConnection:pull"},
+		"project changes promote": {"promotions:promote", "gitConnection:push"},
+		"project apply":           {"promotions:apply", "gitConnection:pull"},
+		"project apply-continue":  {"promotions:apply", "gitConnection:pull"},
+		"apply-continue":          {"gitConnection:pull", "gitConnection:pull"},
+		"project promote":         {"promotions:promote", "gitConnection:push"},
+		"provider repositories":   {"promotions:discover", "gitConnection:discover"},
+		"provider branches":       {"promotions:discover", "gitConnection:discover"},
+	} {
+		if got := [2]string{promotionScope(action), promotionLegacyScope(action)}; got != want {
+			t.Errorf("%s=%v want %v", action, got, want)
 		}
 	}
 	for _, tc := range []struct {

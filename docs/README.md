@@ -178,6 +178,7 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion environment disconnect`](n8n_promotion_environment_disconnect.md) | Remove the local checkout of a promotion environment |
 | [`n8n promotion environment get`](n8n_promotion_environment_get.md) | Show one promotion environment |
 | [`n8n promotion environment list`](n8n_promotion_environment_list.md) | List promotion environments |
+| [`n8n promotion environment missing-projects`](n8n_promotion_environment_missing-projects.md) | List branch projects missing on this instance (n8n 2.47 and later) |
 | [`n8n promotion environment project add`](n8n_promotion_environment_project_add.md) | Link a project to a promotion environment |
 | [`n8n promotion environment project list`](n8n_promotion_environment_project_list.md) | List projects linked to a promotion environment |
 | [`n8n promotion environment project remove`](n8n_promotion_environment_project_remove.md) | Unlink a project from a promotion environment |

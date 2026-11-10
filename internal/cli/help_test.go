@@ -294,6 +294,7 @@ func TestHelpSucceedsAtEveryLevel(t *testing.T) {
 		{"promotion", "environment", "apply"},
 		{"promotion", "environment", "apply-continue"},
 		{"promotion", "environment", "promote"},
+		{"promotion", "environment", "missing-projects"},
 		{"promotion", "connection"},
 		{"promotion", "connection", "list"},
 		{"promotion", "connection", "create"},
