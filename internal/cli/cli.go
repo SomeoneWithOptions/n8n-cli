@@ -272,6 +272,7 @@ func NewRootCommand(opts Options) *cobra.Command {
 		newNodePolicyCommand(opts),
 		newCredentialPolicyCommand(opts),
 		newSecurityPolicyCommand(opts),
+		newRateLimitCommand(opts),
 		newOtelCommand(opts),
 		newLogStreamCommand(opts),
 		newLDAPCommand(opts),

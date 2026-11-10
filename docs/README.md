@@ -203,6 +203,9 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion provider update`](n8n_promotion_provider_update.md) | Update a promotion provider |
 | [`n8n promotion provider`](n8n_promotion_provider.md) | Manage promotion providers |
 | [`n8n promotion`](n8n_promotion.md) | Manage promotion providers, environments, connections, and apply/promote sync |
+| [`n8n rate-limit get`](n8n_rate-limit_get.md) | Get Public API rate-limit settings |
+| [`n8n rate-limit set`](n8n_rate-limit_set.md) | Fully replace Public API rate-limit settings |
+| [`n8n rate-limit`](n8n_rate-limit.md) | Manage Public API rate limits |
 | [`n8n role create`](n8n_role_create.md) | Create a custom role |
 | [`n8n role delete`](n8n_role_delete.md) | Permanently delete a custom role |
 | [`n8n role get`](n8n_role_get.md) | Get one role |

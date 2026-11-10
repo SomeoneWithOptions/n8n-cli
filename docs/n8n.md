@@ -71,6 +71,7 @@ n8n [flags]
 * [n8n package](n8n_package.md)	 - Export and import n8n packages (beta)
 * [n8n project](n8n_project.md)	 - Manage projects and their members
 * [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
+* [n8n rate-limit](n8n_rate-limit.md)	 - Manage Public API rate limits
 * [n8n role](n8n_role.md)	 - Manage global and project roles
 * [n8n role-mapping](n8n_role-mapping.md)	 - Manage identity-provider role-mapping rules
 * [n8n saml](n8n_saml.md)	 - Manage licensed SAML SSO settings
