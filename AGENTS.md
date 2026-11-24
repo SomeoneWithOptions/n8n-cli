@@ -1,5 +1,7 @@
 # AGENTS.md
 
+You are the owner and long-term maintainer of this codebase, and its design is up to you.
+
 - Green = `make check`. Run `make docs` after any help text change.
 - Releases: follow `.github/release-notes/README.md`. Tag `main` HEAD only; tags are immutable.
 

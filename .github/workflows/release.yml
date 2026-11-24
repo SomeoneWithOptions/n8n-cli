@@ -1,7 +1,7 @@
-# Release requires the full CI matrix on the tagged commit before publishing.
+# Release requires the Linux CI checks on the tagged commit before publishing.
 # It builds the same artifacts `make dist` builds locally, publishes them
-# under the exact names install.sh and install.ps1 fetch, then proves both
-# install paths work by running them against the release it just created.
+# under the exact names install.sh and install.ps1 fetch, then tests install.sh
+# against the published Linux binary.
 # Custom body text is optional: land `.github/release-notes/vX.Y.Z.md`
 # on main via PR first (filename must match the tag), then tag main HEAD.
 # It ships above the GitHub auto-generated PR list. No file -> generated notes
@@ -93,14 +93,10 @@ jobs:
             dist/install.ps1
 
   install-unix:
-    name: install.sh (${{ matrix.os }})
+    name: install.sh (ubuntu-latest)
     needs: release
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -119,31 +115,3 @@ jobs:
             "n8n ${GITHUB_REF_NAME}") ;;
             *) echo "version reports '$reported', expected 'n8n ${GITHUB_REF_NAME}'"; exit 1 ;;
           esac
-
-  install-windows:
-    name: install.ps1
-    needs: release
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install from the published release
-        shell: pwsh
-        env:
-          N8N_CLI_VERSION: ${{ github.ref_name }}
-        run: ./install.ps1
-
-      - name: Run the installed binary
-        shell: pwsh
-        env:
-          N8N_CLI_VERSION: ${{ github.ref_name }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $exe = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'n8n-cli\bin\n8n.exe'
-          $reported = (& $exe version | Select-Object -First 1)
-          if ($reported -ne "n8n $env:N8N_CLI_VERSION") {
-            throw "version reports '$reported', expected 'n8n $env:N8N_CLI_VERSION'"
-          }

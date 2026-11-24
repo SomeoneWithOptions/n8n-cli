@@ -101,7 +101,7 @@ func TestStoreLoadRejectsBadFiles(t *testing.T) {
 
 func TestStoreWritesOwnerOnlyFiles(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Unix mode bits do not apply; Windows uses a DACL verified in the CI matrix")
+		t.Skip("Unix mode bits do not apply; Windows uses a DACL")
 	}
 	store := newTestStore(t)
 
