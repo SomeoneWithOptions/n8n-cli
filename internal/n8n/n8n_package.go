@@ -100,8 +100,16 @@ type ExportPackageRequest struct {
 	DependencyPolicy       string   `json:"dependencyPolicy,omitempty"`
 	VersionPolicy          string   `json:"versionPolicy,omitempty"`
 	CredentialExportPolicy string   `json:"credentialExportPolicy,omitempty"`
-	IncludeArchived        *bool    `json:"includeArchivedWorkflows,omitempty"`
+	// IncludeArchived adds archived workflows to folder exports and archived
+	// workflows and Agents to project exports. n8n 2.49 renamed the field
+	// from includeArchivedWorkflows; [Client.ExportPackage] resends the old
+	// name when an older instance rejects the new one.
+	IncludeArchived *bool `json:"includeArchived,omitempty"`
 }
+
+// legacyIncludeArchivedField is the name instances before n8n 2.49 accept
+// for [ExportPackageRequest.IncludeArchived].
+const legacyIncludeArchivedField = "includeArchivedWorkflows"
 
 // RenamedExportFields maps export fields older instances accepted to the
 // names the schema uses now. The body rejects unknown properties, so a
@@ -109,6 +117,7 @@ type ExportPackageRequest struct {
 var RenamedExportFields = map[string]string{
 	"missingWorkflowDependencyPolicy": "dependencyPolicy",
 	"workflowVersionPolicy":           "versionPolicy",
+	legacyIncludeArchivedField:        "includeArchived",
 }
 
 // Validate rejects an export document the API would reject before transport.
@@ -189,7 +198,22 @@ func (c *Client) ExportPackage(ctx context.Context, request ExportPackageRequest
 	if err != nil {
 		return nil, fmt.Errorf("n8n: encode export request: %w", err)
 	}
+	result, err := c.exportPackage(ctx, encoded, w)
+	if err == nil || request.IncludeArchived == nil || !predatesIncludeArchivedRename(err) {
+		return result, err
+	}
+	// An instance before n8n 2.49 rejected includeArchived before streaming
+	// anything, so w is untouched: send the same selection under the old name.
+	c.logger.DebugContext(ctx, "n8n export: resending includeArchived as includeArchivedWorkflows for an instance before n8n 2.49")
+	legacy, encodeErr := withLegacyIncludeArchived(encoded)
+	if encodeErr != nil {
+		return nil, encodeErr
+	}
+	return c.exportPackage(ctx, legacy, w)
+}
 
+// exportPackage sends one encoded export request and streams the archive.
+func (c *Client) exportPackage(ctx context.Context, encoded []byte, w io.Writer) (*ExportPackageResult, error) {
 	endpoint, err := c.resolve(N8nPackageExportPath, nil)
 	if err != nil {
 		return nil, err
@@ -260,6 +284,39 @@ func (c *Client) ExportPackage(ctx context.Context, request ExportPackageRequest
 		Filename: exportFilename(resp.Header.Get("Content-Disposition")),
 		Bytes:    written,
 	}, nil
+}
+
+// withLegacyIncludeArchived renames includeArchived in an encoded export
+// request to the pre-2.49 includeArchivedWorkflows.
+func withLegacyIncludeArchived(encoded []byte) ([]byte, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return nil, fmt.Errorf("n8n: encode export request: %w", err)
+	}
+	if value, ok := fields["includeArchived"]; ok {
+		delete(fields, "includeArchived")
+		fields[legacyIncludeArchivedField] = value
+	}
+	legacy, err := json.Marshal(fields)
+	if err != nil {
+		return nil, fmt.Errorf("n8n: encode export request: %w", err)
+	}
+	return legacy, nil
+}
+
+// predatesIncludeArchivedRename reports the 400 an instance before n8n 2.49
+// answers to includeArchived: an unrecognized key naming it. The field is a
+// boolean, so a 2.49 instance never rejects it for its value.
+func predatesIncludeArchivedRename(err error) bool {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok || apiErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	unrecognized := apiErr.Code == "unrecognized_keys" || strings.Contains(strings.ToLower(apiErr.Message+apiErr.Body), "unrecognized")
+	if !unrecognized {
+		return false
+	}
+	return slices.Contains(apiErr.Fields, "includeArchived") || strings.Contains(apiErr.Message+apiErr.Body, "includeArchived")
 }
 
 // decodeExportCounts parses the X-N8n-Export-Counts header. An absent header

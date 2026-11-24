@@ -145,7 +145,9 @@ func newPackageExportCommand(opts Options) *cobra.Command {
 			"bundle variable values and credential expressions, so it is written with\n" +
 			"owner-only file permissions and the destination file is overwritten.\n\n" +
 			"Pass the selection as flags, or the whole request document with --input\n" +
-			"FILE or --input - (capped at 1 MiB, decoded strictly). --out is always a\n" +
+			"FILE or --input - (capped at 1 MiB, decoded strictly; includeArchived, called\n" +
+			"includeArchivedWorkflows before n8n 2.49, is resent under the old name\n" +
+			"when an older instance rejects it). --out is always a\n" +
 			"local path and is never part of --input: a file path streams the archive\n" +
 			"there, while --out - writes the raw gzip bytes to stdout and moves the\n" +
 			"summary to stderr. Exporting reads instance content and changes nothing\n" +
@@ -178,7 +180,7 @@ func newPackageExportCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringArrayVar(&f.projectIDs, "project-id", nil, "project to include with its workflows and agents, repeatable up to 300 (cannot combine with --agent-id, --workflow-id, --folder-id, or --input)")
 	cmd.Flags().BoolVar(&f.includeVariableValues, "include-variable-values", true, "bundle referenced variable values, else names only (default: true)")
 	cmd.Flags().BoolVar(&f.includeTags, "include-tags", true, "bundle workflow tags, else no tag files or references (default: true)")
-	cmd.Flags().BoolVar(&f.includeArchived, "include-archived", false, "include archived workflows in folder and project exports; listed workflows always export (default: false)")
+	cmd.Flags().BoolVar(&f.includeArchived, "include-archived", false, "include archived workflows in folder and project exports, and from n8n 2.49 archived Agents in project exports; listed workflows and Agents always export (default: false)")
 	cmd.Flags().StringVar(&f.dependencyPolicy, packageDependencyPolicyFlag, "", "workflow and agent dependencies outside the selection: fail, reference-only, or include-in-package (default: server default fail)")
 	cmd.Flags().StringVar(&f.versionPolicy, packageVersionPolicyFlag, "", "which workflow and agent version travels: published-strict, prefer-published, ignore-unpublished, or latest (default: server default latest)")
 	cmd.Flags().StringVar(&f.dependencyPolicy, packageLegacyDependencyPolicyFlag, "", "deprecated alias of --dependency-policy, same values (default: server default fail)")

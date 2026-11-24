@@ -7,6 +7,11 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 
 | Command | Description |
 |---|---|
+| [`n8n agent create`](n8n_agent_create.md) | Create an Agent |
+| [`n8n agent delete`](n8n_agent_delete.md) | Permanently delete an Agent |
+| [`n8n agent get`](n8n_agent_get.md) | Get one Agent with its configuration |
+| [`n8n agent list`](n8n_agent_list.md) | List Agents |
+| [`n8n agent`](n8n_agent.md) | Manage Agents |
 | [`n8n audit generate`](n8n_audit_generate.md) | Generate a security audit of the instance |
 | [`n8n audit`](n8n_audit.md) | Generate security audits of an n8n instance |
 | [`n8n community-package install`](n8n_community-package_install.md) | Install a community package |
@@ -188,10 +193,11 @@ edit the command's Short, Long, Example or flag usage and run `make docs`.
 | [`n8n promotion environment`](n8n_promotion_environment.md) | Manage promotion environments (n8n 2.46 and later) |
 | [`n8n promotion project add`](n8n_promotion_project_add.md) | Add a project to a promotion connection |
 | [`n8n promotion project apply-continue`](n8n_promotion_project_apply-continue.md) | Continue a reviewed project apply after binding setup |
-| [`n8n promotion project apply`](n8n_promotion_project_apply.md) | Apply selected workflow changes from a project's branch |
-| [`n8n promotion project changes`](n8n_promotion_project_changes.md) | List workflow changes for a project's promotion branch |
+| [`n8n promotion project apply`](n8n_promotion_project_apply.md) | Apply selected workflow and folder changes from a project's branch |
+| [`n8n promotion project change-details`](n8n_promotion_project_change-details.md) | Read the content of changed resources in a project preview |
+| [`n8n promotion project changes`](n8n_promotion_project_changes.md) | Preview the changes of a project's promotion branch |
 | [`n8n promotion project list`](n8n_promotion_project_list.md) | List projects linked to a promotion connection |
-| [`n8n promotion project promote`](n8n_promotion_project_promote.md) | Promote selected project workflows to the remote branch |
+| [`n8n promotion project promote`](n8n_promotion_project_promote.md) | Promote selected project workflows and folders to the remote branch |
 | [`n8n promotion project remove`](n8n_promotion_project_remove.md) | Remove a project from a promotion connection |
 | [`n8n promotion project`](n8n_promotion_project.md) | Manage projects linked to a promotion connection |
 | [`n8n promotion promote`](n8n_promotion_promote.md) | Promote team projects to the Git remote |

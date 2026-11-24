@@ -3,7 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"unicode/utf8"
@@ -122,7 +126,7 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 	var output string
 	var query n8n.PromotionChangesOptions
 	cmd := &cobra.Command{
-		Use: "changes <project-id> <apply|promote>", Short: "List workflow changes for a project's promotion branch",
+		Use: "changes <project-id> <apply|promote>", Short: "Preview the changes of a project's promotion branch",
 		Long: "Compare a team project with its resolved promotion branch without changing content.\n" +
 			"Start with 'n8n project list' for the project ID. The project's own\n" +
 			"environment (n8n 2.46 and later) or connection (older) for the direction\n" +
@@ -130,14 +134,23 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 			"promotion environment connect' on 2.46, 'n8n promotion checkout clone'\n" +
 			"before. Apply requires promotions:apply; promote requires\n" +
 			"promotions:promote (gitConnection:pull and gitConnection:push before\n" +
-			"n8n 2.47). Text lists workflow IDs, statuses, and dependency\n" +
-			"counts; JSON includes changes, source (environmentId on 2.46, configId\n" +
-			"before), and nullable commitSha. On 2.46 a deleted or new promote row can\n" +
-			"be a workflow that moved between projects; promoting it is refused until\n" +
-			"it moves back. Review the IDs before project apply or promote. Save apply\n" +
-			"JSON for --expected-from to reject a branch that moves after review.",
+			"n8n 2.47).\n\n" +
+			"n8n 2.49 and later list every changed project, folder, workflow, credential,\n" +
+			"data table, variable, and tag, plus unchanged parents for context. Text\n" +
+			"shows each resource's key, type, ID, name, change, whether it can be\n" +
+			"selected (--workflow-id or --folder-id), and for workflows how many\n" +
+			"resources they use. Apply previews also show what blocks the Apply and the\n" +
+			"preview revision; promote previews show an open review that holds the\n" +
+			"changes. Read the content of changed resources with 'n8n promotion project\n" +
+			"change-details'. Older instances list changed workflows with their status\n" +
+			"and dependency count, and accept --search, --sort, and --order.\n\n" +
+			"JSON is the full response, including source (environmentId on 2.46,\n" +
+			"configId before) and nullable commitSha. A workflow that moved between\n" +
+			"projects is refused by promote until it moves back. Save apply JSON for\n" +
+			"--expected-from to reject a branch, and on 2.49 an instance, that changes\n" +
+			"after review.",
 		Example: "  n8n promotion project changes PROJECT_ID apply --output json > changes.json\n" +
-			"  n8n promotion project changes PROJECT_ID promote --sort updatedAt --order desc",
+			"  n8n promotion project changes PROJECT_ID promote",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateOutput(output); err != nil {
@@ -152,38 +165,127 @@ func newPromotionProjectChangesCommand(opts Options) *cobra.Command {
 			}
 			result, err := client.GetPromotionChanges(cmd.Context(), args[0], args[1], query)
 			if err != nil {
+				if n8n.IsStatus(err, http.StatusBadRequest) && (query.Search != "" || query.Sort != "" || query.Order != "") {
+					return fmt.Errorf("%s rejected the change preview filters (400): n8n 2.49 and later dropped --search, --sort, and --order; run it again without them: %w", resolution.URL, err)
+				}
 				return promotionAPIError(err, resolution, "project changes "+args[1], promotionProjectSubject(args[0]))
 			}
-			if len(result.Changes) == 0 {
+			if result.ResourceView() {
+				if result.Blocker != nil {
+					fmt.Fprintf(opts.Streams.Err, "An open review (%s) already holds this project's changes (%s): merge or close it before promoting again.\n", emptyDash(result.Blocker.ReviewID), result.Blocker.Code)
+				} else if len(result.Changed()) == 0 {
+					fmt.Fprintln(opts.Streams.Err, "No changes found; review the other direction.")
+				}
+				for _, resource := range result.Resources {
+					if note := promotionMovedResourceNote(resource); note != "" {
+						fmt.Fprintln(opts.Streams.Err, note)
+					}
+				}
+				if result.Check != nil && !result.Check.Empty() {
+					fmt.Fprintln(opts.Streams.Err, "An Apply of these changes would be blocked: resolve the listed items first.")
+				}
+			} else if len(result.Changes) == 0 {
 				fmt.Fprintln(opts.Streams.Err, "No workflow changes found; check the search filter or review the other direction.")
 			}
 			if output == outputJSON {
 				return writeJSON(opts.Streams.Out, result)
 			}
-			tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
-			commit := "-"
-			if result.CommitSHA != nil {
-				commit = *result.CommitSHA
-			}
-			if result.Source.EnvironmentID != "" {
-				fmt.Fprintf(tw, "Environment:\t%s\n", result.Source.EnvironmentID)
-			} else {
-				fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.Source.ConfigID))
-			}
-			fmt.Fprintf(tw, "Branch:\t%s\nCommit:\t%s\n", result.Source.BranchName, commit)
-			fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tDEPENDENCIES")
-			for _, row := range result.Changes {
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", row.ID, row.Name, row.Status, row.DependencyCount)
-			}
-			return tw.Flush()
+			return writePromotionChangesText(opts, result)
 		},
 	}
 	instance.register(cmd)
-	cmd.Flags().StringVar(&query.Search, "search", "", "workflow name search string (default: no filter)")
-	cmd.Flags().StringVar(&query.Sort, "sort", "name", "sort field: name, updatedAt, or status (default: name)")
-	cmd.Flags().StringVar(&query.Order, "order", "asc", "sort order: asc or desc (default: asc)")
+	cmd.Flags().StringVar(&query.Search, "search", "", "workflow name search string, n8n 2.48 and earlier only (default: no filter)")
+	cmd.Flags().StringVar(&query.Sort, "sort", "", "sort field: name, updatedAt, or status; n8n 2.48 and earlier only (default: server default, name)")
+	cmd.Flags().StringVar(&query.Order, "order", "", "sort order: asc or desc; n8n 2.48 and earlier only (default: server default, asc)")
+	// Deprecation notices are diagnostics: keep them off stdout.
+	cmd.Flags().SetOutput(opts.Streams.Err)
+	for _, name := range []string{"search", "sort", "order"} {
+		_ = cmd.Flags().MarkDeprecated(name, "n8n 2.49 and later list every change and reject it; it works only on n8n 2.48 and earlier")
+	}
 	cmd.Flags().StringVar(&output, "output", outputText, "output format: text or json (default: text; JSON includes the reviewed source)")
 	return cmd
+}
+
+func writePromotionChangesText(opts Options, result *n8n.PromotionChanges) error {
+	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	commit := "-"
+	if result.CommitSHA != nil {
+		commit = *result.CommitSHA
+	}
+	if result.Source.EnvironmentID != "" {
+		fmt.Fprintf(tw, "Environment:\t%s\n", result.Source.EnvironmentID)
+	} else {
+		fmt.Fprintf(tw, "Config:\t%s\n", emptyDash(result.Source.ConfigID))
+	}
+	fmt.Fprintf(tw, "Branch:\t%s\nCommit:\t%s\n", result.Source.BranchName, commit)
+	if !result.ResourceView() {
+		fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tDEPENDENCIES")
+		for _, row := range result.Changes {
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", row.ID, row.Name, row.Status, row.DependencyCount)
+		}
+		return tw.Flush()
+	}
+	if result.Revision != "" {
+		fmt.Fprintf(tw, "Preview revision:\t%s\n", result.Revision)
+	}
+	if result.Blocker != nil {
+		fmt.Fprintf(tw, "Blocker:\t%s (review %s)\n", result.Blocker.Code, emptyDash(result.Blocker.ReviewID))
+	}
+	uses := map[string]int{}
+	for _, dependency := range result.Dependencies {
+		uses[dependency.WorkflowKey]++
+	}
+	fmt.Fprintln(tw, "\nKEY\tTYPE\tID\tNAME\tCHANGE\tSELECTABLE\tUSES")
+	for _, resource := range result.Resources {
+		name := resource.Name
+		if resource.PreviousName != "" && resource.PreviousName != resource.Name {
+			name = resource.PreviousName + " -> " + resource.Name
+		}
+		used := "-"
+		if resource.Type == "workflow" {
+			used = strconv.Itoa(uses[resource.Key])
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", resource.Key, resource.Type, resource.ID, emptyDash(name), resource.Change, yesNo(resource.Selectable), used)
+	}
+	if check := result.Check; check != nil {
+		writePromotionCheck(tw, check.PromotionApplyPreflight)
+		writePromotionMovedResources(tw, "Moved workflows", check.MovedWorkflows)
+		writePromotionMovedResources(tw, "Moved folders", check.MovedFolders)
+	}
+	return tw.Flush()
+}
+
+func writePromotionMovedResources(tw *tabwriter.Writer, title string, moved []n8n.PromotionMovedResource) {
+	if len(moved) == 0 {
+		return
+	}
+	fmt.Fprintf(tw, "\n%s (%d)\nID\tNAME\tBRANCH PROJECT\tINSTANCE PROJECT\n", strings.ToUpper(title), len(moved))
+	for _, item := range moved {
+		branch := promotionProjectRefText(item.Project)
+		if !item.ProjectExists {
+			branch += ", not on this instance"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", item.ID, emptyDash(item.Name), branch, promotionProjectRefText(item.InstanceProject))
+	}
+}
+
+func promotionProjectRefText(project n8n.PromotionProjectRef) string {
+	if project.Name == "" {
+		return emptyDash(project.ID)
+	}
+	return project.Name + " (" + project.ID + ")"
+}
+
+// promotionMovedResourceNote explains a preview workflow that moved between
+// projects: promote refuses it until it moves back.
+func promotionMovedResourceNote(resource n8n.PromotionResource) string {
+	switch {
+	case resource.MovedToProject != nil:
+		return fmt.Sprintf("Workflow %s moved to project %s; promoting it is refused until it moves back.", resource.ID, promotionProjectRefText(*resource.MovedToProject))
+	case resource.MovedFromProject != nil:
+		return fmt.Sprintf("Workflow %s moved here from project %s; promoting it is refused until it moves back.", resource.ID, promotionProjectRefText(*resource.MovedFromProject))
+	}
+	return ""
 }
 
 // What a selection or apply-continue command addresses. Connections exist only
@@ -197,7 +299,7 @@ const (
 type promotionSelectionFlags struct {
 	instance                    instanceFlags
 	input, output, expectedFrom string
-	workflowIDs                 []string
+	workflowIDs, folderIDs      []string
 	source                      n8n.PromotionExpectedSource
 	commit                      string
 	previewRevision             string
@@ -220,7 +322,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 	// only its own field, and projects are served by both.
 	configFlag := !environment
 	environmentFlag := target != promotionTargetConnection
-	short := "Apply selected workflow changes from a project's branch"
+	short := "Apply selected workflow and folder changes from a project's branch"
 	if environment {
 		short = "Apply an environment's Git branch into this instance"
 	}
@@ -228,9 +330,9 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		short = "Continue a reviewed " + target + " apply after binding setup"
 	}
 	if isPromote {
-		short = "Promote selected project workflows to the remote branch"
+		short = "Promote selected project workflows and folders to the remote branch"
 	}
-	long := "Start with 'n8n promotion project changes PROJECT_ID apply' to review workflow IDs.\n" +
+	long := "Start with 'n8n promotion project changes PROJECT_ID apply' to review the changes.\n" +
 		"The project's own apply environment (n8n 2.46 and later) or connection\n" +
 		"(older) resolves first, otherwise the instance one. It must be prepared:\n" +
 		"'n8n promotion environment connect' on 2.46, 'n8n promotion checkout\n" +
@@ -240,8 +342,14 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		"branch, with the folders that hold it, which take the branch name; one\n" +
 		"the branch and the instance hold in different projects is refused with\n" +
 		"409 before any write. Unselected content stays unchanged. Duplicate or\n" +
-		"invalid IDs reject the whole request. Requires promotions:apply\n" +
-		"(gitConnection:pull before n8n 2.47).\n"
+		"invalid IDs reject the whole request. On n8n 2.49 and later --folder-id\n" +
+		"creates a selected folder, or moves and renames it to match the branch,\n" +
+		"and the project's name, icon, description, and telemetry tags always come\n" +
+		"from the branch: without --workflow-id and --folder-id only they are\n" +
+		"applied. Older instances need at least one --workflow-id and reject\n" +
+		"--folder-id. Another operation on the same environment answers 423; retry\n" +
+		"when it finishes. Requires promotions:apply (gitConnection:pull before\n" +
+		"n8n 2.47).\n"
 	switch {
 	case target == promotionTargetConnection:
 		long = "Continue a full instance-connection apply after resolving its preflight items.\n" +
@@ -275,14 +383,19 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 	}
 	if isPromote {
 		long = "Start with 'n8n promotion project changes PROJECT_ID promote' to review IDs.\n" +
-			"Push the current state of selected workflows to the project's resolved\n" +
+			"Push the current state of selected workflows and, on n8n 2.49 and later,\n" +
+			"folders (--folder-id; written with the folders above them, even when\n" +
+			"empty) to the project's resolved\n" +
 			"promote environment (n8n 2.46 and later) or connection (older): its own,\n" +
 			"otherwise the instance one. Prepare it first: 'n8n promotion environment\n" +
 			"connect' on 2.46, 'n8n promotion checkout clone' before. Archived\n" +
 			"workflows remain archived on the branch; workflows gone from the instance\n" +
 			"leave the branch. On 2.46 a workflow that moved into or out of the\n" +
 			"project since the branch was written is refused with 400; move it back\n" +
-			"first. Unknown deletions reject the whole request. Requires\n" +
+			"first. Unknown deletions reject the whole request. On 2.49 the project's\n" +
+			"own details are always written: without --workflow-id and --folder-id\n" +
+			"only they are promoted; older instances need at least one --workflow-id.\n" +
+			"Another operation on the same environment answers 423. Requires\n" +
 			"promotions:promote (gitConnection:push before n8n 2.47), plus\n" +
 			"variable:list when workflows use variables.\n" +
 			"Commit message is optional; the server supplies a default. Force pushing\n" +
@@ -322,7 +435,9 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		if project {
 			long += "--expected-preview-revision (n8n 2.47 and later) pins the reviewed Apply\n" +
 				"preview; when this instance changed since, the server answers\n" +
-				"preview-changed and writes nothing. Older instances reject it.\n"
+				"preview-changed and writes nothing. Older instances reject it. Apply\n" +
+				"changes JSON from n8n 2.49 carries the revision: --expected-from sends\n" +
+				"it unless --expected-preview-revision is set.\n"
 		}
 		if target == promotionTargetConnection {
 			long += "Exit codes: 0 applied, 3 blocked, 4 source-changed, 1 other error. Only\n" +
@@ -339,7 +454,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		}
 	}
 	if project {
-		long += "\nPass repeated --workflow-id flags, or use a strict JSON request.\n"
+		long += "\nPass repeated --workflow-id and --folder-id flags, or use a strict JSON\nrequest (workflowIds, folderIds).\n"
 	}
 	long += "Read request JSON with --input FILE|- (maximum 1 MiB). Input and document flags are\n" +
 		"mutually exclusive. Interactive runs ask for confirmation; non-interactive\n" +
@@ -362,8 +477,9 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 	f.idempotency.register(cmd)
 	documentFlags := []string{}
 	if project {
-		cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "selected workflow ID, 1 to 36 characters; repeat for each ID (default: none; required unless --input is used)")
-		documentFlags = append(documentFlags, "workflow-id")
+		cmd.Flags().StringArrayVar(&f.workflowIDs, "workflow-id", nil, "selected workflow ID, 1 to 36 characters; repeat for each ID (default: none; n8n 2.48 and earlier need at least one)")
+		cmd.Flags().StringArrayVar(&f.folderIDs, "folder-id", nil, "selected folder ID, 1 to 36 characters; repeat for each ID (n8n 2.49 and later; default: none)")
+		documentFlags = append(documentFlags, "workflow-id", "folder-id")
 	}
 	if isPromote {
 		cmd.Flags().StringVar(&f.commit, "commit-message", "", "commit message, 1 to 1000 characters (default: server-generated message)")
@@ -427,6 +543,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 			return err
 		}
 		var source *n8n.PromotionExpectedSource
+		previewRevision := f.previewRevision
 		if !isPromote && f.input == "" {
 			if cmd.Flags().Changed("expected-config-id") && cmd.Flags().Changed("expected-environment-id") {
 				return fmt.Errorf("--expected-config-id and --expected-environment-id are mutually exclusive: use --expected-environment-id on n8n 2.46 and later, --expected-config-id on n8n 2.45 and earlier")
@@ -437,10 +554,16 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 				if explicit {
 					return fmt.Errorf("--expected-from and explicit expected-source flags are mutually exclusive")
 				}
+				var revision string
 				var err error
-				source, err = readPromotionExpectedSource(opts, f.expectedFrom)
+				source, revision, err = readPromotionExpectedSource(opts, f.expectedFrom)
 				if err != nil {
 					return err
+				}
+				// A 2.49 apply preview pins the instance state too.
+				if project && revision != "" && !cmd.Flags().Changed("expected-preview-revision") {
+					previewRevision = revision
+					fmt.Fprintf(opts.Streams.Err, "Using the preview revision %s from --expected-from as the expected preview revision.\n", revision)
 				}
 			} else if explicit {
 				source = &f.source
@@ -453,13 +576,13 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		var request interface{ Validate() error }
 		switch {
 		case isPromote:
-			r := &n8n.PromoteProjectSelectionRequest{WorkflowIDs: f.workflowIDs}
+			r := &n8n.PromoteProjectSelectionRequest{WorkflowIDs: f.workflowIDs, FolderIDs: f.folderIDs}
 			if cmd.Flags().Changed("commit-message") {
 				r.CommitMessage = &f.commit
 			}
 			request = r
 		case isContinue && project:
-			r := &n8n.ContinueApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedPreviewRevision: f.previewRevision, ConfirmDestructiveChanges: destructive}
+			r := &n8n.ContinueApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, FolderIDs: f.folderIDs, ExpectedPreviewRevision: previewRevision, ConfirmDestructiveChanges: destructive}
 			if source != nil {
 				r.ExpectedSource = *source
 			}
@@ -479,7 +602,7 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 		case environment:
 			request = &n8n.ApplyPromotionEnvironmentRequest{ExpectedSource: source}
 		default:
-			request = &n8n.ApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, ExpectedSource: source, ExpectedPreviewRevision: f.previewRevision}
+			request = &n8n.ApplyProjectSelectionRequest{WorkflowIDs: f.workflowIDs, FolderIDs: f.folderIDs, ExpectedSource: source, ExpectedPreviewRevision: previewRevision}
 		}
 		if f.input != "" {
 			if err := readPromotionDocument(opts, f.input, request); err != nil {
@@ -497,11 +620,12 @@ func newPromotionSelectionCommand(opts Options, action, target string) *cobra.Co
 // readPromotionExpectedSource reads the reviewed source from 'project changes'
 // JSON or a blocked apply result. It passes through whichever identifier the
 // instance returned (environmentId from n8n 2.46, configId before); the
-// request's own validation then checks it fits the route.
-func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpectedSource, error) {
+// request's own validation then checks it fits the route. revision is the
+// Apply preview revision n8n 2.49 changes JSON carries, empty otherwise.
+func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpectedSource, string, error) {
 	var fields map[string]json.RawMessage
 	if err := readPromotionDocument(opts, path, &fields); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	var result n8n.PromotionExpectedSource
 	// Decode only source fields. Other response fields remain forward-compatible.
@@ -529,42 +653,51 @@ func readPromotionExpectedSource(opts Options, path string) (*n8n.PromotionExpec
 		}
 		return nil
 	}
+	var revision string
 	if raw, ok := fields["source"]; ok {
 		var source map[string]json.RawMessage
 		if err := decode(raw, &source); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if err := sourceID(source, "source."); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if err := decode(source["branchName"], &result.BranchName); err != nil {
-			return nil, fmt.Errorf("source.branchName: %w", err)
+			return nil, "", fmt.Errorf("source.branchName: %w", err)
 		}
 		if err := decode(fields["commitSha"], &result.CommitSHA); err != nil {
-			return nil, fmt.Errorf("commitSha: %w", err)
+			return nil, "", fmt.Errorf("commitSha: %w", err)
+		}
+		if raw, ok := fields["revision"]; ok && string(raw) != "null" {
+			if err := json.Unmarshal(raw, &revision); err != nil {
+				return nil, "", fmt.Errorf("revision: %w", err)
+			}
+			if err := n8n.ValidatePromotionPreviewRevision(revision); err != nil {
+				return nil, "", err
+			}
 		}
 	} else {
 		var status string
 		if err := decode(fields["status"], &status); err != nil || status != n8n.PromotionApplyStatusBlocked {
-			return nil, fmt.Errorf("--expected-from requires changes JSON or a blocked apply result")
+			return nil, "", fmt.Errorf("--expected-from requires changes JSON or a blocked apply result")
 		}
 		if err := sourceID(fields, ""); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		var git map[string]json.RawMessage
 		if err := decode(fields["git"], &git); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		for key, dst := range map[string]*string{"branchName": &result.BranchName, "commitSha": &result.CommitSHA} {
 			if err := decode(git[key], dst); err != nil {
-				return nil, fmt.Errorf("git.%s: %w", key, err)
+				return nil, "", fmt.Errorf("git.%s: %w", key, err)
 			}
 		}
 	}
 	if err := result.Validate(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return &result, nil
+	return &result, revision, nil
 }
 
 func runPromotionSelection(ctx context.Context, opts Options, id string, f promotionSelectionFlags, request interface{ Validate() error }) error {
@@ -575,13 +708,20 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 	subject := promotionProjectSubject(id)
 	target := promotionTargetProject
 	action := "project apply"
-	question := fmt.Sprintf("Apply selected workflow changes to project %q on %s? Selected workflows absent from the branch are deleted; selected content and dependencies are overwritten.", id, resolution.URL)
+	question := fmt.Sprintf("Apply selected changes to project %q on %s? Selected workflows absent from the branch are deleted; selected content and dependencies are overwritten, and the project's details are taken from the branch.", id, resolution.URL)
+	workflowIDs, folderIDs, selection := promotionSelectionOf(request)
+	if selection && n8n.EmptyPromotionSelection(workflowIDs, folderIDs) {
+		question = fmt.Sprintf("Apply only the details (name, icon, description, telemetry tags) of project %q from its branch on %s? No workflow or folder is selected.", id, resolution.URL)
+	}
 	fullApply := " Every team project's workflows, folders, credentials, tables, variables, and tags may be overwritten or removed."
 	allDestructive := " ALL team-project deletions with everything in them and destructive data-table column changes at continue time are allowed, including unreviewed changes; column values are lost."
 	switch r := request.(type) {
 	case *n8n.PromoteProjectSelectionRequest:
 		action = "project promote"
-		question = fmt.Sprintf("Promote selected workflows of project %q on %s? The remote branch is committed and pushed; selected workflows no longer owned by this project leave the branch.", id, resolution.URL)
+		question = fmt.Sprintf("Promote selected workflows and folders of project %q on %s? The remote branch is committed and pushed; selected workflows no longer owned by this project leave the branch.", id, resolution.URL)
+		if n8n.EmptyPromotionSelection(r.WorkflowIDs, r.FolderIDs) {
+			question = fmt.Sprintf("Promote only the details (name, icon, description, telemetry tags) of project %q on %s? No workflow or folder is selected; the remote branch is committed and pushed.", id, resolution.URL)
+		}
 	case *n8n.ContinueApplyProjectSelectionRequest:
 		action = "project apply-continue"
 		if r.ConfirmDestructiveChanges != nil && *r.ConfirmDestructiveChanges {
@@ -615,6 +755,9 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 			if refused := f.idempotency.refusal(err, resolution); refused != nil {
 				return refused
 			}
+			if older := promotionSelectionTooNew(err, resolution, action, workflowIDs, folderIDs); older != nil {
+				return older
+			}
 			return promotionAPIError(err, resolution, action, subject)
 		}
 		return writePromotionPromoteOutput(opts, resolution, promoted, f.output)
@@ -633,6 +776,11 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 		if refused := f.idempotency.refusal(err, resolution); refused != nil {
 			return refused
 		}
+		if selection {
+			if older := promotionSelectionTooNew(err, resolution, action, workflowIDs, folderIDs); older != nil {
+				return older
+			}
+		}
 		return promotionAPIError(err, resolution, action, subject)
 	}
 	if f.output == outputJSON {
@@ -646,6 +794,188 @@ func runPromotionSelection(ctx context.Context, opts Options, id string, f promo
 	return finishPromotionApplyTarget(opts, id, result, target)
 }
 
+// promotionSelectionOf returns the workflow and folder selection of a project
+// request; ok is false for requests that select nothing by ID.
+func promotionSelectionOf(request any) (workflowIDs, folderIDs []string, ok bool) {
+	switch r := request.(type) {
+	case *n8n.ApplyProjectSelectionRequest:
+		return r.WorkflowIDs, r.FolderIDs, true
+	case *n8n.ContinueApplyProjectSelectionRequest:
+		return r.WorkflowIDs, r.FolderIDs, true
+	case *n8n.PromoteProjectSelectionRequest:
+		return r.WorkflowIDs, r.FolderIDs, true
+	}
+	return nil, nil, false
+}
+
+// promotionSelectionTooNew explains the 400 an instance before n8n 2.49
+// answers to a selection only 2.49 accepts: folder IDs, or no workflow ID.
+// It returns nil for any other error.
+func promotionSelectionTooNew(err error, resolution config.Resolution, action string, workflowIDs, folderIDs []string) error {
+	apiErr, ok := errors.AsType[*n8n.APIError](err)
+	if !ok || apiErr.StatusCode != http.StatusBadRequest {
+		return nil
+	}
+	names := func(field string) bool {
+		return slices.Contains(apiErr.Fields, field) || strings.Contains(apiErr.Message, field)
+	}
+	switch {
+	case len(folderIDs) > 0 && names("folderIds"):
+		return fmt.Errorf("%s rejected the promotion %s (400), so nothing changed: selecting folders with --folder-id needs n8n 2.49 or later; on this instance select the workflows with --workflow-id instead: %w", resolution.URL, action, err)
+	case len(workflowIDs) == 0 && names("workflowIds"):
+		return fmt.Errorf("%s rejected the promotion %s (400), so nothing changed: n8n 2.48 and earlier need at least one --workflow-id; a selection of only the project's details needs n8n 2.49 or later: %w", resolution.URL, action, err)
+	}
+	return nil
+}
+
 func promotionProjectSubject(id string) promotionSubject {
 	return promotionSubject{what: fmt.Sprintf("project %q", id), find: "'n8n project list'"}
+}
+
+type promotionChangeDetailsFlags struct {
+	instance  instanceFlags
+	from      string
+	commitSHA string
+	keys      []string
+	output    string
+}
+
+func newPromotionProjectChangeDetailsCommand(opts Options) *cobra.Command {
+	var f promotionChangeDetailsFlags
+	cmd := &cobra.Command{
+		Use:   "change-details <project-id> <apply|promote>",
+		Short: "Read the content of changed resources in a project preview",
+		Long: "Read the content before and after the change of up to 50 resources of a\n" +
+			"change preview (n8n 2.49 and later), without changing anything. Start with\n" +
+			"'n8n promotion project changes PROJECT_ID DIRECTION --output json >\n" +
+			"changes.json'. --from changes.json takes the preview's commitSha and, without\n" +
+			"--key, every changed resource; it also reports resources whose revision\n" +
+			"differs from the preview, which changed after it. Or pass --commit-sha with\n" +
+			"repeated --key values from the KEY column; a preview without commitSha needs\n" +
+			"--from. The branch side is read at that commit, the instance side now.\n" +
+			"Credential content holds expressions only. Variable values are left out\n" +
+			"unless the API key and the user have variable:list. Apply requires\n" +
+			"promotions:apply, promote promotions:promote.\n\n" +
+			"Text lists key, type, name, change, and data-table column changes; JSON is\n" +
+			"the full response with before and after content and missingKeys, the\n" +
+			"requested keys neither side holds anymore.",
+		Example: "  n8n promotion project change-details PROJECT_ID apply --from changes.json --output json\n" +
+			"  n8n promotion project change-details PROJECT_ID promote --commit-sha SHA --key KEY",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runPromotionChangeDetails(cmd, opts, args[0], args[1], f)
+		},
+	}
+	f.instance.register(cmd)
+	cmd.Flags().StringVar(&f.from, "from", "", "'promotion project changes' JSON file, or - for stdin: supplies commitSha and, without --key, every changed resource (default: none; --commit-sha and --key required)")
+	cmd.Flags().StringVar(&f.commitSHA, "commit-sha", "", "commitSha of the preview, full lowercase 40- or 64-digit hex (default: from --from; required without it)")
+	cmd.Flags().StringArrayVar(&f.keys, "key", nil, "resource key from the preview; repeat for each, at most 50 (default: every changed resource in --from)")
+	cmd.Flags().StringVar(&f.output, "output", outputText, "output format: text or json (JSON is the full response with before and after content)")
+	return cmd
+}
+
+func runPromotionChangeDetails(cmd *cobra.Command, opts Options, projectID, direction string, f promotionChangeDetailsFlags) error {
+	if err := validateOutput(f.output); err != nil {
+		return err
+	}
+	var request n8n.PromotionChangeDetailsRequest
+	var preview *n8n.PromotionChanges
+	switch {
+	case f.from != "" && cmd.Flags().Changed("commit-sha"):
+		return fmt.Errorf("--from and --commit-sha are mutually exclusive: --from already supplies the preview's commitSha")
+	case f.from != "":
+		preview = &n8n.PromotionChanges{}
+		if err := readPromotionChangesDocument(opts, f.from, preview); err != nil {
+			return err
+		}
+		if !preview.ResourceView() {
+			return fmt.Errorf("--from holds a preview from an instance before n8n 2.49, which has no resource keys: run 'n8n promotion project changes %s %s --output json' against n8n 2.49 or later", projectID, direction)
+		}
+		request.CommitSHA = preview.CommitSHA
+		request.Keys = f.keys
+		if len(request.Keys) == 0 {
+			for _, resource := range preview.Changed() {
+				request.Keys = append(request.Keys, resource.Key)
+			}
+			if len(request.Keys) == 0 {
+				return fmt.Errorf("--from lists no changed resources: nothing to read")
+			}
+			if len(request.Keys) > n8n.MaxPromotionChangeDetailKeys {
+				return fmt.Errorf("--from lists %d changed resources, but one request reads at most %d: pass the keys to read with repeated --key", len(request.Keys), n8n.MaxPromotionChangeDetailKeys)
+			}
+		}
+	case cmd.Flags().Changed("commit-sha"):
+		request.CommitSHA = &f.commitSHA
+		request.Keys = f.keys
+	default:
+		return fmt.Errorf("pass --from changes.json (from 'n8n promotion project changes %s %s --output json'), or --commit-sha with --key", projectID, direction)
+	}
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	client, resolution, err := opts.apiClient(f.instance)
+	if err != nil {
+		return err
+	}
+	result, err := client.GetPromotionChangeDetails(cmd.Context(), projectID, direction, request)
+	if err != nil {
+		if n8n.IsNotFound(err) && promotionRouteMissing(err) {
+			return fmt.Errorf("%s does not serve change details (404): they need n8n 2.49 or later; use 'n8n promotion project changes' on older instances: %w", resolution.URL, err)
+		}
+		return promotionAPIError(err, resolution, "project change-details "+direction, promotionProjectSubject(projectID))
+	}
+	var revisions map[string]n8n.PromotionResourceRevision
+	if preview != nil {
+		revisions = make(map[string]n8n.PromotionResourceRevision, len(preview.Resources))
+		for _, resource := range preview.Resources {
+			revisions[resource.Key] = resource.Revision
+		}
+	}
+	for _, detail := range result.Details {
+		if reviewed, ok := revisions[detail.Key]; ok && !sameRevision(reviewed, detail.Revision) {
+			fmt.Fprintf(opts.Streams.Err, "%s changed after the preview: review the changes again before applying or promoting.\n", detail.Key)
+		}
+		if detail.ValueHidden {
+			fmt.Fprintf(opts.Streams.Err, "%s: variable values are hidden; the API key and the user need variable:list to read them.\n", detail.Key)
+		}
+	}
+	if len(result.MissingKeys) > 0 {
+		fmt.Fprintf(opts.Streams.Err, "Neither side holds %s anymore: review the changes again.\n", strings.Join(result.MissingKeys, ", "))
+	}
+	if f.output == outputJSON {
+		return writeJSON(opts.Streams.Out, result)
+	}
+	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "Project:\t%s\nDirection:\t%s\nInstance:\t%s\n", projectID, direction, resolution.URL)
+	fmt.Fprintln(tw, "\nKEY\tTYPE\tNAME\tCHANGE\tDETAIL")
+	for _, detail := range result.Details {
+		var changes []string
+		for _, change := range detail.DataTableChanges {
+			text := promotionChangeText(change)
+			if change.Destructive {
+				text += " (destructive)"
+			}
+			changes = append(changes, text)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", detail.Key, detail.Type, emptyDash(detail.Name()), detail.Change(), emptyDash(strings.Join(changes, "; ")))
+	}
+	return tw.Flush()
+}
+
+func sameRevision(a, b n8n.PromotionResourceRevision) bool {
+	return derefString(a.Before) == derefString(b.Before) && derefString(a.After) == derefString(b.After) &&
+		(a.Before == nil) == (b.Before == nil) && (a.After == nil) == (b.After == nil)
+}
+
+// readPromotionChangesDocument reads saved 'promotion project changes' JSON.
+// Unknown fields are kept: the preview grows with each n8n release.
+func readPromotionChangesDocument(opts Options, path string, dst *n8n.PromotionChanges) error {
+	var raw json.RawMessage
+	if err := readPromotionDocument(opts, path, &raw); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("decode changes JSON: %w", err)
+	}
+	return nil
 }

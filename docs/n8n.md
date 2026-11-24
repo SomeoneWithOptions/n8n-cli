@@ -49,6 +49,7 @@ n8n [flags]
 
 ### SEE ALSO
 
+* [n8n agent](n8n_agent.md)	 - Manage Agents
 * [n8n audit](n8n_audit.md)	 - Generate security audits of an n8n instance
 * [n8n auth](n8n_auth.md)	 - Log in to an n8n instance and inspect stored credentials
 * [n8n community-package](n8n_community-package.md)	 - Manage community node packages

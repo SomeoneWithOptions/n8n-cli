@@ -86,7 +86,31 @@ func TestPromotionProjectChanges(t *testing.T) {
 					t.Errorf("invalid change: %+v", change)
 				}
 			}
+			// n8n 2.49 and later list resources by key instead.
+			for _, resource := range changes.Resources {
+				if resource.Key == "" || resource.Type == "" || resource.Change == "" {
+					t.Errorf("invalid resource: %+v", resource)
+				}
+			}
 			runPromotionSelectionReadCLI(t, instance, []string{"promotion", "project", "changes", projectID, direction})
+			changed := changes.Changed()
+			if !changes.ResourceView() || len(changed) == 0 {
+				return
+			}
+			// Change details are read-only too.
+			keys := []string{changed[0].Key}
+			details, err := client.GetPromotionChangeDetails(context.Background(), projectID, direction, n8n.PromotionChangeDetailsRequest{CommitSHA: changes.CommitSHA, Keys: keys})
+			skipUnlessPromotions(t, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(details.Details)+len(details.MissingKeys) != len(keys) {
+				t.Errorf("details = %+v, want every requested key in details or missingKeys", details)
+			}
+			args := []string{"promotion", "project", "change-details", projectID, direction, "--key", keys[0]}
+			if changes.CommitSHA != nil {
+				runPromotionSelectionReadCLI(t, instance, append(args, "--commit-sha", *changes.CommitSHA))
+			}
 		})
 	}
 }

@@ -22,7 +22,9 @@ bundle variable values and credential expressions, so it is written with
 owner-only file permissions and the destination file is overwritten.
 
 Pass the selection as flags, or the whole request document with --input
-FILE or --input - (capped at 1 MiB, decoded strictly). --out is always a
+FILE or --input - (capped at 1 MiB, decoded strictly; includeArchived, called
+includeArchivedWorkflows before n8n 2.49, is resent under the old name
+when an older instance rejects it). --out is always a
 local path and is never part of --input: a file path streams the archive
 there, while --out - writes the raw gzip bytes to stdout and moves the
 summary to stderr. Exporting reads instance content and changes nothing
@@ -51,7 +53,7 @@ n8n package export [flags]
       --dependency-policy string          workflow and agent dependencies outside the selection: fail, reference-only, or include-in-package (default: server default fail)
       --folder-id stringArray             folder to include with nested folders, repeatable up to 300 (cannot combine with --project-id or --input)
   -h, --help                              help for export
-      --include-archived                  include archived workflows in folder and project exports; listed workflows always export (default: false)
+      --include-archived                  include archived workflows in folder and project exports, and from n8n 2.49 archived Agents in project exports; listed workflows and Agents always export (default: false)
       --include-tags                      bundle workflow tags, else no tag files or references (default: true) (default true)
       --include-variable-values           bundle referenced variable values, else names only (default: true) (default true)
       --input string                      export selection as JSON: a file path, or - for stdin (cannot combine with selection or policy flags; maximum 1 MiB)

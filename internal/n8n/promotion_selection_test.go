@@ -170,7 +170,14 @@ func TestPromotionSelectionValidationBeforeTransport(t *testing.T) {
 			_, e := c.GetPromotionChanges(ctx, "p", "apply", PromotionChangesOptions{Order: "up"})
 			return e
 		},
-		func() error { _, e := c.ApplyProjectSelection(ctx, "p", ApplyProjectSelectionRequest{}); return e },
+		func() error {
+			_, e := c.ApplyProjectSelection(ctx, "p", ApplyProjectSelectionRequest{FolderIDs: []string{"f", "f"}})
+			return e
+		},
+		func() error {
+			_, e := c.ApplyProjectSelection(ctx, "p", ApplyProjectSelectionRequest{FolderIDs: []string{strings.Repeat("f", 37)}})
+			return e
+		},
 		func() error {
 			_, e := c.ApplyProjectSelection(ctx, "p", ApplyProjectSelectionRequest{WorkflowIDs: []string{"w", "w"}})
 			return e
@@ -192,7 +199,14 @@ func TestPromotionSelectionValidationBeforeTransport(t *testing.T) {
 			_, e := c.ContinueApplyProjectSelection(ctx, "p", ContinueApplyProjectSelectionRequest{WorkflowIDs: []string{"w"}})
 			return e
 		},
-		func() error { _, e := c.PromoteProjectSelection(ctx, "p", PromoteProjectSelectionRequest{}); return e },
+		func() error {
+			_, e := c.PromoteProjectSelection(ctx, "p", PromoteProjectSelectionRequest{FolderIDs: []string{" f"}})
+			return e
+		},
+		func() error {
+			_, e := c.ContinueApplyProjectSelection(ctx, "p", ContinueApplyProjectSelectionRequest{FolderIDs: []string{"f", "f"}, ExpectedSource: PromotionExpectedSource{EnvironmentID: "e", BranchName: "main", CommitSHA: strings.Repeat("a", 40)}})
+			return e
+		},
 	}
 	for i, call := range invalid {
 		if err := call(); err == nil {
