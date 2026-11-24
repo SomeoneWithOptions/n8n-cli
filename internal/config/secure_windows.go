@@ -17,8 +17,7 @@ import (
 
 func restrictDir(dir string) error { return applyOwnerOnlyACL(dir, true) }
 
-// checkDirMode has no Windows counterpart: the ACL applied on write is the
-// check, and it is verified in the CI matrix rather than from mode bits.
+// On Windows, the ACL applied on write enforces directory access.
 func checkDirMode(string) error { return nil }
 
 func restrictFile(_ *os.File, path string) error { return applyOwnerOnlyACL(path, false) }

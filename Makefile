@@ -7,8 +7,7 @@
 SHELL := bash
 
 NAME        := n8n
-# Windows will not execute a file without the extension, and CI runs the built
-# binary on all three platforms.
+# Windows needs the executable extension for local builds and smoke tests.
 ifeq ($(OS),Windows_NT)
 EXE         := .exe
 endif

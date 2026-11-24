@@ -26,7 +26,7 @@ make smoke   # version + help + completion sanity
 make docs    # regenerate docs/README.md from Cobra help
 ```
 
-CI (`.github/workflows/ci.yml`) runs same targets on ubuntu/macos/windows plus `install.sh` / `install.ps1` checks. If CI fails, repro with one `make` command above.
+CI (`.github/workflows/ci.yml`) runs same targets on Ubuntu, including cross-builds for all five release targets, plus `install.sh` / `install.ps1` checks. If CI fails, repro with one `make` command above.
 
 ## PR rules
 
@@ -47,7 +47,7 @@ make check
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-Tag triggers `release.yml`: full CI matrix → `make dist` → GitHub Release → install-script self-test.
+Tag triggers `release.yml`: Linux CI checks → `make dist` → GitHub Release → Linux install.sh self-test.
 
 After publish, curate release notes to drop internal chore PRs and keep only user-facing changes:
 ```sh

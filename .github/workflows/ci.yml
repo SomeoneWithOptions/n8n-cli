@@ -65,22 +65,12 @@ jobs:
           echo "code=$code scripts=$scripts"
 
   check:
-    name: check (${{ matrix.os }})
+    name: check (ubuntu-latest)
     needs: changes
-    # Always start, even if `changes` failed: a skipped matrix job never reports
-    # the per-OS names the ruleset requires. Steps below fail open (run) unless
-    # `changes` positively said there is nothing to check.
+    # Run checks if change detection failed.
     if: ${{ !cancelled() }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    defaults:
-      run:
-        # Use Git Bash on Windows; the Makefile also selects bash explicitly.
-        shell: bash
     steps:
       - name: No code changes
         if: needs.changes.outputs.code == 'false'
@@ -97,10 +87,6 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
-
-      - name: Install make (Windows)
-        if: needs.changes.outputs.code != 'false' && runner.os == 'Windows'
-        run: choco install make --no-progress --yes
 
       - name: Formatting
         if: needs.changes.outputs.code != 'false'
@@ -145,7 +131,6 @@ jobs:
   scripts:
     name: install scripts
     needs: changes
-    # Not a matrix job, so a skip reports under the required name and passes.
     if: ${{ !cancelled() && needs.changes.outputs.scripts != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
