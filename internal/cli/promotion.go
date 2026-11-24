@@ -1311,7 +1311,8 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 			"gitConnection:manageProjects for writes; on n8n 2.46 and later link\n" +
 			"projects with 'n8n promotion environment project' instead. For selected\n" +
 			"workflow sync on either generation, start with changes PROJECT_ID\n" +
-			"apply|promote, then apply or promote. Selection commands take a project\n" +
+			"apply|promote (change-details shows the content on n8n 2.49 and\n" +
+			"later), then apply or promote. Selection commands take a project\n" +
 			"ID first and resolve its own environment (2.46) or connection (older)\n" +
 			"before falling back to the instance one.",
 		Example: "  n8n promotion project list CONNECTION_ID\n" +
@@ -1325,6 +1326,7 @@ func newPromotionProjectCommand(opts Options) *cobra.Command {
 		newPromotionProjectAddCommand(opts),
 		newPromotionProjectRemoveCommand(opts),
 		newPromotionProjectChangesCommand(opts),
+		newPromotionProjectChangeDetailsCommand(opts),
 		newPromotionSelectionCommand(opts, "apply", promotionTargetProject),
 		newPromotionSelectionCommand(opts, "apply-continue", promotionTargetProject),
 		newPromotionSelectionCommand(opts, "promote", promotionTargetProject),
@@ -2086,6 +2088,15 @@ func writePromotionBlockedResult(opts Options, resolution config.Resolution, res
 	}
 	tw := tabwriter.NewWriter(opts.Streams.Out, 0, 0, 2, ' ', 0)
 	writePromotionApplyHeader(tw, resolution, result)
+	writePromotionCheck(tw, check)
+	if check.Empty() {
+		fmt.Fprintln(tw, "\nCheck:\tno items reported")
+	}
+	return tw.Flush()
+}
+
+// writePromotionCheck renders the groups of an apply check that list items.
+func writePromotionCheck(tw *tabwriter.Writer, check n8n.PromotionApplyPreflight) {
 	if len(check.MissingProjects) > 0 {
 		fmt.Fprintf(tw, "\nMISSING PROJECTS (%d)\nID\tNAME\n", len(check.MissingProjects))
 		for _, project := range check.MissingProjects {
@@ -2096,10 +2107,6 @@ func writePromotionBlockedResult(opts Options, resolution config.Resolution, res
 	writePromotionIssues(tw, "Access requirements", check.AccessRequirements)
 	writePromotionIssues(tw, "Conflicts", check.Conflicts)
 	writePromotionIssues(tw, "Warnings", check.Warnings)
-	if check.Empty() {
-		fmt.Fprintln(tw, "\nCheck:\tno items reported")
-	}
-	return tw.Flush()
 }
 
 // writePromotionIssues renders one check group as a table: kind, code,
@@ -2268,6 +2275,8 @@ func promotionProjectLinkSubject(id, projectID string) promotionSubject {
 
 func promotionAPIError(err error, resolution config.Resolution, action string, subject promotionSubject) error {
 	switch {
+	case n8n.IsLocked(err):
+		return fmt.Errorf("%s refused the promotion %s (423): another operation holds the environment (or an environment of this provider), so nothing changed; wait for it to finish and retry: %w", resolution.URL, action, err)
 	case n8n.IsConflict(err) && action == "provider delete":
 		return fmt.Errorf("%s rejected the promotion provider delete (409): the provider is still used by an environment (n8n 2.46 and later) or a connection (older), so nothing changed; delete them or move them to another provider with 'n8n promotion environment update' (or 'n8n promotion connection update'), then delete the provider: %w", resolution.URL, err)
 	case n8n.IsConflict(err) && action == "project add":
@@ -2348,32 +2357,34 @@ func promotionMovesContent(action string) bool {
 // to promotions:*; the connection routes (before n8n 2.46) keep
 // gitConnection:*, so both names are the same there.
 var promotionScopeNames = map[string][2]string{
-	"provider list":                {"promotions:list", "gitConnection:list"},
-	"environment list":             {"promotions:list", "gitConnection:list"},
-	"provider create":              {"promotions:create", "gitConnection:create"},
-	"environment create":           {"promotions:create", "gitConnection:create"},
-	"provider get":                 {"promotions:read", "gitConnection:read"},
-	"environment get":              {"promotions:read", "gitConnection:read"},
-	"environment project list":     {"promotions:read", "gitConnection:read"},
-	"environment missing-projects": {"promotions:read", "promotions:read"},
-	"provider update":              {"promotions:update", "gitConnection:update"},
-	"environment update":           {"promotions:update", "gitConnection:update"},
-	"provider delete":              {"promotions:delete", "gitConnection:delete"},
-	"environment delete":           {"promotions:delete", "gitConnection:delete"},
-	"environment connect":          {"promotions:connect", "gitConnection:clone"},
-	"environment disconnect":       {"promotions:connect", "gitConnection:clone"},
-	"environment project add":      {"promotions:manageProjects", "gitConnection:manageProjects"},
-	"environment project remove":   {"promotions:manageProjects", "gitConnection:manageProjects"},
-	"project promote":              {"promotions:promote", "gitConnection:push"},
-	"project changes promote":      {"promotions:promote", "gitConnection:push"},
-	"environment promote":          {"promotions:promote", "gitConnection:push"},
-	"project apply":                {"promotions:apply", "gitConnection:pull"},
-	"project apply-continue":       {"promotions:apply", "gitConnection:pull"},
-	"project changes apply":        {"promotions:apply", "gitConnection:pull"},
-	"environment apply":            {"promotions:apply", "gitConnection:pull"},
-	"environment apply-continue":   {"promotions:apply", "gitConnection:pull"},
-	"provider repositories":        {"promotions:discover", "gitConnection:discover"},
-	"provider branches":            {"promotions:discover", "gitConnection:discover"},
+	"provider list":                  {"promotions:list", "gitConnection:list"},
+	"environment list":               {"promotions:list", "gitConnection:list"},
+	"provider create":                {"promotions:create", "gitConnection:create"},
+	"environment create":             {"promotions:create", "gitConnection:create"},
+	"provider get":                   {"promotions:read", "gitConnection:read"},
+	"environment get":                {"promotions:read", "gitConnection:read"},
+	"environment project list":       {"promotions:read", "gitConnection:read"},
+	"environment missing-projects":   {"promotions:read", "promotions:read"},
+	"provider update":                {"promotions:update", "gitConnection:update"},
+	"environment update":             {"promotions:update", "gitConnection:update"},
+	"provider delete":                {"promotions:delete", "gitConnection:delete"},
+	"environment delete":             {"promotions:delete", "gitConnection:delete"},
+	"environment connect":            {"promotions:connect", "gitConnection:clone"},
+	"environment disconnect":         {"promotions:connect", "gitConnection:clone"},
+	"environment project add":        {"promotions:manageProjects", "gitConnection:manageProjects"},
+	"environment project remove":     {"promotions:manageProjects", "gitConnection:manageProjects"},
+	"project promote":                {"promotions:promote", "gitConnection:push"},
+	"project changes promote":        {"promotions:promote", "gitConnection:push"},
+	"environment promote":            {"promotions:promote", "gitConnection:push"},
+	"project apply":                  {"promotions:apply", "gitConnection:pull"},
+	"project apply-continue":         {"promotions:apply", "gitConnection:pull"},
+	"project changes apply":          {"promotions:apply", "gitConnection:pull"},
+	"project change-details apply":   {"promotions:apply", "promotions:apply"},
+	"project change-details promote": {"promotions:promote", "promotions:promote"},
+	"environment apply":              {"promotions:apply", "gitConnection:pull"},
+	"environment apply-continue":     {"promotions:apply", "gitConnection:pull"},
+	"provider repositories":          {"promotions:discover", "gitConnection:discover"},
+	"provider branches":              {"promotions:discover", "gitConnection:discover"},
 
 	"connection list":     {"gitConnection:list", "gitConnection:list"},
 	"connection create":   {"gitConnection:create", "gitConnection:create"},

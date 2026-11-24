@@ -2235,6 +2235,61 @@
       "phase": 38,
       "command": "n8n rate-limit set",
       "status": "implemented"
+    },
+    {
+      "operationId": "listAgents",
+      "method": "GET",
+      "path": "/agents",
+      "tag": "Agent",
+      "scope": "agent:list",
+      "availability": "upstream-only",
+      "phase": 39,
+      "command": "n8n agent list",
+      "status": "implemented"
+    },
+    {
+      "operationId": "createAgent",
+      "method": "POST",
+      "path": "/agents",
+      "tag": "Agent",
+      "scope": "agent:create",
+      "availability": "upstream-only",
+      "phase": 39,
+      "command": "n8n agent create",
+      "status": "implemented"
+    },
+    {
+      "operationId": "getAgent",
+      "method": "GET",
+      "path": "/agents/{agentId}",
+      "tag": "Agent",
+      "scope": "agent:read",
+      "availability": "upstream-only",
+      "phase": 39,
+      "command": "n8n agent get",
+      "status": "implemented"
+    },
+    {
+      "operationId": "deleteAgent",
+      "method": "DELETE",
+      "path": "/agents/{agentId}",
+      "tag": "Agent",
+      "scope": "agent:delete",
+      "availability": "upstream-only",
+      "phase": 39,
+      "command": "n8n agent delete",
+      "status": "implemented"
+    },
+    {
+      "operationId": "getPromotionChangeDetails",
+      "method": "POST",
+      "path": "/promotions/projects/{projectId}/changes/{direction}/details",
+      "tag": "Promotions",
+      "scope": "promotions:promote,promotions:apply",
+      "availability": "upstream-only",
+      "phase": 40,
+      "command": "n8n promotion project change-details",
+      "status": "implemented"
     }
   ]
 }

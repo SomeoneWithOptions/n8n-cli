@@ -112,7 +112,7 @@ func TestExportPackageOptionalBools(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &sent); err != nil {
 		t.Fatalf("request body is not JSON: %v\n%s", err, raw)
 	}
-	if sent["includeVariableValues"] != false || sent["includeTags"] != true || sent["includeArchivedWorkflows"] != true {
+	if sent["includeVariableValues"] != false || sent["includeTags"] != true || sent["includeArchived"] != true {
 		t.Errorf("bools = %v, want explicit false/true/true", sent)
 	}
 }

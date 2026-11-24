@@ -105,7 +105,13 @@ func TestPromotionSelectionInputAndStrictValidation(t *testing.T) {
 				t.Errorf("file=%+v", got)
 			}
 			before = f.requestCount()
-			for _, body := range []string{`{}`, `null`, tc.body + ` {}`, strings.TrimSuffix(tc.body, "}") + `,"unknown":1}`, strings.Repeat(" ", maxPromotionDocument+1), `{"workflowIds":["w","w"]}`} {
+			invalid := []string{tc.body + ` {}`, strings.TrimSuffix(tc.body, "}") + `,"unknown":1}`, strings.Repeat(" ", maxPromotionDocument+1), `{"workflowIds":["w","w"]}`, `{"folderIds":["f","f"]}`}
+			if tc.args[2] == "apply-continue" || tc.args[1] == "apply-continue" {
+				// Continue needs the reviewed source; apply and promote accept
+				// an empty selection (project details only) from n8n 2.49.
+				invalid = append(invalid, `{}`, `null`)
+			}
+			for _, body := range invalid {
 				f.stdin = body
 				got = f.run(append(tc.args, "--input", "-", "--yes")...)
 				if got.code == ExitSuccess || f.requestCount() != before {
@@ -283,7 +289,7 @@ func TestPromotionSelectionInvalidArgumentsAndScopes(t *testing.T) {
 		{"promotion", "project", "changes", "p", "bad"},
 		{"promotion", "project", "changes", "p", "apply", "--sort", "bad"},
 		{"promotion", "project", "changes", "p", "apply", "--order", "bad"},
-		{"promotion", "project", "apply", "p"},
+		{"promotion", "project", "apply", "p", "--folder-id", "f", "--folder-id", "f"},
 		{"promotion", "project", "apply", "p", "--workflow-id", "w", "--workflow-id", "w"},
 		{"promotion", "project", "apply", "p", "--workflow-id", "w", "--expected-config-id", "cfg"},
 		{"promotion", "project", "apply-continue", "p", "--workflow-id", "w"},

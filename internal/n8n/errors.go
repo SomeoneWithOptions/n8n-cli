@@ -182,6 +182,10 @@ func IsNotFound(err error) bool { return IsStatus(err, http.StatusNotFound) }
 // IsConflict reports a 409.
 func IsConflict(err error) bool { return IsStatus(err, http.StatusConflict) }
 
+// IsLocked reports a 423: another operation holds the resource, e.g. a
+// promotion running on the same environment.
+func IsLocked(err error) bool { return IsStatus(err, http.StatusLocked) }
+
 // IsRateLimited reports a 429.
 func IsRateLimited(err error) bool { return IsStatus(err, http.StatusTooManyRequests) }
 

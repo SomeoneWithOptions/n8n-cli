@@ -17,7 +17,8 @@ list'. Adding and listing need gitConnection:read for reads and
 gitConnection:manageProjects for writes; on n8n 2.46 and later link
 projects with 'n8n promotion environment project' instead. For selected
 workflow sync on either generation, start with changes PROJECT_ID
-apply|promote, then apply or promote. Selection commands take a project
+apply|promote (change-details shows the content on n8n 2.49 and
+later), then apply or promote. Selection commands take a project
 ID first and resolve its own environment (2.46) or connection (older)
 before falling back to the instance one.
 
@@ -43,10 +44,11 @@ n8n promotion project [flags]
 
 * [n8n promotion](n8n_promotion.md)	 - Manage promotion providers, environments, connections, and apply/promote sync
 * [n8n promotion project add](n8n_promotion_project_add.md)	 - Add a project to a promotion connection
-* [n8n promotion project apply](n8n_promotion_project_apply.md)	 - Apply selected workflow changes from a project's branch
+* [n8n promotion project apply](n8n_promotion_project_apply.md)	 - Apply selected workflow and folder changes from a project's branch
 * [n8n promotion project apply-continue](n8n_promotion_project_apply-continue.md)	 - Continue a reviewed project apply after binding setup
-* [n8n promotion project changes](n8n_promotion_project_changes.md)	 - List workflow changes for a project's promotion branch
+* [n8n promotion project change-details](n8n_promotion_project_change-details.md)	 - Read the content of changed resources in a project preview
+* [n8n promotion project changes](n8n_promotion_project_changes.md)	 - Preview the changes of a project's promotion branch
 * [n8n promotion project list](n8n_promotion_project_list.md)	 - List projects linked to a promotion connection
-* [n8n promotion project promote](n8n_promotion_project_promote.md)	 - Promote selected project workflows to the remote branch
+* [n8n promotion project promote](n8n_promotion_project_promote.md)	 - Promote selected project workflows and folders to the remote branch
 * [n8n promotion project remove](n8n_promotion_project_remove.md)	 - Remove a project from a promotion connection
 

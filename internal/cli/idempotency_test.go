@@ -35,6 +35,7 @@ func idempotentCommands() []idempotentCommand {
 		{"execution stop-many", fixed("execution", "stop-many", "--status", "running", "--workflow-id", "wf-1", "--yes"), "/executions/stop", `{"stopped":1}`},
 		{"execution retry", fixed("execution", "retry", "1000"), "/executions/1000/retry", cliExecution},
 		{"workflow create", fixed("workflow", "create", "--name", "Scratch"), "/workflows", `{"id":"wf-1","name":"Scratch","nodes":[],"connections":{}}`},
+		{"agent create", fixed("agent", "create", "--name", "Support"), "/agents", cliAgentSummary},
 		{"row insert", fixed("data-table", "row", "insert", "dt-1", "--set", "age=30"), "/data-tables/dt-1/rows", `{"success":true,"insertedRows":1}`},
 		{"row upsert", fixed("data-table", "row", "upsert", "dt-1", "--where", "email=a@example.com", "--set", "age=31"), "/data-tables/dt-1/rows/upsert", `true`},
 		{"promotion promote", fixed("promotion", "promote", "conn-1", "--commit-message", "sync", "--yes"), "/promotions/connections/conn-1/promote", cliPromotionPromoteBody},
